@@ -185,13 +185,20 @@ basketball-analytics/
    gh pr create --title "feat: <ticket> <description>" --body "..."
    ```
 
-4. **PR must be reviewed and merged via GitHub.**
+4. **Wait for CI to pass, then merge:**
+   ```bash
+   # Check CI status
+   gh pr checks
+
+   # Once CI passes, merge
+   gh pr merge --squash --delete-branch
+   ```
 
 ### Branch Protection
 
 The `main` branch has protection rules:
 - Requires pull request before merging
-- Requires at least 1 approval
+- Requires CI (test) to pass before merging
 - Enforced for administrators (no bypass)
 
 ### Commit Message Format
