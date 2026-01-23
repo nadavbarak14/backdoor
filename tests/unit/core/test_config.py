@@ -8,8 +8,6 @@ defaults work as expected, and the Settings class behaves properly.
 import os
 from unittest.mock import patch
 
-import pytest
-
 from src.core.config import Settings
 
 
@@ -71,10 +69,10 @@ class TestSettingsFromEnvironment:
 
     def test_database_url_from_env(self) -> None:
         """DATABASE_URL should be overridable via environment."""
-        test_url = "postgresql://user:pass@localhost/testdb"
-        with patch.dict(os.environ, {"DATABASE_URL": test_url}):
+        expected_url = "postgresql://user:pass@localhost/testdb"
+        with patch.dict(os.environ, {"DATABASE_URL": expected_url}):
             settings = Settings()
-            assert settings.DATABASE_URL == test_url
+            assert settings.DATABASE_URL == expected_url
 
     def test_api_prefix_from_env(self) -> None:
         """API_PREFIX should be overridable via environment."""
