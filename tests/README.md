@@ -201,8 +201,9 @@ def test_player_creation(test_db):
 
 ## Coverage Requirements
 
-- Minimum coverage: **80%**
-- Coverage is enforced in CI with `--cov-fail-under=80`
+- Target coverage: **80%**
+- Coverage reporting is enabled in CI
+- Note: `--cov-fail-under=80` will be enforced once source code is added
 - Check coverage locally:
 
 ```bash
