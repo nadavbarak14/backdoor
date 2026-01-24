@@ -94,14 +94,10 @@ class TestListPlayers:
         player_service = PlayerService(test_db)
 
         player_service.create_player(
-            PlayerCreate(
-                first_name="LeBron", last_name="James", nationality="USA"
-            )
+            PlayerCreate(first_name="LeBron", last_name="James", nationality="USA")
         )
         player_service.create_player(
-            PlayerCreate(
-                first_name="Luka", last_name="Doncic", nationality="Slovenia"
-            )
+            PlayerCreate(first_name="Luka", last_name="Doncic", nationality="Slovenia")
         )
 
         response = client.get("/api/v1/players?nationality=Slovenia")
