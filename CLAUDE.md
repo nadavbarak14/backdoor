@@ -126,36 +126,122 @@ Usage:
 
 ## Project Structure
 
+The project follows a **component-based layered architecture** where code is organized by technical component (models, schemas, services, api). Each component folder contains all related files for that layer.
+
 ```
 basketball-analytics/
 ├── CLAUDE.md                 # This file - development guidelines
 ├── README.md                 # Project overview and setup
+├── alembic/                  # Database migrations
+│   └── README.md
 ├── docs/
+│   ├── README.md             # Documentation overview
 │   ├── architecture.md       # System architecture
 │   ├── api/                  # API documentation (CRITICAL)
-│   │   ├── README.md
-│   │   ├── endpoints.md      # Full endpoint reference
-│   │   ├── schemas.md        # Request/response schemas
-│   │   └── errors.md         # Error codes reference
+│   │   └── README.md
 │   └── models/               # Data model documentation
 │       └── README.md
 ├── src/
-│   ├── README.md             # Source code overview
-│   ├── core/
+│   ├── README.md             # Source code overview (REQUIRED)
+│   ├── core/                 # Core infrastructure (config, database)
 │   │   └── README.md
-│   ├── models/
+│   ├── models/               # SQLAlchemy ORM models
 │   │   └── README.md
-│   ├── schemas/
+│   ├── schemas/              # Pydantic request/response schemas
 │   │   └── README.md
-│   ├── api/
+│   ├── services/             # Business logic layer
 │   │   └── README.md
-│   ├── services/
-│   │   └── README.md
-│   └── sync/
+│   ├── api/                  # FastAPI routers
+│   │   ├── README.md
+│   │   └── v1/               # API version 1
+│   │       └── README.md
+│   └── sync/                 # External data synchronization
 │       └── README.md
 └── tests/
-    └── README.md
+    ├── README.md
+    ├── unit/                 # Unit tests by component
+    │   └── README.md
+    └── integration/          # Integration tests
+        └── README.md
 ```
+
+## Component-Based Architecture (MANDATORY)
+
+### Every Folder Must Have a README.md
+
+**This is non-negotiable.** Every directory in the project MUST contain a `README.md` that explains:
+
+1. **Purpose** - What this folder is responsible for
+2. **Contents** - Table listing each file and its responsibility
+3. **Usage** - Code examples showing how to use components
+4. **Dependencies** - What this component depends on (internal and external)
+
+### Layer Responsibilities
+
+| Layer | Location | Responsibility |
+|-------|----------|----------------|
+| **Core** | `src/core/` | Configuration, database connection, shared exceptions |
+| **Models** | `src/models/` | SQLAlchemy ORM models (database tables) |
+| **Schemas** | `src/schemas/` | Pydantic models for API validation |
+| **Services** | `src/services/` | Business logic, orchestrates data access |
+| **API** | `src/api/` | FastAPI routers, HTTP request handling |
+| **Sync** | `src/sync/` | External API integrations, data import |
+
+### Component Structure
+
+Each component folder follows this pattern:
+
+```
+src/<component>/
+├── README.md           # Component documentation (REQUIRED)
+├── __init__.py         # Public exports
+├── base.py             # Base classes/utilities (if applicable)
+├── player.py           # Player-related code
+├── team.py             # Team-related code
+├── game.py             # Game-related code
+└── stats.py            # Statistics-related code
+```
+
+### Import Rules & Data Flow
+
+```
+┌─────────┐     ┌──────────┐     ┌──────────┐     ┌────────┐
+│   API   │ ──▶ │ Services │ ──▶ │  Models  │ ──▶ │  Core  │
+│ (routes)│     │ (logic)  │     │  (ORM)   │     │ (db)   │
+└─────────┘     └──────────┘     └──────────┘     └────────┘
+     │               │
+     ▼               ▼
+┌─────────┐     ┌──────────┐
+│ Schemas │     │   Sync   │
+│(validate)│    │(external)│
+└─────────┘     └──────────┘
+```
+
+```python
+# ✅ CORRECT import direction (outer layers import inner layers)
+from src.core.config import settings              # Core is available everywhere
+from src.core.database import get_db              # Core is available everywhere
+from src.models.base import Base, UUIDMixin       # Models available to services
+from src.models.player import Player              # Models available to services
+from src.schemas.player import PlayerCreate       # Schemas available to API
+from src.services.player import PlayerService     # Services available to API
+
+# ❌ WRONG import direction (inner layers should not import outer layers)
+from src.api.v1.players import router             # Models should NOT import from API
+from src.services.player import PlayerService     # Models should NOT import services
+```
+
+### Adding a New Entity (e.g., "Season")
+
+When adding a new entity to the system:
+
+1. **Model** (`src/models/season.py`): Create SQLAlchemy model
+2. **Schema** (`src/schemas/season.py`): Create Pydantic schemas
+3. **Service** (`src/services/season.py`): Create business logic
+4. **Router** (`src/api/v1/seasons.py`): Create API endpoints
+5. **Migration**: Run `uv run alembic revision --autogenerate -m "Add season"`
+6. **Tests**: Add unit and integration tests
+7. **Docs**: Update README.md in each affected folder
 
 ## Git Workflow (MANDATORY)
 
