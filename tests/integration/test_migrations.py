@@ -159,7 +159,9 @@ class TestMigrations:
         # After downgrade to base, application tables should be removed
         # alembic_version may or may not exist depending on implementation
         app_tables = [t for t in tables if not t.startswith("alembic_")]
-        assert len(app_tables) == 0, f"Application tables should be removed: {app_tables}"
+        assert (
+            len(app_tables) == 0
+        ), f"Application tables should be removed: {app_tables}"
 
     def test_upgrade_downgrade_cycle(self, migration_engine):
         """
@@ -219,7 +221,9 @@ class TestMigrations:
             with engine.connect() as conn:
                 result = conn.execute(text("SELECT version_num FROM alembic_version"))
                 versions = result.fetchall()
-                assert isinstance(versions, list), "Should be able to query alembic_version"
+                assert isinstance(
+                    versions, list
+                ), "Should be able to query alembic_version"
         else:
             # If no migrations exist yet, table won't be created
             # This is valid initial state - test passes
