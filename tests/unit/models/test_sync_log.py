@@ -359,9 +359,7 @@ class TestSyncLogRelationships:
 
         assert sync_log.season == sample_season
 
-    def test_sync_log_game_relationship(
-        self, db_session: Session, sample_game: Game
-    ):
+    def test_sync_log_game_relationship(self, db_session: Session, sample_game: Game):
         """SyncLog should have access to its game."""
         sync_log = SyncLog(
             source="winner",
@@ -392,9 +390,7 @@ class TestSyncLogRelationships:
         assert len(sample_season.sync_logs) == 1
         assert sync_log in sample_season.sync_logs
 
-    def test_game_sync_logs_relationship(
-        self, db_session: Session, sample_game: Game
-    ):
+    def test_game_sync_logs_relationship(self, db_session: Session, sample_game: Game):
         """Game should have access to its sync_logs."""
         sync_log = SyncLog(
             source="winner",
@@ -413,9 +409,7 @@ class TestSyncLogRelationships:
 class TestSyncLogCascadeDelete:
     """Tests for SyncLog foreign key behavior on delete."""
 
-    def test_season_delete_sets_null(
-        self, db_session: Session, sample_season: Season
-    ):
+    def test_season_delete_sets_null(self, db_session: Session, sample_season: Season):
         """Deleting a season should set sync_log.season_id to NULL."""
         sync_log = SyncLog(
             source="winner",
@@ -440,9 +434,7 @@ class TestSyncLogCascadeDelete:
         assert remaining_log is not None
         assert remaining_log.season_id is None
 
-    def test_game_delete_sets_null(
-        self, db_session: Session, sample_game: Game
-    ):
+    def test_game_delete_sets_null(self, db_session: Session, sample_game: Game):
         """Deleting a game should set sync_log.game_id to NULL."""
         sync_log = SyncLog(
             source="winner",

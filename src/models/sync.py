@@ -132,7 +132,9 @@ class SyncLog(UUIDMixin, Base):
     game: Mapped["Game | None"] = relationship("Game", back_populates="sync_logs")
 
     __table_args__ = (
-        Index("ix_sync_logs_source_entity_started", "source", "entity_type", "started_at"),
+        Index(
+            "ix_sync_logs_source_entity_started", "source", "entity_type", "started_at"
+        ),
     )
 
     def __repr__(self) -> str:
