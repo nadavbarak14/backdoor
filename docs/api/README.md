@@ -12,6 +12,7 @@ Comprehensive API reference for the Basketball Analytics Platform REST API.
 | [leagues.md](leagues.md) | Leagues API reference |
 | [teams.md](teams.md) | Teams API reference |
 | [players.md](players.md) | Players API reference |
+| [games.md](games.md) | Games, box scores, and play-by-play reference |
 
 ## Quick Start
 
@@ -72,6 +73,7 @@ The API is versioned via URL path:
 | GET | `/api/v1/teams` | List/search teams |
 | GET | `/api/v1/teams/{id}` | Get team by ID |
 | GET | `/api/v1/teams/{id}/roster` | Get team roster |
+| GET | `/api/v1/teams/{id}/games` | Get team game history |
 
 [Full Teams API Reference](teams.md)
 
@@ -81,8 +83,19 @@ The API is versioned via URL path:
 |--------|----------|-------------|
 | GET | `/api/v1/players` | Search players |
 | GET | `/api/v1/players/{id}` | Get player with history |
+| GET | `/api/v1/players/{id}/games` | Get player game log |
 
 [Full Players API Reference](players.md)
+
+### Games
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/games` | List games with filters |
+| GET | `/api/v1/games/{id}` | Get game with box score |
+| GET | `/api/v1/games/{id}/pbp` | Get play-by-play events |
+
+[Full Games API Reference](games.md)
 
 ### Health
 
@@ -187,6 +200,30 @@ curl http://localhost:8000/api/v1/teams/770e8400-e29b-41d4-a716-446655440000/ros
 curl http://localhost:8000/api/v1/players/880e8400-e29b-41d4-a716-446655440000
 ```
 
+### Get Game with Box Score
+
+```bash
+curl http://localhost:8000/api/v1/games/990e8400-e29b-41d4-a716-446655440000
+```
+
+### Get Play-by-Play Events
+
+```bash
+curl "http://localhost:8000/api/v1/games/990e8400-e29b-41d4-a716-446655440000/pbp?period=4"
+```
+
+### Get Player Game Log
+
+```bash
+curl http://localhost:8000/api/v1/players/880e8400-e29b-41d4-a716-446655440000/games
+```
+
+### Get Team Game History
+
+```bash
+curl http://localhost:8000/api/v1/teams/770e8400-e29b-41d4-a716-446655440000/games
+```
+
 ## Using with httpx (Python)
 
 ```python
@@ -216,5 +253,7 @@ roster = response.json()
 
 - [Source Code API Layer](../../src/api/README.md)
 - [API v1 Implementation](../../src/api/v1/README.md)
+- [Game Statistics Reference](../models/game-stats.md)
+- [Play-by-Play Reference](../models/play-by-play.md)
 - [Schemas](../../src/schemas/README.md)
 - [Services](../../src/services/README.md)
