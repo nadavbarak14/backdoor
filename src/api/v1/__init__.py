@@ -7,13 +7,15 @@ Routers:
     - leagues_router: League management endpoints
     - teams_router: Team management endpoints
     - players_router: Player management endpoints
+    - games_router: Game management endpoints
     - router: Combined router with all v1 endpoints
 
 Usage:
     from src.api.v1.router import router
-    from src.api.v1 import leagues_router, teams_router, players_router
+    from src.api.v1 import leagues_router, teams_router, players_router, games_router
 """
 
+from src.api.v1.games import router as games_router
 from src.api.v1.leagues import router as leagues_router
 from src.api.v1.players import router as players_router
 from src.api.v1.router import router
@@ -24,4 +26,5 @@ __all__ = [
     "leagues_router",
     "teams_router",
     "players_router",
+    "games_router",
 ]

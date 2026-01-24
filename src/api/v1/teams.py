@@ -3,12 +3,13 @@ Teams Router Module
 
 FastAPI router for team-related endpoints.
 Provides endpoints for listing teams, retrieving team details,
-and accessing team rosters.
+accessing team rosters, and viewing team game history.
 
 Endpoints:
     GET /teams - List teams with optional filters
     GET /teams/{team_id} - Get a specific team
     GET /teams/{team_id}/roster - Get team roster for a season
+    GET /teams/{team_id}/games - Get team game history
 
 Usage:
     from src.api.v1.teams import router
@@ -24,12 +25,14 @@ from sqlalchemy.orm import Session
 from src.core import get_db
 from src.schemas import (
     TeamFilter,
+    TeamGameHistoryResponse,
+    TeamGameSummaryResponse,
     TeamListResponse,
     TeamResponse,
     TeamRosterPlayerResponse,
     TeamRosterResponse,
 )
-from src.services import SeasonService, TeamService
+from src.services import SeasonService, TeamGameStatsService, TeamService
 
 router = APIRouter(prefix="/teams", tags=["Teams"])
 
@@ -240,3 +243,102 @@ def get_team_roster(
         season_name=season_name,
         players=players,
     )
+
+
+@router.get(
+    "/{team_id}/games",
+    response_model=TeamGameHistoryResponse,
+    summary="Get Team Game History",
+    description="Retrieve a team's game history with results.",
+    responses={
+        404: {"description": "Team not found"},
+    },
+)
+def get_team_games(
+    team_id: UUID,
+    season_id: UUID | None = Query(
+        default=None,
+        description="Filter by season ID",
+    ),
+    skip: int = Query(
+        default=0,
+        ge=0,
+        description="Number of records to skip for pagination",
+    ),
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=500,
+        description="Maximum number of records to return",
+    ),
+    db: Session = Depends(get_db),
+) -> TeamGameHistoryResponse:
+    """
+    Get a team's game history with results.
+
+    Args:
+        team_id: UUID of the team.
+        season_id: Optional filter by season.
+        skip: Number of records to skip (for pagination).
+        limit: Maximum number of records to return.
+        db: Database session (injected).
+
+    Returns:
+        TeamGameHistoryResponse with list of game summaries.
+
+    Raises:
+        HTTPException: 404 if team not found.
+
+    Example:
+        >>> response = client.get(f"/api/v1/teams/{team_id}/games")
+        >>> data = response.json()
+        >>> for game in data["items"]:
+        ...     print(f"{game['result']} vs {game['opponent_team_name']}")
+    """
+    team_service = TeamService(db)
+    team = team_service.get_by_id(team_id)
+
+    if team is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Team with id {team_id} not found",
+        )
+
+    stats_service = TeamGameStatsService(db)
+    game_history, total = stats_service.get_team_game_history(
+        team_id=team_id,
+        season_id=season_id,
+        skip=skip,
+        limit=limit,
+    )
+
+    items = []
+    for stat in game_history:
+        game = stat.game
+        # Determine opponent
+        is_home = stat.is_home
+        if is_home:
+            opponent_team_id = game.away_team_id
+            opponent_team_name = game.away_team.name
+            team_score = game.home_score or 0
+            opponent_score = game.away_score or 0
+        else:
+            opponent_team_id = game.home_team_id
+            opponent_team_name = game.home_team.name
+            team_score = game.away_score or 0
+            opponent_score = game.home_score or 0
+
+        items.append(
+            TeamGameSummaryResponse(
+                game_id=game.id,
+                game_date=game.game_date,
+                opponent_team_id=opponent_team_id,
+                opponent_team_name=opponent_team_name,
+                is_home=is_home,
+                team_score=team_score,
+                opponent_score=opponent_score,
+                venue=game.venue,
+            )
+        )
+
+    return TeamGameHistoryResponse(items=items, total=total)
