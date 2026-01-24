@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This directory contains the business logic layer for the Basketball Analytics Platform. Services sit between the API layer and data models, encapsulating all business rules, validation, and orchestration logic.
+Business logic layer for the Basketball Analytics Platform. Services encapsulate all business rules, validation, and data orchestration. They sit between the API layer and data models, providing a clean separation of concerns.
 
 ## Contents
 
@@ -10,159 +10,287 @@ This directory contains the business logic layer for the Basketball Analytics Pl
 |------|-------------|
 | `__init__.py` | Public exports for all services |
 | `base.py` | Generic BaseService with reusable CRUD operations |
-| `league.py` | LeagueService and SeasonService for league/season operations |
-| `team.py` | TeamService for team operations including roster management |
-| `player.py` | PlayerService for player operations including team history |
-| `game.py` | Game business logic (future) |
-| `stats.py` | Statistics calculations (future) |
+| `league.py` | LeagueService and SeasonService |
+| `team.py` | TeamService with roster and filtering |
+| `player.py` | PlayerService with team history and filtering |
 
-## Service Classes
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    API Layer                             │
+│   (HTTP handling, request/response, authentication)      │
+└───────────────────────┬─────────────────────────────────┘
+                        │ Depends(get_db) → Session
+                        ▼
+┌─────────────────────────────────────────────────────────┐
+│                  Service Layer                           │
+│   (Business logic, validation, data orchestration)       │
+│                                                          │
+│  ┌───────────────┐  ┌───────────────┐  ┌──────────────┐ │
+│  │ LeagueService │  │  TeamService  │  │PlayerService │ │
+│  └───────────────┘  └───────────────┘  └──────────────┘ │
+│  ┌───────────────┐                                       │
+│  │ SeasonService │  ... extends BaseService[T] ...      │
+│  └───────────────┘                                       │
+└───────────────────────┬─────────────────────────────────┘
+                        │ SQLAlchemy ORM
+                        ▼
+┌─────────────────────────────────────────────────────────┐
+│                   Data Layer                             │
+│         (SQLAlchemy models, database)                    │
+└─────────────────────────────────────────────────────────┘
+```
+
+## Service Reference
 
 ### BaseService[ModelT]
 
-Generic base class providing common CRUD operations:
+Generic base class providing common CRUD operations for any model.
 
 ```python
 from src.services.base import BaseService
-from src.models.player import Player
+from src.models import Player
 
 class PlayerService(BaseService[Player]):
     def __init__(self, db: Session):
         super().__init__(db, Player)
 ```
 
-**Methods:**
-- `get_by_id(id: UUID) -> ModelT | None` - Get entity by UUID
-- `get_all(skip, limit) -> list[ModelT]` - Paginated list
-- `count() -> int` - Total count
-- `create(data: dict) -> ModelT` - Create new entity
-- `update(id, data: dict) -> ModelT | None` - Update entity
-- `delete(id: UUID) -> bool` - Delete entity
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `get_by_id` | `(id: UUID) -> ModelT \| None` | Get entity by primary key |
+| `get_all` | `(skip=0, limit=100) -> list[ModelT]` | Paginated list of all entities |
+| `count` | `() -> int` | Total count of entities |
+| `create` | `(data: dict) -> ModelT` | Create new entity from dict |
+| `update` | `(id: UUID, data: dict) -> ModelT \| None` | Update entity, returns None if not found |
+| `delete` | `(id: UUID) -> bool` | Delete entity, returns success status |
 
 ### LeagueService
 
-Extends BaseService with league-specific methods:
+Extends BaseService with league-specific operations.
 
-```python
-from src.services import LeagueService
-
-service = LeagueService(db)
-nba = service.get_by_code("NBA")
-league, count = service.get_with_season_count(league_id)
-leagues_with_counts = service.get_all_with_season_counts()
-```
-
-**Methods:**
-- `get_by_code(code: str)` - Find league by unique code
-- `get_with_season_count(league_id)` - Returns (league, season_count)
-- `get_all_with_season_counts()` - All leagues with counts
-- `create_league(data: LeagueCreate)` - Create from schema
-- `update_league(league_id, data: LeagueUpdate)` - Update from schema
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `get_by_code` | `(code: str) -> League \| None` | Find league by unique code (e.g., "NBA") |
+| `get_with_season_count` | `(league_id: UUID) -> tuple[League \| None, int]` | Get league with season count |
+| `get_all_with_season_counts` | `(skip=0, limit=100) -> list[tuple[League, int]]` | All leagues with counts |
+| `create_league` | `(data: LeagueCreate) -> League` | Create from Pydantic schema |
+| `update_league` | `(league_id: UUID, data: LeagueUpdate) -> League \| None` | Update from schema |
 
 ### SeasonService
 
-Extends BaseService with season-specific methods:
+Extends BaseService with season-specific operations.
 
-```python
-from src.services import SeasonService
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `get_by_league` | `(league_id: UUID, skip=0, limit=100) -> list[Season]` | All seasons for a league |
+| `get_current` | `(league_id: UUID \| None = None) -> Season \| None` | Get current active season |
+| `create_season` | `(data: SeasonCreate) -> Season` | Create with is_current handling |
+| `set_current` | `(season_id: UUID) -> Season \| None` | Mark season as current (unsets others) |
+| `update_season` | `(season_id: UUID, data: SeasonUpdate) -> Season \| None` | Update from schema |
 
-service = SeasonService(db)
-seasons = service.get_by_league(league_id)
-current = service.get_current(league_id)
-service.set_current(season_id)  # Unsets other seasons in league
-```
-
-**Methods:**
-- `get_by_league(league_id, skip, limit)` - Seasons for a league
-- `get_current(league_id: UUID | None)` - Current active season
-- `create_season(data: SeasonCreate)` - Create with is_current handling
-- `set_current(season_id)` - Mark as current (unsets others)
-- `update_season(season_id, data: SeasonUpdate)` - Update from schema
+**Note:** When creating or updating a season with `is_current=True`, other seasons in the same league are automatically set to `is_current=False`.
 
 ### TeamService
 
-Extends BaseService with team-specific methods:
+Extends BaseService with team-specific operations.
 
-```python
-from src.services import TeamService
-from src.schemas.team import TeamFilter
-
-service = TeamService(db)
-teams, total = service.get_filtered(TeamFilter(country="USA"), skip=0, limit=20)
-team = service.get_by_external_id("nba", "1610612747")
-roster = service.get_roster(team_id, season_id)
-```
-
-**Methods:**
-- `get_filtered(filter_params, skip, limit)` - Returns (teams, total)
-- `get_by_external_id(source, external_id)` - Find by external ID
-- `get_roster(team_id, season_id)` - PlayerTeamHistory with player loaded
-- `create_team(data: TeamCreate)` - Create from schema
-- `update_team(team_id, data: TeamUpdate)` - Update from schema
-- `add_to_season(team_id, season_id)` - Create TeamSeason entry
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `get_filtered` | `(filter_params: TeamFilter, skip=0, limit=100) -> tuple[list[Team], int]` | Filtered teams with total |
+| `get_by_external_id` | `(source: str, external_id: str) -> Team \| None` | Find by external provider ID |
+| `get_roster` | `(team_id: UUID, season_id: UUID) -> list[PlayerTeamHistory]` | Team roster for season |
+| `create_team` | `(data: TeamCreate) -> Team` | Create from Pydantic schema |
+| `update_team` | `(team_id: UUID, data: TeamUpdate) -> Team \| None` | Update from schema |
+| `add_to_season` | `(team_id: UUID, season_id: UUID) -> TeamSeason \| None` | Associate team with season |
 
 ### PlayerService
 
-Extends BaseService with player-specific methods:
+Extends BaseService with player-specific operations.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `get_with_history` | `(player_id: UUID) -> Player \| None` | Player with team_histories eager loaded |
+| `get_filtered` | `(filter_params: PlayerFilter, skip=0, limit=100) -> tuple[list[Player], int]` | Filtered players with total |
+| `get_by_external_id` | `(source: str, external_id: str) -> Player \| None` | Find by external provider ID |
+| `create_player` | `(data: PlayerCreate) -> Player` | Create from Pydantic schema |
+| `update_player` | `(player_id: UUID, data: PlayerUpdate) -> Player \| None` | Update from schema |
+| `add_to_team` | `(player_id, team_id, season_id, jersey_number?, position?) -> PlayerTeamHistory \| None` | Add player to team roster |
+| `get_team_history` | `(player_id: UUID) -> list[PlayerTeamHistory]` | All team history entries |
+
+## Filter Parameters
+
+### TeamFilter
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `league_id` | UUID \| None | Filter by teams in seasons of this league |
+| `season_id` | UUID \| None | Filter by teams in this specific season |
+| `country` | str \| None | Exact match on team country |
+| `search` | str \| None | Case-insensitive search in name or short_name |
+
+**Search behavior:** Matches if search term appears anywhere in `name` OR `short_name`.
 
 ```python
-from src.services import PlayerService
-from src.schemas.player import PlayerFilter
-
-service = PlayerService(db)
-player = service.get_with_history(player_id)  # Eager loads team_histories
-players, total = service.get_filtered(PlayerFilter(position="PG"), skip=0, limit=20)
-player = service.get_by_external_id("nba", "2544")
-history = service.get_team_history(player_id)
+# Example: Find all USA teams with "Lakers" in name
+filters = TeamFilter(country="USA", search="Lakers")
+teams, total = team_service.get_filtered(filters)
 ```
 
-**Methods:**
-- `get_with_history(player_id)` - Player with team_histories loaded
-- `get_filtered(filter_params, skip, limit)` - Returns (players, total)
-- `get_by_external_id(source, external_id)` - Find by external ID
-- `create_player(data: PlayerCreate)` - Create from schema
-- `update_player(player_id, data: PlayerUpdate)` - Update from schema
-- `add_to_team(player_id, team_id, season_id, jersey_number, position)` - Create history
-- `get_team_history(player_id)` - All PlayerTeamHistory entries
+### PlayerFilter
 
-## Usage in API Endpoints
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `team_id` | UUID \| None | Filter by players on this team (any season) |
+| `season_id` | UUID \| None | Filter by players active in this season |
+| `position` | str \| None | Exact match on player position |
+| `nationality` | str \| None | Exact match on player nationality |
+| `search` | str \| None | Case-insensitive search in first_name or last_name |
+
+**Search behavior:** Matches if search term appears anywhere in `first_name` OR `last_name`.
 
 ```python
-from fastapi import Depends, HTTPException
+# Example: Find all point guards from USA
+filters = PlayerFilter(position="PG", nationality="USA")
+players, total = player_service.get_filtered(filters)
+
+# Example: Search for players with "curry" in name
+filters = PlayerFilter(search="curry")
+players, total = player_service.get_filtered(filters)
+```
+
+## Usage Examples
+
+### Basic CRUD Operations
+
+```python
+from src.services import LeagueService
+from src.schemas import LeagueCreate, LeagueUpdate
+
+service = LeagueService(db)
+
+# Create
+league = service.create_league(
+    LeagueCreate(name="NBA", code="NBA", country="USA")
+)
+
+# Read
+league = service.get_by_id(league_id)
+all_leagues = service.get_all(skip=0, limit=10)
+total = service.count()
+
+# Update
+updated = service.update_league(
+    league_id,
+    LeagueUpdate(name="National Basketball Association")
+)
+
+# Delete
+success = service.delete(league_id)
+```
+
+### Using in API Endpoints
+
+```python
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from src.core.database import get_db
-from src.services import LeagueService, PlayerService
-from src.schemas.league import LeagueCreate, LeagueResponse
+from src.core import get_db
+from src.services import PlayerService
+from src.schemas import PlayerFilter, PlayerListResponse, PlayerResponse
 
-@router.post("/leagues", response_model=LeagueResponse)
-def create_league(
-    data: LeagueCreate,
-    db: Session = Depends(get_db)
-):
-    service = LeagueService(db)
-    league = service.create_league(data)
-    return LeagueResponse.model_validate(league)
+router = APIRouter()
 
-@router.get("/players/{player_id}")
-def get_player(
-    player_id: UUID,
+@router.get("/players", response_model=PlayerListResponse)
+def list_players(
+    position: str | None = None,
+    search: str | None = None,
+    skip: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db)
 ):
     service = PlayerService(db)
+    filters = PlayerFilter(position=position, search=search)
+    players, total = service.get_filtered(filters, skip=skip, limit=limit)
+
+    return PlayerListResponse(
+        items=[PlayerResponse.model_validate(p) for p in players],
+        total=total
+    )
+
+@router.get("/players/{player_id}", response_model=PlayerResponse)
+def get_player(player_id: UUID, db: Session = Depends(get_db)):
+    service = PlayerService(db)
     player = service.get_by_id(player_id)
-    if not player:
-        raise HTTPException(404, "Player not found")
-    return player
+
+    if player is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Player with id {player_id} not found"
+        )
+
+    return PlayerResponse.model_validate(player)
 ```
 
-## Principles
+### Working with External IDs
+
+```python
+from src.services import PlayerService, TeamService
+
+player_service = PlayerService(db)
+team_service = TeamService(db)
+
+# Find entities by external provider ID
+lebron = player_service.get_by_external_id("nba", "2544")
+lakers = team_service.get_by_external_id("nba", "1610612747")
+
+# Useful for data synchronization from external APIs
+if lebron is None:
+    lebron = player_service.create_player(
+        PlayerCreate(
+            first_name="LeBron",
+            last_name="James",
+            external_ids={"nba": "2544"}
+        )
+    )
+```
+
+### Managing Team Rosters
+
+```python
+from src.services import PlayerService, TeamService
+
+player_service = PlayerService(db)
+team_service = TeamService(db)
+
+# Add player to team for a season
+player_service.add_to_team(
+    player_id=lebron.id,
+    team_id=lakers.id,
+    season_id=current_season.id,
+    jersey_number=23,
+    position="SF"
+)
+
+# Get team roster
+roster = team_service.get_roster(lakers.id, current_season.id)
+for entry in roster:
+    print(f"#{entry.jersey_number} {entry.player.full_name} ({entry.position})")
+
+# Get player's team history
+history = player_service.get_team_history(lebron.id)
+for entry in history:
+    print(f"{entry.season.name}: {entry.team.name}")
+```
+
+## Design Principles
 
 1. **Single Responsibility**: Each service handles one entity/domain
-2. **No HTTP Logic**: Services don't know about HTTP (no status codes, headers)
-3. **Transaction Boundaries**: Services manage their own transactions
+2. **No HTTP Logic**: Services don't know about HTTP (no status codes, headers, etc.)
+3. **Transaction Boundaries**: Services manage their own database transactions
 4. **Testability**: Services can be tested with mock database sessions
-5. **Generic Base**: Common CRUD operations in BaseService
-6. **Type Safety**: Full type hints with generics
+5. **Generic Base**: Common CRUD operations in BaseService reduce duplication
+6. **Type Safety**: Full type hints with generics for IDE support
 
 ## Dependencies
 
@@ -171,6 +299,6 @@ def get_player(
 
 ## Related Documentation
 
-- [Models](../models/README.md)
-- [Schemas](../schemas/README.md)
-- [API Layer](../api/README.md)
+- [Models](../models/README.md) - Database models
+- [Schemas](../schemas/README.md) - Request/response validation
+- [API Layer](../api/README.md) - HTTP endpoint definitions
