@@ -13,6 +13,9 @@ Pydantic models for API request validation and response serialization. Schemas d
 | `league.py` | League and Season request/response schemas |
 | `team.py` | Team request/response schemas |
 | `player.py` | Player request/response schemas |
+| `game.py` | Game, GameStatus, EventType, and BoxScore schemas |
+| `stats.py` | PlayerGameStats and TeamGameStats schemas with computed fields |
+| `play_by_play.py` | Play-by-play event schemas |
 
 ## Naming Conventions
 
@@ -70,6 +73,40 @@ Pydantic models for API request validation and response serialization. Schemas d
 | `PlayerTeamHistoryResponse` | Team history entry | team_id, team_name, season_id, season_name, jersey_number?, position? |
 | `PlayerWithHistoryResponse` | Player + history | all PlayerResponse fields + team_history |
 
+### Game Schemas (`game.py`)
+
+| Schema | Purpose | Fields |
+|--------|---------|--------|
+| `GameStatus` | Enum | SCHEDULED, LIVE, FINAL, POSTPONED, CANCELLED |
+| `EventType` | Enum | SHOT, ASSIST, REBOUND, TURNOVER, STEAL, BLOCK, FOUL, FREE_THROW, SUBSTITUTION, TIMEOUT, JUMP_BALL, VIOLATION, PERIOD_START, PERIOD_END |
+| `GameCreate` | Create game | season_id, home_team_id, away_team_id, game_date, status?, venue?, external_ids? |
+| `GameUpdate` | Update game | game_date?, status?, home_score?, away_score?, venue?, attendance?, external_ids? |
+| `GameResponse` | Game output | id, season_id, team_ids, team_names, game_date, status, scores, venue, attendance, external_ids, timestamps |
+| `GameListResponse` | Game list | items, total |
+| `GameFilter` | Filter games | season_id?, team_id?, start_date?, end_date?, status? |
+| `TeamBoxScoreResponse` | Team box score | team_id, team_name, is_home, all stats with computed percentages |
+| `PlayerBoxScoreResponse` | Player box score | player_id, player_name, team_id, is_starter, minutes_display, all stats with computed percentages |
+| `GameWithBoxScoreResponse` | Game + box scores | all GameResponse fields + home/away team stats + home/away players |
+
+### Stats Schemas (`stats.py`)
+
+| Schema | Purpose | Fields |
+|--------|---------|--------|
+| `PlayerGameStatsResponse` | Per-game player stats | id, game_id, player_id, player_name, team_id, all box score fields + computed percentages + minutes_display |
+| `PlayerGameStatsWithGameResponse` | Player stats + game context | all PlayerGameStatsResponse fields + game_date, opponent info, is_home, scores, computed result (W/L) |
+| `PlayerGameLogResponse` | Player game log | items, total |
+| `TeamGameStatsResponse` | Per-game team stats | game_id, team_id, team_name, is_home, all stats + team-only stats + computed percentages |
+| `TeamGameSummaryResponse` | Team game summary | game_id, game_date, opponent info, is_home, scores, venue, computed result (W/L) |
+| `TeamGameHistoryResponse` | Team game history | items, total |
+
+### Play-by-Play Schemas (`play_by_play.py`)
+
+| Schema | Purpose | Fields |
+|--------|---------|--------|
+| `PlayByPlayEventResponse` | Single PBP event | id, game_id, event_number, period, clock, event_type, event_subtype, player info, team info, success, coords, attributes, description, related_event_ids |
+| `PlayByPlayResponse` | Game PBP data | game_id, events, total_events |
+| `PlayByPlayFilter` | Filter PBP events | period?, event_type?, player_id?, team_id? |
+
 ## Validation Rules
 
 ### String Length Constraints
@@ -90,12 +127,18 @@ Pydantic models for API request validation and response serialization. Schemas d
 | PlayerCreate | position | - | 20 |
 | PlayerFilter | search | 1 | - |
 | TeamFilter | search | 1 | - |
+| GameCreate | venue | - | 200 |
+| GameUpdate | venue | - | 200 |
 
 ### Numeric Constraints
 
 | Schema | Field | Min | Max | Description |
 |--------|-------|-----|-----|-------------|
 | PlayerCreate | height_cm | 100 | 250 | Height in centimeters |
+| GameUpdate | home_score | 0 | - | Non-negative score |
+| GameUpdate | away_score | 0 | - | Non-negative score |
+| GameUpdate | attendance | 0 | - | Non-negative attendance |
+| PlayByPlayFilter | period | 1 | - | Period number (1+ for OT) |
 
 ### Default Values
 
@@ -107,6 +150,24 @@ Pydantic models for API request validation and response serialization. Schemas d
 | PlayerResponse | external_ids | `{}` |
 | TeamResponse | external_ids | `{}` |
 | LeagueResponse | season_count | `0` |
+| GameCreate | status | `GameStatus.SCHEDULED` |
+| GameCreate | external_ids | `None` |
+| GameResponse | external_ids | `{}` |
+
+### Computed Fields
+
+Stats schemas include computed fields that are automatically calculated:
+
+| Schema | Field | Computation |
+|--------|-------|-------------|
+| PlayerGameStatsResponse | minutes_display | `f"{mins}:{secs:02d}"` from minutes_played (seconds) |
+| PlayerGameStatsResponse | field_goal_pct | `(made / attempted) * 100` (0.0 if no attempts) |
+| PlayerGameStatsResponse | two_point_pct | 2-point percentage |
+| PlayerGameStatsResponse | three_point_pct | 3-point percentage |
+| PlayerGameStatsResponse | free_throw_pct | Free throw percentage |
+| PlayerGameStatsWithGameResponse | result | `"W"` if team_score > opponent_score else `"L"` |
+| TeamGameStatsResponse | field_goal_pct, two_point_pct, three_point_pct, free_throw_pct | Same as player |
+| TeamGameSummaryResponse | result | Same as PlayerGameStatsWithGameResponse |
 
 ## Usage Examples
 
