@@ -119,6 +119,12 @@ class Team(UUIDMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    player_season_stats: Mapped[list["PlayerSeasonStats"]] = relationship(
+        "PlayerSeasonStats",
+        back_populates="team",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def __repr__(self) -> str:
         """Return string representation of Team."""
@@ -175,3 +181,4 @@ if TYPE_CHECKING:
     from src.models.league import Season
     from src.models.play_by_play import PlayByPlayEvent
     from src.models.player import PlayerTeamHistory
+    from src.models.stats import PlayerSeasonStats

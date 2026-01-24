@@ -151,6 +151,12 @@ class Game(UUIDMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    sync_logs: Mapped[list["SyncLog"]] = relationship(
+        "SyncLog",
+        back_populates="game",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     __table_args__ = (Index("ix_games_game_date", "game_date"),)
 
@@ -416,4 +422,5 @@ if TYPE_CHECKING:
     from src.models.league import Season
     from src.models.play_by_play import PlayByPlayEvent
     from src.models.player import Player
+    from src.models.sync import SyncLog
     from src.models.team import Team

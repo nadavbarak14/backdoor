@@ -20,6 +20,8 @@ Entity models:
     - TeamGameStats: Team-level aggregated statistics
     - PlayByPlayEvent: Individual play-by-play event
     - PlayByPlayEventLink: Association linking related events
+    - PlayerSeasonStats: Pre-computed aggregated player season statistics
+    - SyncLog: Tracks data synchronization operations
 
 Usage:
     from src.models import Base, UUIDMixin, TimestampMixin
@@ -35,6 +37,8 @@ from src.models.game import Game, PlayerGameStats, TeamGameStats
 from src.models.league import League, Season
 from src.models.play_by_play import PlayByPlayEvent, PlayByPlayEventLink
 from src.models.player import Player, PlayerTeamHistory
+from src.models.stats import PlayerSeasonStats
+from src.models.sync import SyncLog
 from src.models.team import Team, TeamSeason
 
 __all__ = [
@@ -58,4 +62,8 @@ __all__ = [
     # Play-by-play models
     "PlayByPlayEvent",
     "PlayByPlayEventLink",
+    # Aggregated stats models
+    "PlayerSeasonStats",
+    # Sync models
+    "SyncLog",
 ]
