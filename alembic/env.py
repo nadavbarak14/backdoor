@@ -32,8 +32,9 @@ from src.models.base import Base
 
 # Import all models here so they are registered with Base.metadata
 # This is necessary for autogenerate to detect model changes
-# Example: from src.models.player import Player
-# As new models are added, import them here
+from src.models.league import League, Season  # noqa: F401
+from src.models.player import Player, PlayerTeamHistory  # noqa: F401
+from src.models.team import Team, TeamSeason  # noqa: F401
 
 # Alembic Config object for access to .ini file values
 config = context.config

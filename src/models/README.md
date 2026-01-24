@@ -8,8 +8,11 @@ Database models and mixins for the Basketball Analytics Platform. This module pr
 
 | File | Description |
 |------|-------------|
-| `__init__.py` | Package exports for Base and mixins |
+| `__init__.py` | Package exports for Base, mixins, and all entity models |
 | `base.py` | DeclarativeBase, UUIDMixin, and TimestampMixin |
+| `league.py` | League and Season models |
+| `team.py` | Team and TeamSeason models |
+| `player.py` | Player and PlayerTeamHistory models |
 
 ## Usage
 
