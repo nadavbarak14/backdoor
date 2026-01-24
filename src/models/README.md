@@ -15,6 +15,8 @@ SQLAlchemy ORM models for the Basketball Analytics Platform database. This modul
 | `player.py` | Player and PlayerTeamHistory models |
 | `game.py` | Game, PlayerGameStats, and TeamGameStats models |
 | `play_by_play.py` | PlayByPlayEvent and PlayByPlayEventLink models |
+| `stats.py` | PlayerSeasonStats model for pre-computed season aggregates |
+| `sync.py` | SyncLog model for tracking data synchronization operations |
 
 ## Entity Relationship Diagram
 
@@ -321,6 +323,91 @@ Event 2: ASSIST (player=Wilbekin) → links to [1]
 Event 3: FOUL (shooting, player=Opponent) → links to [1]
 Event 4: FREE_THROW (made, player=Lessort) → links to [1, 3]
 ```
+
+### PlayerSeasonStats
+
+Pre-computed aggregated player statistics for a season (per team).
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK, auto-generated | Unique identifier |
+| `player_id` | UUID | FK → players.id, NOT NULL | Player reference |
+| `team_id` | UUID | FK → teams.id, NOT NULL | Team reference |
+| `season_id` | UUID | FK → seasons.id, NOT NULL | Season reference |
+| `games_played` | Integer | NOT NULL, default=0 | Number of games played |
+| `games_started` | Integer | NOT NULL, default=0 | Number of games started |
+| `total_minutes` | Integer | NOT NULL, default=0 | Total playing time in seconds |
+| `total_points` | Integer | NOT NULL, default=0 | Total points scored |
+| `total_field_goals_made` | Integer | NOT NULL, default=0 | Total FG made |
+| `total_field_goals_attempted` | Integer | NOT NULL, default=0 | Total FG attempted |
+| `total_two_pointers_made` | Integer | NOT NULL, default=0 | Total 2PT made |
+| `total_two_pointers_attempted` | Integer | NOT NULL, default=0 | Total 2PT attempted |
+| `total_three_pointers_made` | Integer | NOT NULL, default=0 | Total 3PT made |
+| `total_three_pointers_attempted` | Integer | NOT NULL, default=0 | Total 3PT attempted |
+| `total_free_throws_made` | Integer | NOT NULL, default=0 | Total FT made |
+| `total_free_throws_attempted` | Integer | NOT NULL, default=0 | Total FT attempted |
+| `total_offensive_rebounds` | Integer | NOT NULL, default=0 | Total offensive rebounds |
+| `total_defensive_rebounds` | Integer | NOT NULL, default=0 | Total defensive rebounds |
+| `total_rebounds` | Integer | NOT NULL, default=0 | Total rebounds |
+| `total_assists` | Integer | NOT NULL, default=0 | Total assists |
+| `total_turnovers` | Integer | NOT NULL, default=0 | Total turnovers |
+| `total_steals` | Integer | NOT NULL, default=0 | Total steals |
+| `total_blocks` | Integer | NOT NULL, default=0 | Total blocks |
+| `total_personal_fouls` | Integer | NOT NULL, default=0 | Total personal fouls |
+| `total_plus_minus` | Integer | NOT NULL, default=0 | Cumulative plus/minus |
+| `avg_minutes` | Float | NOT NULL, default=0.0 | Average minutes per game (seconds) |
+| `avg_points` | Float | NOT NULL, default=0.0 | Average points per game |
+| `avg_rebounds` | Float | NOT NULL, default=0.0 | Average rebounds per game |
+| `avg_assists` | Float | NOT NULL, default=0.0 | Average assists per game |
+| `avg_turnovers` | Float | NOT NULL, default=0.0 | Average turnovers per game |
+| `avg_steals` | Float | NOT NULL, default=0.0 | Average steals per game |
+| `avg_blocks` | Float | NOT NULL, default=0.0 | Average blocks per game |
+| `field_goal_pct` | Float | NULL | Field goal percentage (0.0-1.0) |
+| `two_point_pct` | Float | NULL | Two-point percentage (0.0-1.0) |
+| `three_point_pct` | Float | NULL | Three-point percentage (0.0-1.0) |
+| `free_throw_pct` | Float | NULL | Free throw percentage (0.0-1.0) |
+| `true_shooting_pct` | Float | NULL | True shooting percentage (TS%) |
+| `effective_field_goal_pct` | Float | NULL | Effective field goal pct (eFG%) |
+| `assist_turnover_ratio` | Float | NULL | Assist to turnover ratio |
+| `last_calculated` | DateTime | NOT NULL, server default | When stats were last computed |
+| `created_at` | DateTime | NOT NULL | Creation timestamp |
+| `updated_at` | DateTime | NOT NULL | Last modification |
+
+**Unique Constraint:** `(player_id, team_id, season_id)` - One entry per player-team-season combination
+
+**Note:** If a player is traded mid-season, they will have multiple rows (one per team).
+
+**Relationships:**
+- `player`: Many-to-one with Player
+- `team`: Many-to-one with Team
+- `season`: Many-to-one with Season
+
+### SyncLog
+
+Tracks data synchronization operations from external sources.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK, auto-generated | Unique identifier |
+| `source` | String(50) | NOT NULL | External data source (e.g., "winner", "euroleague") |
+| `entity_type` | String(50) | NOT NULL | Type of entity (e.g., "games", "players", "stats", "pbp") |
+| `status` | String(20) | NOT NULL, default="STARTED" | STARTED, COMPLETED, FAILED, PARTIAL |
+| `season_id` | UUID | FK → seasons.id, NULL | Optional season context |
+| `game_id` | UUID | FK → games.id, NULL | Optional game context |
+| `records_processed` | Integer | NOT NULL, default=0 | Total records processed |
+| `records_created` | Integer | NOT NULL, default=0 | New records created |
+| `records_updated` | Integer | NOT NULL, default=0 | Existing records updated |
+| `records_skipped` | Integer | NOT NULL, default=0 | Records skipped |
+| `error_message` | Text | NULL | Human-readable error message |
+| `error_details` | JSON | NULL | Detailed error information |
+| `started_at` | DateTime | NOT NULL, server default | Sync start timestamp |
+| `completed_at` | DateTime | NULL | Sync completion timestamp |
+
+**Index:** `(source, entity_type, started_at)` - Efficient lookup of sync history
+
+**Relationships:**
+- `season`: Many-to-one with Season (SET NULL on delete)
+- `game`: Many-to-one with Game (SET NULL on delete)
 
 ## JSON Fields (external_ids)
 

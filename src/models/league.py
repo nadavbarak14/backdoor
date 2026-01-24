@@ -32,6 +32,8 @@ from src.models.base import Base, TimestampMixin, UUIDMixin
 if TYPE_CHECKING:
     from src.models.game import Game
     from src.models.player import PlayerTeamHistory
+    from src.models.stats import PlayerSeasonStats
+    from src.models.sync import SyncLog
     from src.models.team import TeamSeason
 
 
@@ -143,6 +145,18 @@ class Season(UUIDMixin, TimestampMixin, Base):
     )
     games: Mapped[list["Game"]] = relationship(
         "Game",
+        back_populates="season",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    player_season_stats: Mapped[list["PlayerSeasonStats"]] = relationship(
+        "PlayerSeasonStats",
+        back_populates="season",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    sync_logs: Mapped[list["SyncLog"]] = relationship(
+        "SyncLog",
         back_populates="season",
         cascade="all, delete-orphan",
         passive_deletes=True,
