@@ -8,99 +8,140 @@ This directory contains the business logic layer for the Basketball Analytics Pl
 
 | File | Description |
 |------|-------------|
-| `__init__.py` | Public exports |
-| `base.py` | Base service class with common operations |
-| `player.py` | Player business logic (future) |
-| `team.py` | Team business logic (future) |
+| `__init__.py` | Public exports for all services |
+| `base.py` | Generic BaseService with reusable CRUD operations |
+| `league.py` | LeagueService and SeasonService for league/season operations |
+| `team.py` | TeamService for team operations including roster management |
+| `player.py` | PlayerService for player operations including team history |
 | `game.py` | Game business logic (future) |
 | `stats.py` | Statistics calculations (future) |
 
-## Service Pattern
+## Service Classes
 
-### Basic Service Structure
+### BaseService[ModelT]
+
+Generic base class providing common CRUD operations:
 
 ```python
-from sqlalchemy.orm import Session
+from src.services.base import BaseService
 from src.models.player import Player
-from src.schemas.player import PlayerCreate, PlayerUpdate
 
-class PlayerService:
-    """
-    Business logic for player operations.
-
-    Handles all player-related business rules, validation,
-    and database operations.
-    """
-
+class PlayerService(BaseService[Player]):
     def __init__(self, db: Session):
-        self.db = db
-
-    def get_by_id(self, player_id: UUID) -> Player | None:
-        """Get a player by ID."""
-        return self.db.query(Player).filter(Player.id == player_id).first()
-
-    def get_all(self, skip: int = 0, limit: int = 100) -> list[Player]:
-        """Get all players with pagination."""
-        return self.db.query(Player).offset(skip).limit(limit).all()
-
-    def create(self, data: PlayerCreate) -> Player:
-        """Create a new player."""
-        player = Player(**data.model_dump())
-        self.db.add(player)
-        self.db.commit()
-        self.db.refresh(player)
-        return player
-
-    def update(self, player_id: UUID, data: PlayerUpdate) -> Player | None:
-        """Update an existing player."""
-        player = self.get_by_id(player_id)
-        if not player:
-            return None
-        for field, value in data.model_dump(exclude_unset=True).items():
-            setattr(player, field, value)
-        self.db.commit()
-        self.db.refresh(player)
-        return player
-
-    def delete(self, player_id: UUID) -> bool:
-        """Delete a player."""
-        player = self.get_by_id(player_id)
-        if not player:
-            return False
-        self.db.delete(player)
-        self.db.commit()
-        return True
+        super().__init__(db, Player)
 ```
 
-### Service with Business Logic
+**Methods:**
+- `get_by_id(id: UUID) -> ModelT | None` - Get entity by UUID
+- `get_all(skip, limit) -> list[ModelT]` - Paginated list
+- `count() -> int` - Total count
+- `create(data: dict) -> ModelT` - Create new entity
+- `update(id, data: dict) -> ModelT | None` - Update entity
+- `delete(id: UUID) -> bool` - Delete entity
+
+### LeagueService
+
+Extends BaseService with league-specific methods:
 
 ```python
-class StatsService:
-    """Statistics calculation service."""
+from src.services import LeagueService
 
-    def __init__(self, db: Session):
-        self.db = db
-
-    def calculate_player_averages(self, player_id: UUID, season: str) -> dict:
-        """
-        Calculate per-game averages for a player.
-
-        Business rules:
-        - Only include games where player played > 0 minutes
-        - Round averages to 1 decimal place
-        - Return career averages if no season specified
-        """
-        # Business logic here
-        pass
+service = LeagueService(db)
+nba = service.get_by_code("NBA")
+league, count = service.get_with_season_count(league_id)
+leagues_with_counts = service.get_all_with_season_counts()
 ```
 
-## Usage
+**Methods:**
+- `get_by_code(code: str)` - Find league by unique code
+- `get_with_season_count(league_id)` - Returns (league, season_count)
+- `get_all_with_season_counts()` - All leagues with counts
+- `create_league(data: LeagueCreate)` - Create from schema
+- `update_league(league_id, data: LeagueUpdate)` - Update from schema
+
+### SeasonService
+
+Extends BaseService with season-specific methods:
 
 ```python
-from fastapi import Depends
+from src.services import SeasonService
+
+service = SeasonService(db)
+seasons = service.get_by_league(league_id)
+current = service.get_current(league_id)
+service.set_current(season_id)  # Unsets other seasons in league
+```
+
+**Methods:**
+- `get_by_league(league_id, skip, limit)` - Seasons for a league
+- `get_current(league_id: UUID | None)` - Current active season
+- `create_season(data: SeasonCreate)` - Create with is_current handling
+- `set_current(season_id)` - Mark as current (unsets others)
+- `update_season(season_id, data: SeasonUpdate)` - Update from schema
+
+### TeamService
+
+Extends BaseService with team-specific methods:
+
+```python
+from src.services import TeamService
+from src.schemas.team import TeamFilter
+
+service = TeamService(db)
+teams, total = service.get_filtered(TeamFilter(country="USA"), skip=0, limit=20)
+team = service.get_by_external_id("nba", "1610612747")
+roster = service.get_roster(team_id, season_id)
+```
+
+**Methods:**
+- `get_filtered(filter_params, skip, limit)` - Returns (teams, total)
+- `get_by_external_id(source, external_id)` - Find by external ID
+- `get_roster(team_id, season_id)` - PlayerTeamHistory with player loaded
+- `create_team(data: TeamCreate)` - Create from schema
+- `update_team(team_id, data: TeamUpdate)` - Update from schema
+- `add_to_season(team_id, season_id)` - Create TeamSeason entry
+
+### PlayerService
+
+Extends BaseService with player-specific methods:
+
+```python
+from src.services import PlayerService
+from src.schemas.player import PlayerFilter
+
+service = PlayerService(db)
+player = service.get_with_history(player_id)  # Eager loads team_histories
+players, total = service.get_filtered(PlayerFilter(position="PG"), skip=0, limit=20)
+player = service.get_by_external_id("nba", "2544")
+history = service.get_team_history(player_id)
+```
+
+**Methods:**
+- `get_with_history(player_id)` - Player with team_histories loaded
+- `get_filtered(filter_params, skip, limit)` - Returns (players, total)
+- `get_by_external_id(source, external_id)` - Find by external ID
+- `create_player(data: PlayerCreate)` - Create from schema
+- `update_player(player_id, data: PlayerUpdate)` - Update from schema
+- `add_to_team(player_id, team_id, season_id, jersey_number, position)` - Create history
+- `get_team_history(player_id)` - All PlayerTeamHistory entries
+
+## Usage in API Endpoints
+
+```python
+from fastapi import Depends, HTTPException
 from sqlalchemy.orm import Session
 from src.core.database import get_db
-from src.services.player import PlayerService
+from src.services import LeagueService, PlayerService
+from src.schemas.league import LeagueCreate, LeagueResponse
+
+@router.post("/leagues", response_model=LeagueResponse)
+def create_league(
+    data: LeagueCreate,
+    db: Session = Depends(get_db)
+):
+    service = LeagueService(db)
+    league = service.create_league(data)
+    return LeagueResponse.model_validate(league)
 
 @router.get("/players/{player_id}")
 def get_player(
@@ -120,13 +161,16 @@ def get_player(
 2. **No HTTP Logic**: Services don't know about HTTP (no status codes, headers)
 3. **Transaction Boundaries**: Services manage their own transactions
 4. **Testability**: Services can be tested with mock database sessions
+5. **Generic Base**: Common CRUD operations in BaseService
+6. **Type Safety**: Full type hints with generics
 
 ## Dependencies
 
-- **Internal**: `src/core/`, `src/models/`
+- **Internal**: `src/core/`, `src/models/`, `src/schemas/`
 - **External**: `sqlalchemy`
 
 ## Related Documentation
 
 - [Models](../models/README.md)
+- [Schemas](../schemas/README.md)
 - [API Layer](../api/README.md)
