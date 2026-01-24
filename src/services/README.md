@@ -13,6 +13,9 @@ Business logic layer for the Basketball Analytics Platform. Services encapsulate
 | `league.py` | LeagueService and SeasonService |
 | `team.py` | TeamService with roster and filtering |
 | `player.py` | PlayerService with team history and filtering |
+| `game.py` | GameService with box score loading and filtering |
+| `stats.py` | PlayerGameStatsService and TeamGameStatsService |
+| `play_by_play.py` | PlayByPlayService with event linking and shot charts |
 
 ## Architecture Overview
 
@@ -30,9 +33,13 @@ Business logic layer for the Basketball Analytics Platform. Services encapsulate
 │  ┌───────────────┐  ┌───────────────┐  ┌──────────────┐ │
 │  │ LeagueService │  │  TeamService  │  │PlayerService │ │
 │  └───────────────┘  └───────────────┘  └──────────────┘ │
-│  ┌───────────────┐                                       │
-│  │ SeasonService │  ... extends BaseService[T] ...      │
-│  └───────────────┘                                       │
+│  ┌───────────────┐  ┌───────────────┐  ┌──────────────┐ │
+│  │ SeasonService │  │  GameService  │  │PlayByPlay-   │ │
+│  └───────────────┘  └───────────────┘  │    Service   │ │
+│  ┌────────────────────────┐            └──────────────┘ │
+│  │ PlayerGameStatsService │  ... extends BaseService[T] │
+│  │ TeamGameStatsService   │                             │
+│  └────────────────────────┘                             │
 └───────────────────────┬─────────────────────────────────┘
                         │ SQLAlchemy ORM
                         ▼
@@ -119,6 +126,67 @@ Extends BaseService with player-specific operations.
 | `add_to_team` | `(player_id, team_id, season_id, jersey_number?, position?) -> PlayerTeamHistory \| None` | Add player to team roster |
 | `get_team_history` | `(player_id: UUID) -> list[PlayerTeamHistory]` | All team history entries |
 
+### GameService
+
+Extends BaseService with game-specific operations.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `get_with_box_score` | `(game_id: UUID) -> Game \| None` | Game with all stats eager loaded |
+| `get_filtered` | `(filter_params: GameFilter, skip=0, limit=50) -> tuple[list[Game], int]` | Filtered games with total |
+| `get_by_team` | `(team_id: UUID, season_id?: UUID, skip=0, limit=50) -> tuple[list[Game], int]` | Games for a team |
+| `get_by_external_id` | `(source: str, external_id: str) -> Game \| None` | Find by external provider ID |
+| `create_game` | `(data: GameCreate) -> Game` | Create from Pydantic schema |
+| `update_game` | `(game_id: UUID, data: GameUpdate) -> Game \| None` | Update from schema |
+| `update_score` | `(game_id: UUID, home_score: int, away_score: int, status?) -> Game \| None` | Update score and status |
+
+### PlayerGameStatsService
+
+Extends BaseService with player game statistics operations.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `get_by_game` | `(game_id: UUID) -> list[PlayerGameStats]` | All player stats for a game |
+| `get_by_game_and_team` | `(game_id: UUID, team_id: UUID) -> list[PlayerGameStats]` | Player stats for one team in game |
+| `get_player_game_log` | `(player_id: UUID, season_id?: UUID, skip=0, limit=50) -> tuple[list, int]` | Player's game log with context |
+| `get_by_player_and_game` | `(player_id: UUID, game_id: UUID) -> PlayerGameStats \| None` | Stats for specific player/game |
+| `create_stats` | `(data: dict) -> PlayerGameStats` | Create stats entry |
+| `bulk_create` | `(stats_list: list[dict]) -> list[PlayerGameStats]` | Bulk create for sync efficiency |
+| `update_stats` | `(game_id: UUID, player_id: UUID, data: dict) -> PlayerGameStats \| None` | Update stats |
+
+### TeamGameStatsService
+
+Service for team game statistics (uses composite primary key, not BaseService).
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `get_by_game` | `(game_id: UUID) -> list[TeamGameStats]` | Both team stats for a game |
+| `get_by_team_and_game` | `(team_id: UUID, game_id: UUID) -> TeamGameStats \| None` | Stats for specific team/game |
+| `get_team_game_history` | `(team_id: UUID, season_id?: UUID, skip=0, limit=50) -> tuple[list, int]` | Team's game history |
+| `create_stats` | `(data: dict) -> TeamGameStats` | Create team stats entry |
+| `update_stats` | `(game_id: UUID, team_id: UUID, data: dict) -> TeamGameStats \| None` | Update stats |
+| `calculate_from_player_stats` | `(game_id: UUID, team_id: UUID) -> TeamGameStats \| None` | Aggregate team stats from players |
+
+### PlayByPlayService
+
+Extends BaseService with play-by-play event operations.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `get_by_game` | `(game_id: UUID, filter_params?: PlayByPlayFilter) -> list[PlayByPlayEvent]` | Events for a game |
+| `get_with_related` | `(event_id: UUID) -> PlayByPlayEvent \| None` | Event with linked events loaded |
+| `create_event` | `(data: dict) -> PlayByPlayEvent` | Create single event |
+| `update_event` | `(event_id: UUID, data: dict) -> PlayByPlayEvent \| None` | Update event |
+| `link_events` | `(event_id: UUID, related_event_ids: list[UUID]) -> None` | Link events together |
+| `unlink_events` | `(event_id: UUID, related_event_ids: list[UUID]) -> None` | Remove event links |
+| `get_related_events` | `(event_id: UUID) -> list[PlayByPlayEvent]` | Events this event links to |
+| `get_events_linking_to` | `(event_id: UUID) -> list[PlayByPlayEvent]` | Events that link to this event |
+| `bulk_create_with_links` | `(events: list[dict], links: list[tuple]) -> list[PlayByPlayEvent]` | Bulk create with relationships |
+| `get_shot_chart_data` | `(game_id: UUID, team_id?: UUID, player_id?: UUID) -> list[PlayByPlayEvent]` | Shot events with coordinates |
+| `get_events_by_type` | `(game_id: UUID, event_type: str, event_subtype?: str) -> list[PlayByPlayEvent]` | Events of specific type |
+| `count_by_game` | `(game_id: UUID) -> int` | Total events in game |
+| `delete_by_game` | `(game_id: UUID) -> int` | Delete all events for game |
+
 ## Filter Parameters
 
 ### TeamFilter
@@ -158,6 +226,51 @@ players, total = player_service.get_filtered(filters)
 # Example: Search for players with "curry" in name
 filters = PlayerFilter(search="curry")
 players, total = player_service.get_filtered(filters)
+```
+
+### GameFilter
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `season_id` | UUID \| None | Filter by games in this season |
+| `team_id` | UUID \| None | Filter by team (home or away) |
+| `start_date` | date \| None | Filter games on or after this date |
+| `end_date` | date \| None | Filter games on or before this date |
+| `status` | GameStatus \| None | Filter by game status (SCHEDULED, LIVE, FINAL, etc.) |
+
+```python
+# Example: Get all completed Lakers games in January 2024
+from datetime import date
+from src.schemas.game import GameFilter, GameStatus
+
+filters = GameFilter(
+    team_id=lakers_uuid,
+    start_date=date(2024, 1, 1),
+    end_date=date(2024, 1, 31),
+    status=GameStatus.FINAL
+)
+games, total = game_service.get_filtered(filters)
+```
+
+### PlayByPlayFilter
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `period` | int \| None | Filter by period number (1-4, 5+ for OT) |
+| `event_type` | str \| None | Filter by event type (SHOT, REBOUND, etc.) |
+| `player_id` | UUID \| None | Filter by player UUID |
+| `team_id` | UUID \| None | Filter by team UUID |
+
+```python
+# Example: Get all 4th quarter shots by a specific player
+from src.schemas.play_by_play import PlayByPlayFilter
+
+filters = PlayByPlayFilter(
+    period=4,
+    event_type="SHOT",
+    player_id=curry_uuid
+)
+events = play_by_play_service.get_by_game(game_id, filters)
 ```
 
 ## Usage Examples
