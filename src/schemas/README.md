@@ -8,82 +8,105 @@ This directory contains Pydantic models used for API request validation and resp
 
 | File | Description |
 |------|-------------|
-| `__init__.py` | Public exports |
-| `base.py` | Shared schema utilities and base classes |
-| `player.py` | Player request/response schemas (future) |
-| `team.py` | Team request/response schemas (future) |
-| `game.py` | Game request/response schemas (future) |
-| `stats.py` | Statistics schemas (future) |
+| `__init__.py` | Public exports for all schemas |
+| `base.py` | Shared schema utilities (OrmBase, PaginatedResponse) |
+| `league.py` | League and Season request/response schemas |
+| `team.py` | Team request/response schemas |
+| `player.py` | Player request/response schemas |
 
-## Schema Patterns
+## Schema Types
 
-### Request Schemas (Input)
+### Base Utilities (`base.py`)
 
-Used for validating incoming API data:
+| Schema | Description |
+|--------|-------------|
+| `OrmBase` | Base model with `from_attributes=True` for ORM compatibility |
+| `PaginatedResponse[T]` | Generic paginated response wrapper |
 
-```python
-from pydantic import BaseModel, Field
+### League Schemas (`league.py`)
 
-class PlayerCreate(BaseModel):
-    """Schema for creating a new player."""
-    first_name: str = Field(..., min_length=1, max_length=100)
-    last_name: str = Field(..., min_length=1, max_length=100)
-    height_inches: int | None = Field(None, ge=48, le=96)
+| Schema | Description |
+|--------|-------------|
+| `LeagueCreate` | POST request body for creating a league |
+| `LeagueUpdate` | PATCH request body for updating a league |
+| `LeagueResponse` | League response with season_count |
+| `LeagueListResponse` | Paginated list of leagues |
+| `SeasonCreate` | POST request body for creating a season |
+| `SeasonUpdate` | PATCH request body for updating a season |
+| `SeasonResponse` | Season response |
+| `SeasonFilter` | Query parameters for filtering seasons |
 
-class PlayerUpdate(BaseModel):
-    """Schema for updating a player (all fields optional)."""
-    first_name: str | None = Field(None, min_length=1, max_length=100)
-    last_name: str | None = Field(None, min_length=1, max_length=100)
-```
+### Team Schemas (`team.py`)
 
-### Response Schemas (Output)
+| Schema | Description |
+|--------|-------------|
+| `TeamCreate` | POST request body for creating a team |
+| `TeamUpdate` | PATCH request body for updating a team |
+| `TeamResponse` | Team response |
+| `TeamListResponse` | Paginated list of teams |
+| `TeamFilter` | Query parameters for filtering teams |
+| `TeamRosterPlayerResponse` | Player info in roster context |
+| `TeamRosterResponse` | Team roster with players |
 
-Used for serializing database models to API responses:
+### Player Schemas (`player.py`)
 
-```python
-from datetime import datetime
-from uuid import UUID
-from pydantic import BaseModel, ConfigDict
-
-class PlayerResponse(BaseModel):
-    """Schema for player API response."""
-    id: UUID
-    first_name: str
-    last_name: str
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-```
-
-### List Response Schemas
-
-For paginated list endpoints:
-
-```python
-from typing import Generic, TypeVar
-
-T = TypeVar("T")
-
-class PaginatedResponse(BaseModel, Generic[T]):
-    """Generic paginated response wrapper."""
-    items: list[T]
-    total: int
-    page: int
-    page_size: int
-    pages: int
-```
+| Schema | Description |
+|--------|-------------|
+| `PlayerCreate` | POST request body for creating a player |
+| `PlayerUpdate` | PATCH request body for updating a player |
+| `PlayerResponse` | Player response with full_name |
+| `PlayerListResponse` | Paginated list of players |
+| `PlayerFilter` | Query parameters for filtering players |
+| `PlayerTeamHistoryResponse` | Team history entry |
+| `PlayerWithHistoryResponse` | Player with full team history |
 
 ## Usage
 
-```python
-from src.schemas.player import PlayerCreate, PlayerResponse
+### Request Validation
 
-# In API endpoint
+```python
+from src.schemas import PlayerCreate
+
+# Automatic validation in FastAPI
 @router.post("/players", response_model=PlayerResponse)
 def create_player(data: PlayerCreate, db: Session = Depends(get_db)):
     service = PlayerService(db)
     return service.create(data)
+```
+
+### Response Serialization
+
+```python
+from src.schemas import PlayerResponse
+
+# Convert ORM object to response schema
+player_orm = session.get(Player, player_id)
+response = PlayerResponse.model_validate(player_orm)
+```
+
+### Query Filtering
+
+```python
+from src.schemas import PlayerFilter
+
+@router.get("/players")
+def list_players(
+    filters: PlayerFilter = Depends(),
+    db: Session = Depends(get_db)
+):
+    service = PlayerService(db)
+    return service.list(filters)
+```
+
+### Paginated Responses
+
+```python
+from src.schemas.base import PaginatedResponse
+from src.schemas import PlayerResponse
+
+@router.get("/players", response_model=PaginatedResponse[PlayerResponse])
+def list_players(page: int = 1, page_size: int = 20):
+    ...
 ```
 
 ## Naming Conventions
@@ -95,6 +118,21 @@ def create_player(data: PlayerCreate, db: Session = Depends(get_db)):
 | `Response` | Single item response | `PlayerResponse` |
 | `ListResponse` | List of items response | `PlayerListResponse` |
 | `Filter` | Query parameters | `PlayerFilter` |
+
+## Field Validation
+
+Schemas use Pydantic v2 `Field()` for validation:
+
+```python
+# String length validation
+name: str = Field(..., min_length=1, max_length=100)
+
+# Numeric range validation
+height_cm: int | None = Field(None, ge=100, le=250)
+
+# Optional with default
+is_current: bool = Field(default=False)
+```
 
 ## Dependencies
 
