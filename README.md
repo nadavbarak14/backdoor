@@ -87,12 +87,32 @@ ruff check . --fix
 black .
 ```
 
+### Database Migrations
+
+This project uses Alembic for database migrations.
+
+```bash
+# Apply all migrations
+uv run alembic upgrade head
+
+# Create a new migration from model changes
+uv run alembic revision --autogenerate -m "Description of changes"
+
+# Rollback one migration
+uv run alembic downgrade -1
+
+# View migration history
+uv run alembic history
+```
+
+See `alembic/README.md` for detailed migration documentation.
+
 ### Running Tests
 
 Run all tests:
 
 ```bash
-pytest
+uv run python -m pytest
 ```
 
 Run tests with coverage:
