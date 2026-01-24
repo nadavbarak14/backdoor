@@ -84,10 +84,8 @@ class PlayerService(BaseService[Player]):
         stmt = (
             select(Player)
             .options(
-                joinedload(Player.team_histories)
-                .joinedload(PlayerTeamHistory.team),
-                joinedload(Player.team_histories)
-                .joinedload(PlayerTeamHistory.season),
+                joinedload(Player.team_histories).joinedload(PlayerTeamHistory.team),
+                joinedload(Player.team_histories).joinedload(PlayerTeamHistory.season),
             )
             .where(Player.id == player_id)
         )
@@ -122,9 +120,7 @@ class PlayerService(BaseService[Player]):
             stmt = stmt.join(PlayerTeamHistory)
 
             if filter_params.team_id:
-                stmt = stmt.where(
-                    PlayerTeamHistory.team_id == filter_params.team_id
-                )
+                stmt = stmt.where(PlayerTeamHistory.team_id == filter_params.team_id)
 
             if filter_params.season_id:
                 stmt = stmt.where(
@@ -177,10 +173,8 @@ class PlayerService(BaseService[Player]):
         """
         # Use json_extract for SQLite compatibility (also works with PostgreSQL)
         stmt = select(Player).where(
-            cast(
-                func.json_extract(Player.external_ids, f"$.{source}"),
-                String
-            ) == external_id
+            cast(func.json_extract(Player.external_ids, f"$.{source}"), String)
+            == external_id
         )
         return self.db.scalars(stmt).first()
 

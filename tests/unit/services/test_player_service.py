@@ -28,34 +28,40 @@ class TestPlayerService:
     def nba_league(self, test_db: Session) -> League:
         """Create an NBA league for testing."""
         service = LeagueService(test_db)
-        return service.create_league(LeagueCreate(
-            name="NBA",
-            code="NBA",
-            country="USA",
-        ))
+        return service.create_league(
+            LeagueCreate(
+                name="NBA",
+                code="NBA",
+                country="USA",
+            )
+        )
 
     @pytest.fixture
     def nba_season(self, test_db: Session, nba_league: League) -> Season:
         """Create an NBA season for testing."""
         service = SeasonService(test_db)
-        return service.create_season(SeasonCreate(
-            league_id=nba_league.id,
-            name="2023-24",
-            start_date=date(2023, 10, 24),
-            end_date=date(2024, 6, 17),
-            is_current=True,
-        ))
+        return service.create_season(
+            SeasonCreate(
+                league_id=nba_league.id,
+                name="2023-24",
+                start_date=date(2023, 10, 24),
+                end_date=date(2024, 6, 17),
+                is_current=True,
+            )
+        )
 
     @pytest.fixture
     def lakers(self, test_db: Session) -> Team:
         """Create a Lakers team for testing."""
         service = TeamService(test_db)
-        return service.create_team(TeamCreate(
-            name="Los Angeles Lakers",
-            short_name="LAL",
-            city="Los Angeles",
-            country="USA",
-        ))
+        return service.create_team(
+            TeamCreate(
+                name="Los Angeles Lakers",
+                short_name="LAL",
+                city="Los Angeles",
+                country="USA",
+            )
+        )
 
     def test_create_player(self, test_db: Session):
         """Test creating a player from Pydantic schema."""
@@ -93,11 +99,13 @@ class TestPlayerService:
     def test_update_player(self, test_db: Session):
         """Test updating a player from Pydantic schema."""
         service = PlayerService(test_db)
-        player = service.create_player(PlayerCreate(
-            first_name="LeBron",
-            last_name="James",
-            position="SF",
-        ))
+        player = service.create_player(
+            PlayerCreate(
+                first_name="LeBron",
+                last_name="James",
+                position="SF",
+            )
+        )
 
         updated = service.update_player(player.id, PlayerUpdate(position="PF"))
 
@@ -108,11 +116,13 @@ class TestPlayerService:
     def test_get_by_external_id_found(self, test_db: Session):
         """Test finding a player by external ID."""
         service = PlayerService(test_db)
-        service.create_player(PlayerCreate(
-            first_name="LeBron",
-            last_name="James",
-            external_ids={"nba": "2544", "espn": "1966"},
-        ))
+        service.create_player(
+            PlayerCreate(
+                first_name="LeBron",
+                last_name="James",
+                external_ids={"nba": "2544", "espn": "1966"},
+            )
+        )
 
         result = service.get_by_external_id("nba", "2544")
 
@@ -122,11 +132,13 @@ class TestPlayerService:
     def test_get_by_external_id_not_found(self, test_db: Session):
         """Test get_by_external_id returns None for non-existent ID."""
         service = PlayerService(test_db)
-        service.create_player(PlayerCreate(
-            first_name="LeBron",
-            last_name="James",
-            external_ids={"nba": "2544"},
-        ))
+        service.create_player(
+            PlayerCreate(
+                first_name="LeBron",
+                last_name="James",
+                external_ids={"nba": "2544"},
+            )
+        )
 
         result = service.get_by_external_id("nba", "999999")
 
@@ -135,11 +147,13 @@ class TestPlayerService:
     def test_get_by_external_id_wrong_source(self, test_db: Session):
         """Test get_by_external_id returns None for wrong source."""
         service = PlayerService(test_db)
-        service.create_player(PlayerCreate(
-            first_name="LeBron",
-            last_name="James",
-            external_ids={"nba": "2544"},
-        ))
+        service.create_player(
+            PlayerCreate(
+                first_name="LeBron",
+                last_name="James",
+                external_ids={"nba": "2544"},
+            )
+        )
 
         result = service.get_by_external_id("espn", "2544")
 
@@ -148,16 +162,20 @@ class TestPlayerService:
     def test_get_filtered_by_position(self, test_db: Session):
         """Test filtering players by position."""
         service = PlayerService(test_db)
-        service.create_player(PlayerCreate(
-            first_name="LeBron",
-            last_name="James",
-            position="SF",
-        ))
-        service.create_player(PlayerCreate(
-            first_name="Stephen",
-            last_name="Curry",
-            position="PG",
-        ))
+        service.create_player(
+            PlayerCreate(
+                first_name="LeBron",
+                last_name="James",
+                position="SF",
+            )
+        )
+        service.create_player(
+            PlayerCreate(
+                first_name="Stephen",
+                last_name="Curry",
+                position="PG",
+            )
+        )
 
         players, total = service.get_filtered(PlayerFilter(position="PG"))
 
@@ -168,16 +186,20 @@ class TestPlayerService:
     def test_get_filtered_by_nationality(self, test_db: Session):
         """Test filtering players by nationality."""
         service = PlayerService(test_db)
-        service.create_player(PlayerCreate(
-            first_name="LeBron",
-            last_name="James",
-            nationality="USA",
-        ))
-        service.create_player(PlayerCreate(
-            first_name="Luka",
-            last_name="Doncic",
-            nationality="Slovenia",
-        ))
+        service.create_player(
+            PlayerCreate(
+                first_name="LeBron",
+                last_name="James",
+                nationality="USA",
+            )
+        )
+        service.create_player(
+            PlayerCreate(
+                first_name="Luka",
+                last_name="Doncic",
+                nationality="Slovenia",
+            )
+        )
 
         players, total = service.get_filtered(PlayerFilter(nationality="Slovenia"))
 
@@ -187,14 +209,18 @@ class TestPlayerService:
     def test_get_filtered_by_name_search(self, test_db: Session):
         """Test filtering players by name search."""
         service = PlayerService(test_db)
-        service.create_player(PlayerCreate(
-            first_name="LeBron",
-            last_name="James",
-        ))
-        service.create_player(PlayerCreate(
-            first_name="Stephen",
-            last_name="Curry",
-        ))
+        service.create_player(
+            PlayerCreate(
+                first_name="LeBron",
+                last_name="James",
+            )
+        )
+        service.create_player(
+            PlayerCreate(
+                first_name="Stephen",
+                last_name="Curry",
+            )
+        )
 
         players, total = service.get_filtered(PlayerFilter(search="Curry"))
 
@@ -204,14 +230,18 @@ class TestPlayerService:
     def test_get_filtered_by_first_name_search(self, test_db: Session):
         """Test filtering players by first name search."""
         service = PlayerService(test_db)
-        service.create_player(PlayerCreate(
-            first_name="LeBron",
-            last_name="James",
-        ))
-        service.create_player(PlayerCreate(
-            first_name="Stephen",
-            last_name="Curry",
-        ))
+        service.create_player(
+            PlayerCreate(
+                first_name="LeBron",
+                last_name="James",
+            )
+        )
+        service.create_player(
+            PlayerCreate(
+                first_name="Stephen",
+                last_name="Curry",
+            )
+        )
 
         players, total = service.get_filtered(PlayerFilter(search="LeBron"))
 
@@ -223,14 +253,18 @@ class TestPlayerService:
     ):
         """Test filtering players by team."""
         service = PlayerService(test_db)
-        lebron = service.create_player(PlayerCreate(
-            first_name="LeBron",
-            last_name="James",
-        ))
-        service.create_player(PlayerCreate(
-            first_name="Stephen",
-            last_name="Curry",
-        ))
+        lebron = service.create_player(
+            PlayerCreate(
+                first_name="LeBron",
+                last_name="James",
+            )
+        )
+        service.create_player(
+            PlayerCreate(
+                first_name="Stephen",
+                last_name="Curry",
+            )
+        )
         service.add_to_team(lebron.id, lakers.id, nba_season.id)
 
         players, total = service.get_filtered(PlayerFilter(team_id=lakers.id))
@@ -245,21 +279,27 @@ class TestPlayerService:
         service = PlayerService(test_db)
         season_service = SeasonService(test_db)
 
-        old_season = season_service.create_season(SeasonCreate(
-            league_id=nba_league.id,
-            name="2022-23",
-            start_date=date(2022, 10, 18),
-            end_date=date(2023, 6, 12),
-        ))
+        old_season = season_service.create_season(
+            SeasonCreate(
+                league_id=nba_league.id,
+                name="2022-23",
+                start_date=date(2022, 10, 18),
+                end_date=date(2023, 6, 12),
+            )
+        )
 
-        lebron = service.create_player(PlayerCreate(
-            first_name="LeBron",
-            last_name="James",
-        ))
-        curry = service.create_player(PlayerCreate(
-            first_name="Stephen",
-            last_name="Curry",
-        ))
+        lebron = service.create_player(
+            PlayerCreate(
+                first_name="LeBron",
+                last_name="James",
+            )
+        )
+        curry = service.create_player(
+            PlayerCreate(
+                first_name="Stephen",
+                last_name="Curry",
+            )
+        )
         service.add_to_team(lebron.id, lakers.id, nba_season.id)
         service.add_to_team(curry.id, lakers.id, old_season.id)
 
@@ -272,30 +312,30 @@ class TestPlayerService:
         """Test filtered results respect pagination."""
         service = PlayerService(test_db)
         for i in range(5):
-            service.create_player(PlayerCreate(
-                first_name="Player",
-                last_name=f"Number{i}",
-            ))
+            service.create_player(
+                PlayerCreate(
+                    first_name="Player",
+                    last_name=f"Number{i}",
+                )
+            )
 
         players, total = service.get_filtered(PlayerFilter(), skip=2, limit=2)
 
         assert total == 5
         assert len(players) == 2
 
-    def test_add_to_team(
-        self, test_db: Session, nba_season: Season, lakers: Team
-    ):
+    def test_add_to_team(self, test_db: Session, nba_season: Season, lakers: Team):
         """Test adding a player to a team."""
         service = PlayerService(test_db)
-        player = service.create_player(PlayerCreate(
-            first_name="LeBron",
-            last_name="James",
-        ))
+        player = service.create_player(
+            PlayerCreate(
+                first_name="LeBron",
+                last_name="James",
+            )
+        )
 
         result = service.add_to_team(
-            player.id, lakers.id, nba_season.id,
-            jersey_number=23,
-            position="SF"
+            player.id, lakers.id, nba_season.id, jersey_number=23, position="SF"
         )
 
         assert result is not None
@@ -310,18 +350,21 @@ class TestPlayerService:
     ):
         """Test add_to_team returns existing entry if already exists."""
         service = PlayerService(test_db)
-        player = service.create_player(PlayerCreate(
-            first_name="LeBron",
-            last_name="James",
-        ))
+        player = service.create_player(
+            PlayerCreate(
+                first_name="LeBron",
+                last_name="James",
+            )
+        )
         first = service.add_to_team(
-            player.id, lakers.id, nba_season.id,
-            jersey_number=23
+            player.id, lakers.id, nba_season.id, jersey_number=23
         )
 
         second = service.add_to_team(
-            player.id, lakers.id, nba_season.id,
-            jersey_number=6  # Different jersey, but same player/team/season
+            player.id,
+            lakers.id,
+            nba_season.id,
+            jersey_number=6,  # Different jersey, but same player/team/season
         )
 
         assert second is not None
@@ -339,15 +382,15 @@ class TestPlayerService:
 
         assert result is None
 
-    def test_add_to_team_team_not_found(
-        self, test_db: Session, nba_season: Season
-    ):
+    def test_add_to_team_team_not_found(self, test_db: Session, nba_season: Season):
         """Test add_to_team returns None for non-existent team."""
         service = PlayerService(test_db)
-        player = service.create_player(PlayerCreate(
-            first_name="LeBron",
-            last_name="James",
-        ))
+        player = service.create_player(
+            PlayerCreate(
+                first_name="LeBron",
+                last_name="James",
+            )
+        )
         fake_team_id = uuid.uuid4()
 
         result = service.add_to_team(player.id, fake_team_id, nba_season.id)
@@ -357,10 +400,12 @@ class TestPlayerService:
     def test_add_to_team_season_not_found(self, test_db: Session, lakers: Team):
         """Test add_to_team returns None for non-existent season."""
         service = PlayerService(test_db)
-        player = service.create_player(PlayerCreate(
-            first_name="LeBron",
-            last_name="James",
-        ))
+        player = service.create_player(
+            PlayerCreate(
+                first_name="LeBron",
+                last_name="James",
+            )
+        )
         fake_season_id = uuid.uuid4()
 
         result = service.add_to_team(player.id, lakers.id, fake_season_id)
@@ -375,23 +420,29 @@ class TestPlayerService:
         season_service = SeasonService(test_db)
         team_service = TeamService(test_db)
 
-        old_season = season_service.create_season(SeasonCreate(
-            league_id=nba_league.id,
-            name="2022-23",
-            start_date=date(2022, 10, 18),
-            end_date=date(2023, 6, 12),
-        ))
-        heat = team_service.create_team(TeamCreate(
-            name="Miami Heat",
-            short_name="MIA",
-            city="Miami",
-            country="USA",
-        ))
+        old_season = season_service.create_season(
+            SeasonCreate(
+                league_id=nba_league.id,
+                name="2022-23",
+                start_date=date(2022, 10, 18),
+                end_date=date(2023, 6, 12),
+            )
+        )
+        heat = team_service.create_team(
+            TeamCreate(
+                name="Miami Heat",
+                short_name="MIA",
+                city="Miami",
+                country="USA",
+            )
+        )
 
-        player = service.create_player(PlayerCreate(
-            first_name="LeBron",
-            last_name="James",
-        ))
+        player = service.create_player(
+            PlayerCreate(
+                first_name="LeBron",
+                last_name="James",
+            )
+        )
         service.add_to_team(player.id, heat.id, old_season.id, jersey_number=6)
         service.add_to_team(player.id, lakers.id, nba_season.id, jersey_number=23)
 
@@ -422,23 +473,29 @@ class TestPlayerService:
         season_service = SeasonService(test_db)
         team_service = TeamService(test_db)
 
-        old_season = season_service.create_season(SeasonCreate(
-            league_id=nba_league.id,
-            name="2022-23",
-            start_date=date(2022, 10, 18),
-            end_date=date(2023, 6, 12),
-        ))
-        heat = team_service.create_team(TeamCreate(
-            name="Miami Heat",
-            short_name="MIA",
-            city="Miami",
-            country="USA",
-        ))
+        old_season = season_service.create_season(
+            SeasonCreate(
+                league_id=nba_league.id,
+                name="2022-23",
+                start_date=date(2022, 10, 18),
+                end_date=date(2023, 6, 12),
+            )
+        )
+        heat = team_service.create_team(
+            TeamCreate(
+                name="Miami Heat",
+                short_name="MIA",
+                city="Miami",
+                country="USA",
+            )
+        )
 
-        player = service.create_player(PlayerCreate(
-            first_name="LeBron",
-            last_name="James",
-        ))
+        player = service.create_player(
+            PlayerCreate(
+                first_name="LeBron",
+                last_name="James",
+            )
+        )
         service.add_to_team(player.id, heat.id, old_season.id, jersey_number=6)
         service.add_to_team(player.id, lakers.id, nba_season.id, jersey_number=23)
 
@@ -456,10 +513,12 @@ class TestPlayerService:
     def test_get_team_history_empty(self, test_db: Session):
         """Test get_team_history returns empty list for player with no history."""
         service = PlayerService(test_db)
-        player = service.create_player(PlayerCreate(
-            first_name="LeBron",
-            last_name="James",
-        ))
+        player = service.create_player(
+            PlayerCreate(
+                first_name="LeBron",
+                last_name="James",
+            )
+        )
 
         history = service.get_team_history(player.id)
 

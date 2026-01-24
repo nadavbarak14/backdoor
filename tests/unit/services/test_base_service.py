@@ -20,11 +20,13 @@ class TestBaseService:
         """Test creating a new entity."""
         service = BaseService[League](test_db, League)
 
-        league = service.create({
-            "name": "National Basketball Association",
-            "code": "NBA",
-            "country": "USA",
-        })
+        league = service.create(
+            {
+                "name": "National Basketball Association",
+                "code": "NBA",
+                "country": "USA",
+            }
+        )
 
         assert league.id is not None
         assert league.name == "National Basketball Association"
@@ -35,11 +37,13 @@ class TestBaseService:
     def test_get_by_id_existing(self, test_db: Session):
         """Test retrieving an existing entity by ID."""
         service = BaseService[League](test_db, League)
-        created = service.create({
-            "name": "NBA",
-            "code": "NBA",
-            "country": "USA",
-        })
+        created = service.create(
+            {
+                "name": "NBA",
+                "code": "NBA",
+                "country": "USA",
+            }
+        )
 
         result = service.get_by_id(created.id)
 
@@ -78,11 +82,13 @@ class TestBaseService:
         """Test get_all respects skip and limit parameters."""
         service = BaseService[League](test_db, League)
         for i in range(5):
-            service.create({
-                "name": f"League {i}",
-                "code": f"L{i}",
-                "country": "Country",
-            })
+            service.create(
+                {
+                    "name": f"League {i}",
+                    "code": f"L{i}",
+                    "country": "Country",
+                }
+            )
 
         result = service.get_all(skip=2, limit=2)
 
@@ -110,11 +116,13 @@ class TestBaseService:
     def test_update_existing(self, test_db: Session):
         """Test updating an existing entity."""
         service = BaseService[League](test_db, League)
-        created = service.create({
-            "name": "NBA",
-            "code": "NBA",
-            "country": "USA",
-        })
+        created = service.create(
+            {
+                "name": "NBA",
+                "code": "NBA",
+                "country": "USA",
+            }
+        )
 
         updated = service.update(created.id, {"name": "Updated NBA"})
 
@@ -134,11 +142,13 @@ class TestBaseService:
     def test_update_ignores_none_values(self, test_db: Session):
         """Test update ignores None values in data dict."""
         service = BaseService[League](test_db, League)
-        created = service.create({
-            "name": "NBA",
-            "code": "NBA",
-            "country": "USA",
-        })
+        created = service.create(
+            {
+                "name": "NBA",
+                "code": "NBA",
+                "country": "USA",
+            }
+        )
 
         updated = service.update(created.id, {"name": "Updated", "code": None})
 
@@ -149,11 +159,13 @@ class TestBaseService:
     def test_delete_existing(self, test_db: Session):
         """Test deleting an existing entity."""
         service = BaseService[League](test_db, League)
-        created = service.create({
-            "name": "NBA",
-            "code": "NBA",
-            "country": "USA",
-        })
+        created = service.create(
+            {
+                "name": "NBA",
+                "code": "NBA",
+                "country": "USA",
+            }
+        )
 
         result = service.delete(created.id)
 

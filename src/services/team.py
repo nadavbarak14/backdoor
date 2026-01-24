@@ -95,11 +95,11 @@ class TeamService(BaseService[Team]):
             )
 
         if filter_params.league_id:
-            stmt = stmt.join(
-                TeamSeason, Team.id == TeamSeason.team_id
-            ).join(
-                Season, TeamSeason.season_id == Season.id
-            ).where(Season.league_id == filter_params.league_id)
+            stmt = (
+                stmt.join(TeamSeason, Team.id == TeamSeason.team_id)
+                .join(Season, TeamSeason.season_id == Season.id)
+                .where(Season.league_id == filter_params.league_id)
+            )
             stmt = stmt.distinct()
 
         if filter_params.country:
@@ -143,16 +143,12 @@ class TeamService(BaseService[Team]):
         """
         # Use json_extract for SQLite compatibility (also works with PostgreSQL)
         stmt = select(Team).where(
-            cast(
-                func.json_extract(Team.external_ids, f"$.{source}"),
-                String
-            ) == external_id
+            cast(func.json_extract(Team.external_ids, f"$.{source}"), String)
+            == external_id
         )
         return self.db.scalars(stmt).first()
 
-    def get_roster(
-        self, team_id: UUID, season_id: UUID
-    ) -> list[PlayerTeamHistory]:
+    def get_roster(self, team_id: UUID, season_id: UUID) -> list[PlayerTeamHistory]:
         """
         Get the roster for a team in a specific season.
 

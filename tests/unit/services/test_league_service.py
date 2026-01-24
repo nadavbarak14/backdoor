@@ -22,11 +22,13 @@ class TestLeagueService:
     def test_get_by_code_existing(self, test_db: Session):
         """Test finding a league by its unique code."""
         service = LeagueService(test_db)
-        service.create_league(LeagueCreate(
-            name="National Basketball Association",
-            code="NBA",
-            country="USA",
-        ))
+        service.create_league(
+            LeagueCreate(
+                name="National Basketball Association",
+                code="NBA",
+                country="USA",
+            )
+        )
 
         result = service.get_by_code("NBA")
 
@@ -45,11 +47,13 @@ class TestLeagueService:
     def test_get_with_season_count_no_seasons(self, test_db: Session):
         """Test get_with_season_count returns 0 when league has no seasons."""
         service = LeagueService(test_db)
-        league = service.create_league(LeagueCreate(
-            name="NBA",
-            code="NBA",
-            country="USA",
-        ))
+        league = service.create_league(
+            LeagueCreate(
+                name="NBA",
+                code="NBA",
+                country="USA",
+            )
+        )
 
         result_league, count = service.get_with_season_count(league.id)
 
@@ -62,23 +66,29 @@ class TestLeagueService:
         league_service = LeagueService(test_db)
         season_service = SeasonService(test_db)
 
-        league = league_service.create_league(LeagueCreate(
-            name="NBA",
-            code="NBA",
-            country="USA",
-        ))
-        season_service.create_season(SeasonCreate(
-            league_id=league.id,
-            name="2022-23",
-            start_date=date(2022, 10, 18),
-            end_date=date(2023, 6, 12),
-        ))
-        season_service.create_season(SeasonCreate(
-            league_id=league.id,
-            name="2023-24",
-            start_date=date(2023, 10, 24),
-            end_date=date(2024, 6, 17),
-        ))
+        league = league_service.create_league(
+            LeagueCreate(
+                name="NBA",
+                code="NBA",
+                country="USA",
+            )
+        )
+        season_service.create_season(
+            SeasonCreate(
+                league_id=league.id,
+                name="2022-23",
+                start_date=date(2022, 10, 18),
+                end_date=date(2023, 6, 12),
+            )
+        )
+        season_service.create_season(
+            SeasonCreate(
+                league_id=league.id,
+                name="2023-24",
+                start_date=date(2023, 10, 24),
+                end_date=date(2024, 6, 17),
+            )
+        )
 
         result_league, count = league_service.get_with_season_count(league.id)
 
@@ -100,29 +110,37 @@ class TestLeagueService:
         league_service = LeagueService(test_db)
         season_service = SeasonService(test_db)
 
-        nba = league_service.create_league(LeagueCreate(
-            name="NBA",
-            code="NBA",
-            country="USA",
-        ))
-        league_service.create_league(LeagueCreate(
-            name="EuroLeague",
-            code="EL",
-            country="Europe",
-        ))
+        nba = league_service.create_league(
+            LeagueCreate(
+                name="NBA",
+                code="NBA",
+                country="USA",
+            )
+        )
+        league_service.create_league(
+            LeagueCreate(
+                name="EuroLeague",
+                code="EL",
+                country="Europe",
+            )
+        )
 
-        season_service.create_season(SeasonCreate(
-            league_id=nba.id,
-            name="2023-24",
-            start_date=date(2023, 10, 24),
-            end_date=date(2024, 6, 17),
-        ))
-        season_service.create_season(SeasonCreate(
-            league_id=nba.id,
-            name="2024-25",
-            start_date=date(2024, 10, 22),
-            end_date=date(2025, 6, 15),
-        ))
+        season_service.create_season(
+            SeasonCreate(
+                league_id=nba.id,
+                name="2023-24",
+                start_date=date(2023, 10, 24),
+                end_date=date(2024, 6, 17),
+            )
+        )
+        season_service.create_season(
+            SeasonCreate(
+                league_id=nba.id,
+                name="2024-25",
+                start_date=date(2024, 10, 22),
+                end_date=date(2025, 6, 15),
+            )
+        )
 
         results = league_service.get_all_with_season_counts()
 
@@ -155,15 +173,16 @@ class TestLeagueService:
     def test_update_league(self, test_db: Session):
         """Test updating a league from Pydantic schema."""
         service = LeagueService(test_db)
-        league = service.create_league(LeagueCreate(
-            name="NBA",
-            code="NBA",
-            country="USA",
-        ))
+        league = service.create_league(
+            LeagueCreate(
+                name="NBA",
+                code="NBA",
+                country="USA",
+            )
+        )
 
         updated = service.update_league(
-            league.id,
-            LeagueUpdate(name="National Basketball Association")
+            league.id, LeagueUpdate(name="National Basketball Association")
         )
 
         assert updated is not None
@@ -187,27 +206,33 @@ class TestSeasonService:
     def nba_league(self, test_db: Session) -> League:
         """Create an NBA league for testing."""
         service = LeagueService(test_db)
-        return service.create_league(LeagueCreate(
-            name="NBA",
-            code="NBA",
-            country="USA",
-        ))
+        return service.create_league(
+            LeagueCreate(
+                name="NBA",
+                code="NBA",
+                country="USA",
+            )
+        )
 
     def test_get_by_league(self, test_db: Session, nba_league: League):
         """Test retrieving seasons for a specific league."""
         service = SeasonService(test_db)
-        service.create_season(SeasonCreate(
-            league_id=nba_league.id,
-            name="2022-23",
-            start_date=date(2022, 10, 18),
-            end_date=date(2023, 6, 12),
-        ))
-        service.create_season(SeasonCreate(
-            league_id=nba_league.id,
-            name="2023-24",
-            start_date=date(2023, 10, 24),
-            end_date=date(2024, 6, 17),
-        ))
+        service.create_season(
+            SeasonCreate(
+                league_id=nba_league.id,
+                name="2022-23",
+                start_date=date(2022, 10, 18),
+                end_date=date(2023, 6, 12),
+            )
+        )
+        service.create_season(
+            SeasonCreate(
+                league_id=nba_league.id,
+                name="2023-24",
+                start_date=date(2023, 10, 24),
+                end_date=date(2024, 6, 17),
+            )
+        )
 
         seasons = service.get_by_league(nba_league.id)
 
@@ -225,20 +250,24 @@ class TestSeasonService:
     def test_get_current_with_league(self, test_db: Session, nba_league: League):
         """Test get_current returns current season for a league."""
         service = SeasonService(test_db)
-        service.create_season(SeasonCreate(
-            league_id=nba_league.id,
-            name="2022-23",
-            start_date=date(2022, 10, 18),
-            end_date=date(2023, 6, 12),
-            is_current=False,
-        ))
-        service.create_season(SeasonCreate(
-            league_id=nba_league.id,
-            name="2023-24",
-            start_date=date(2023, 10, 24),
-            end_date=date(2024, 6, 17),
-            is_current=True,
-        ))
+        service.create_season(
+            SeasonCreate(
+                league_id=nba_league.id,
+                name="2022-23",
+                start_date=date(2022, 10, 18),
+                end_date=date(2023, 6, 12),
+                is_current=False,
+            )
+        )
+        service.create_season(
+            SeasonCreate(
+                league_id=nba_league.id,
+                name="2023-24",
+                start_date=date(2023, 10, 24),
+                end_date=date(2024, 6, 17),
+                is_current=True,
+            )
+        )
 
         current = service.get_current(nba_league.id)
 
@@ -249,13 +278,15 @@ class TestSeasonService:
     def test_get_current_no_current_season(self, test_db: Session, nba_league: League):
         """Test get_current returns None when no current season exists."""
         service = SeasonService(test_db)
-        service.create_season(SeasonCreate(
-            league_id=nba_league.id,
-            name="2023-24",
-            start_date=date(2023, 10, 24),
-            end_date=date(2024, 6, 17),
-            is_current=False,
-        ))
+        service.create_season(
+            SeasonCreate(
+                league_id=nba_league.id,
+                name="2023-24",
+                start_date=date(2023, 10, 24),
+                end_date=date(2024, 6, 17),
+                is_current=False,
+            )
+        )
 
         current = service.get_current(nba_league.id)
 
@@ -264,13 +295,15 @@ class TestSeasonService:
     def test_get_current_any_league(self, test_db: Session, nba_league: League):
         """Test get_current without league_id returns any current season."""
         service = SeasonService(test_db)
-        service.create_season(SeasonCreate(
-            league_id=nba_league.id,
-            name="2023-24",
-            start_date=date(2023, 10, 24),
-            end_date=date(2024, 6, 17),
-            is_current=True,
-        ))
+        service.create_season(
+            SeasonCreate(
+                league_id=nba_league.id,
+                name="2023-24",
+                start_date=date(2023, 10, 24),
+                end_date=date(2024, 6, 17),
+                is_current=True,
+            )
+        )
 
         current = service.get_current()
 
@@ -280,21 +313,25 @@ class TestSeasonService:
     def test_create_season_sets_current(self, test_db: Session, nba_league: League):
         """Test creating a current season unsets other current seasons."""
         service = SeasonService(test_db)
-        first = service.create_season(SeasonCreate(
-            league_id=nba_league.id,
-            name="2022-23",
-            start_date=date(2022, 10, 18),
-            end_date=date(2023, 6, 12),
-            is_current=True,
-        ))
+        first = service.create_season(
+            SeasonCreate(
+                league_id=nba_league.id,
+                name="2022-23",
+                start_date=date(2022, 10, 18),
+                end_date=date(2023, 6, 12),
+                is_current=True,
+            )
+        )
 
-        second = service.create_season(SeasonCreate(
-            league_id=nba_league.id,
-            name="2023-24",
-            start_date=date(2023, 10, 24),
-            end_date=date(2024, 6, 17),
-            is_current=True,
-        ))
+        second = service.create_season(
+            SeasonCreate(
+                league_id=nba_league.id,
+                name="2023-24",
+                start_date=date(2023, 10, 24),
+                end_date=date(2024, 6, 17),
+                is_current=True,
+            )
+        )
 
         test_db.refresh(first)
         assert first.is_current is False
@@ -303,20 +340,24 @@ class TestSeasonService:
     def test_set_current(self, test_db: Session, nba_league: League):
         """Test set_current marks a season as current and unsets others."""
         service = SeasonService(test_db)
-        first = service.create_season(SeasonCreate(
-            league_id=nba_league.id,
-            name="2022-23",
-            start_date=date(2022, 10, 18),
-            end_date=date(2023, 6, 12),
-            is_current=True,
-        ))
-        second = service.create_season(SeasonCreate(
-            league_id=nba_league.id,
-            name="2023-24",
-            start_date=date(2023, 10, 24),
-            end_date=date(2024, 6, 17),
-            is_current=False,
-        ))
+        first = service.create_season(
+            SeasonCreate(
+                league_id=nba_league.id,
+                name="2022-23",
+                start_date=date(2022, 10, 18),
+                end_date=date(2023, 6, 12),
+                is_current=True,
+            )
+        )
+        second = service.create_season(
+            SeasonCreate(
+                league_id=nba_league.id,
+                name="2023-24",
+                start_date=date(2023, 10, 24),
+                end_date=date(2024, 6, 17),
+                is_current=False,
+            )
+        )
 
         result = service.set_current(second.id)
 
@@ -337,20 +378,24 @@ class TestSeasonService:
     def test_update_season_is_current(self, test_db: Session, nba_league: League):
         """Test updating is_current unsets other seasons in league."""
         service = SeasonService(test_db)
-        first = service.create_season(SeasonCreate(
-            league_id=nba_league.id,
-            name="2022-23",
-            start_date=date(2022, 10, 18),
-            end_date=date(2023, 6, 12),
-            is_current=True,
-        ))
-        second = service.create_season(SeasonCreate(
-            league_id=nba_league.id,
-            name="2023-24",
-            start_date=date(2023, 10, 24),
-            end_date=date(2024, 6, 17),
-            is_current=False,
-        ))
+        first = service.create_season(
+            SeasonCreate(
+                league_id=nba_league.id,
+                name="2022-23",
+                start_date=date(2022, 10, 18),
+                end_date=date(2023, 6, 12),
+                is_current=True,
+            )
+        )
+        second = service.create_season(
+            SeasonCreate(
+                league_id=nba_league.id,
+                name="2023-24",
+                start_date=date(2023, 10, 24),
+                end_date=date(2024, 6, 17),
+                is_current=False,
+            )
+        )
 
         service.update_season(second.id, SeasonUpdate(is_current=True))
 
