@@ -8,8 +8,9 @@ The core module contains fundamental application infrastructure that other modul
 
 | File | Description |
 |------|-------------|
-| `__init__.py` | Exports `settings`, `Settings`, and `get_settings` |
+| `__init__.py` | Exports settings, database engine, session factory, and dependencies |
 | `config.py` | Pydantic Settings class with all application configuration |
+| `database.py` | SQLAlchemy engine, session factory, and get_db dependency |
 
 ## Usage
 
@@ -68,10 +69,63 @@ def get_db_url(settings: Settings = Depends(get_settings)) -> str:
     return settings.DATABASE_URL
 ```
 
+## Database Module
+
+### Imports
+
+```python
+from src.core import engine, SessionLocal, get_db
+# or
+from src.core.database import engine, SessionLocal, get_db, Base
+```
+
+### Creating Tables
+
+```python
+from src.core.database import engine
+from src.models import Base
+
+# Create all tables defined in models
+Base.metadata.create_all(bind=engine)
+```
+
+### Manual Session Usage
+
+```python
+from src.core import SessionLocal
+
+session = SessionLocal()
+try:
+    # Do database operations
+    session.commit()
+finally:
+    session.close()
+```
+
+### FastAPI Dependency Injection
+
+```python
+from fastapi import Depends
+from sqlalchemy.orm import Session
+from src.core import get_db
+
+@app.get("/players")
+def get_players(db: Session = Depends(get_db)):
+    return db.query(Player).all()
+```
+
+### Database Exports
+
+| Export | Type | Purpose |
+|--------|------|---------|
+| `engine` | Engine | SQLAlchemy engine from settings |
+| `SessionLocal` | sessionmaker | Session factory |
+| `get_db` | generator | FastAPI Depends() for request sessions |
+
 ## Dependencies
 
 - **Depends on:** None (this is a foundational module)
-- **External libs:** `pydantic-settings>=2.1.0`
+- **External libs:** `pydantic-settings>=2.1.0`, `sqlalchemy>=2.0.25`
 
 ## Related Documentation
 

@@ -23,18 +23,8 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-# These imports will be updated when the actual modules are created
-# from src.core.database import Base, get_db
-# from src.main import app
-
-# Placeholder Base - will be replaced with actual import
-try:
-    from src.core.database import Base, get_db
-except ImportError:
-    from sqlalchemy.orm import declarative_base
-
-    Base = declarative_base()
-    get_db = None
+# Database imports
+from src.core.database import Base, get_db
 
 # Placeholder app - will be replaced with actual import
 try:
@@ -158,9 +148,8 @@ def client(test_db: Session) -> Generator[Any, Any, None]:
         finally:
             pass
 
-    # Override the database dependency if get_db exists
-    if get_db is not None:
-        app.dependency_overrides[get_db] = override_get_db
+    # Override the database dependency
+    app.dependency_overrides[get_db] = override_get_db
 
     with TestClient(app) as test_client:
         yield test_client
