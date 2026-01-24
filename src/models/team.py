@@ -87,6 +87,38 @@ class Team(UUIDMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    home_games: Mapped[list["Game"]] = relationship(
+        "Game",
+        foreign_keys="[Game.home_team_id]",
+        back_populates="home_team",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    away_games: Mapped[list["Game"]] = relationship(
+        "Game",
+        foreign_keys="[Game.away_team_id]",
+        back_populates="away_team",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    player_game_stats: Mapped[list["PlayerGameStats"]] = relationship(
+        "PlayerGameStats",
+        back_populates="team",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    team_game_stats: Mapped[list["TeamGameStats"]] = relationship(
+        "TeamGameStats",
+        back_populates="team",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    play_by_play_events: Mapped[list["PlayByPlayEvent"]] = relationship(
+        "PlayByPlayEvent",
+        back_populates="team",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def __repr__(self) -> str:
         """Return string representation of Team."""
@@ -139,5 +171,7 @@ class TeamSeason(TimestampMixin, Base):
 
 
 if TYPE_CHECKING:
+    from src.models.game import Game, PlayerGameStats, TeamGameStats
     from src.models.league import Season
+    from src.models.play_by_play import PlayByPlayEvent
     from src.models.player import PlayerTeamHistory

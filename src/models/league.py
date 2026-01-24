@@ -30,6 +30,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.models.base import Base, TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
+    from src.models.game import Game
     from src.models.player import PlayerTeamHistory
     from src.models.team import TeamSeason
 
@@ -136,6 +137,12 @@ class Season(UUIDMixin, TimestampMixin, Base):
     )
     player_team_histories: Mapped[list["PlayerTeamHistory"]] = relationship(
         "PlayerTeamHistory",
+        back_populates="season",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    games: Mapped[list["Game"]] = relationship(
+        "Game",
         back_populates="season",
         cascade="all, delete-orphan",
         passive_deletes=True,
