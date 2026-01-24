@@ -216,6 +216,92 @@ curl "http://localhost:8000/api/v1/teams/770e8400-e29b-41d4-a716-446655440000/ro
 
 ---
 
+### Get Team Game History
+
+`GET /api/v1/teams/{team_id}/games`
+
+Retrieve a team's game history with win/loss results and opponent information.
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `team_id` | UUID | Yes | The team's unique identifier |
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `season_id` | UUID | No | - | Filter by season |
+| `skip` | integer | No | 0 | Number of records to skip |
+| `limit` | integer | No | 50 | Maximum records to return (1-500) |
+
+**Response:** `200 OK`
+
+```json
+{
+    "items": [
+        {
+            "game_id": "990e8400-e29b-41d4-a716-446655440002",
+            "game_date": "2024-01-25T19:30:00",
+            "opponent_team_id": "770e8400-e29b-41d4-a716-446655440003",
+            "opponent_team_name": "Golden State Warriors",
+            "is_home": true,
+            "team_score": 120,
+            "opponent_score": 118,
+            "venue": "Crypto.com Arena",
+            "result": "W"
+        },
+        {
+            "game_id": "990e8400-e29b-41d4-a716-446655440001",
+            "game_date": "2024-01-20T19:30:00",
+            "opponent_team_id": "770e8400-e29b-41d4-a716-446655440001",
+            "opponent_team_name": "Boston Celtics",
+            "is_home": false,
+            "team_score": 105,
+            "opponent_score": 115,
+            "venue": "TD Garden",
+            "result": "L"
+        },
+        {
+            "game_id": "990e8400-e29b-41d4-a716-446655440000",
+            "game_date": "2024-01-15T19:30:00",
+            "opponent_team_id": "770e8400-e29b-41d4-a716-446655440001",
+            "opponent_team_name": "Boston Celtics",
+            "is_home": true,
+            "team_score": 112,
+            "opponent_score": 108,
+            "venue": "Crypto.com Arena",
+            "result": "W"
+        }
+    ],
+    "total": 45
+}
+```
+
+**Error Response:** `404 Not Found`
+
+```json
+{
+    "detail": "Team with id 770e8400-e29b-41d4-a716-446655440000 not found"
+}
+```
+
+**Examples:**
+
+```bash
+# Get team game history
+curl http://localhost:8000/api/v1/teams/770e8400-e29b-41d4-a716-446655440000/games
+
+# Filter by season
+curl "http://localhost:8000/api/v1/teams/770e8400-e29b-41d4-a716-446655440000/games?season_id=660e8400-e29b-41d4-a716-446655440000"
+
+# With pagination
+curl "http://localhost:8000/api/v1/teams/770e8400-e29b-41d4-a716-446655440000/games?skip=0&limit=10"
+```
+
+---
+
 ## Response Schemas
 
 ### TeamResponse
@@ -250,6 +336,20 @@ curl "http://localhost:8000/api/v1/teams/770e8400-e29b-41d4-a716-446655440000/ro
 | `full_name` | string | Player's full name |
 | `jersey_number` | integer | Jersey number (may be null) |
 | `position` | string | Position on this team (may be null) |
+
+### TeamGameSummaryResponse
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `game_id` | UUID | Game identifier |
+| `game_date` | datetime | Date and time of game |
+| `opponent_team_id` | UUID | Opponent team identifier |
+| `opponent_team_name` | string | Opponent team name |
+| `is_home` | boolean | Was this a home game |
+| `team_score` | integer | Team's final score |
+| `opponent_score` | integer | Opponent's final score |
+| `venue` | string | Arena/venue name |
+| `result` | string | "W" for win, "L" for loss (computed) |
 
 ---
 
@@ -290,3 +390,4 @@ When filtering by `season_id`, only teams that participated in that season are r
 
 - [Leagues API](leagues.md) - League management
 - [Players API](players.md) - Player management
+- [Games API](games.md) - Game details and box scores

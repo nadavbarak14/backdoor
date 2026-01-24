@@ -9,6 +9,8 @@ Documentation for the database schema and data models used in the Basketball Ana
 | File | Description |
 |------|-------------|
 | `README.md` | This file - models overview |
+| `game-stats.md` | Game statistics field reference |
+| `play-by-play.md` | Play-by-play event types and linking |
 | `erd.md` | Entity relationship diagram (future) |
 | `player.md` | Player model details (future) |
 | `team.md` | Team model details (future) |

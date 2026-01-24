@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Version 1 of the Basketball Analytics API. Contains all REST endpoints under `/api/v1/` for managing leagues, teams, and players.
+Version 1 of the Basketball Analytics API. Contains all REST endpoints under `/api/v1/` for managing leagues, teams, players, and games.
 
 ## Contents
 
@@ -11,8 +11,9 @@ Version 1 of the Basketball Analytics API. Contains all REST endpoints under `/a
 | `__init__.py` | Package exports for all routers |
 | `router.py` | Main router aggregating all v1 endpoints |
 | `leagues.py` | League and season endpoints |
-| `teams.py` | Team and roster endpoints |
-| `players.py` | Player search and detail endpoints |
+| `teams.py` | Team, roster, and game history endpoints |
+| `players.py` | Player search, detail, and game log endpoints |
+| `games.py` | Game, box score, and play-by-play endpoints |
 
 ## Endpoint Summary
 
@@ -31,6 +32,7 @@ Version 1 of the Basketball Analytics API. Contains all REST endpoints under `/a
 | GET | `/teams` | List teams with optional filters |
 | GET | `/teams/{team_id}` | Get team by ID |
 | GET | `/teams/{team_id}/roster` | Get team roster for a season |
+| GET | `/teams/{team_id}/games` | Get team game history |
 
 ### Players (`/api/v1/players`)
 
@@ -38,6 +40,15 @@ Version 1 of the Basketball Analytics API. Contains all REST endpoints under `/a
 |--------|----------|-------------|
 | GET | `/players` | Search players with filters |
 | GET | `/players/{player_id}` | Get player with team history |
+| GET | `/players/{player_id}/games` | Get player game log |
+
+### Games (`/api/v1/games`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/games` | List games with filters |
+| GET | `/games/{game_id}` | Get game with box score |
+| GET | `/games/{game_id}/pbp` | Get play-by-play events |
 
 ## Query Parameters
 
@@ -72,6 +83,33 @@ Version 1 of the Basketball Analytics API. Contains all REST endpoints under `/a
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `season_id` | UUID | Season ID (optional, defaults to current season) |
+
+### Game Filters (`GET /games`)
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `season_id` | UUID | Filter by season |
+| `team_id` | UUID | Filter by team (home or away) |
+| `start_date` | date | Filter games on or after this date |
+| `end_date` | date | Filter games on or before this date |
+| `status` | string | Filter by status (SCHEDULED, LIVE, FINAL, POSTPONED, CANCELLED) |
+
+### Play-by-Play Filters (`GET /games/{id}/pbp`)
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `period` | integer | Filter by period number (1-4, 5+ for OT) |
+| `event_type` | string | Filter by event type (SHOT, REBOUND, etc.) |
+| `player_id` | UUID | Filter by player |
+| `team_id` | UUID | Filter by team |
+
+### Game Log/History Parameters
+
+Used by both `/players/{id}/games` and `/teams/{id}/games`:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `season_id` | UUID | Filter by season |
 
 ## Error Responses
 
@@ -175,6 +213,9 @@ When running the server, access:
 - [Leagues API Reference](../../../docs/api/leagues.md)
 - [Teams API Reference](../../../docs/api/teams.md)
 - [Players API Reference](../../../docs/api/players.md)
+- [Games API Reference](../../../docs/api/games.md)
+- [Game Statistics Reference](../../../docs/models/game-stats.md)
+- [Play-by-Play Reference](../../../docs/models/play-by-play.md)
 - [API Overview](../../../docs/api/README.md)
 - [Schemas](../../schemas/README.md)
 - [Services](../../services/README.md)
