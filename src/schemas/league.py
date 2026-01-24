@@ -157,7 +157,10 @@ class SeasonCreate(BaseModel):
 
     league_id: UUID = Field(..., description="UUID of the league")
     name: str = Field(
-        ..., min_length=1, max_length=50, description="Season identifier (e.g., 2023-24)"
+        ...,
+        min_length=1,
+        max_length=50,
+        description="Season identifier (e.g., 2023-24)",
     )
     start_date: date = Field(..., description="Season start date")
     end_date: date = Field(..., description="Season end date")
