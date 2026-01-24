@@ -13,6 +13,8 @@ SQLAlchemy ORM models for the Basketball Analytics Platform database. This modul
 | `league.py` | League and Season models |
 | `team.py` | Team and TeamSeason models |
 | `player.py` | Player and PlayerTeamHistory models |
+| `game.py` | Game, PlayerGameStats, and TeamGameStats models |
+| `play_by_play.py` | PlayByPlayEvent and PlayByPlayEventLink models |
 
 ## Entity Relationship Diagram
 
@@ -180,6 +182,145 @@ Tracks a player's tenure with a team for a specific season.
 | `updated_at` | DateTime | NOT NULL | Last modification |
 
 **Unique Constraint:** `(player_id, team_id, season_id)` - One entry per player-team-season
+
+### Game
+
+Represents a basketball game between two teams.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK, auto-generated | Unique identifier |
+| `season_id` | UUID | FK → seasons.id, NOT NULL | Season this game belongs to |
+| `home_team_id` | UUID | FK → teams.id, NOT NULL | Home team |
+| `away_team_id` | UUID | FK → teams.id, NOT NULL | Away team |
+| `game_date` | DateTime | NOT NULL, indexed | Game date and time |
+| `status` | String(20) | NOT NULL, default="SCHEDULED" | SCHEDULED, LIVE, FINAL, POSTPONED |
+| `home_score` | Integer | NULL | Home team final score |
+| `away_score` | Integer | NULL | Away team final score |
+| `venue` | String(200) | NULL | Arena/venue name |
+| `attendance` | Integer | NULL | Number of spectators |
+| `external_ids` | JSON | default={} | External provider IDs |
+| `created_at` | DateTime | NOT NULL | Creation timestamp |
+| `updated_at` | DateTime | NOT NULL | Last modification |
+
+**Relationships:**
+- `season`: Many-to-one with Season
+- `home_team`: Many-to-one with Team
+- `away_team`: Many-to-one with Team
+- `player_game_stats`: One-to-many with PlayerGameStats
+- `team_game_stats`: One-to-many with TeamGameStats
+- `play_by_play_events`: One-to-many with PlayByPlayEvent
+
+### PlayerGameStats
+
+Per-player box score statistics for a game.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK, auto-generated | Unique identifier |
+| `game_id` | UUID | FK → games.id, NOT NULL | Game reference |
+| `player_id` | UUID | FK → players.id, NOT NULL | Player reference |
+| `team_id` | UUID | FK → teams.id, NOT NULL | Team the player played for |
+| `minutes_played` | Integer | NOT NULL, default=0 | Playing time in seconds |
+| `is_starter` | Boolean | NOT NULL, default=False | In starting lineup |
+| `points` | Integer | NOT NULL, default=0 | Points scored |
+| `field_goals_made` | Integer | NOT NULL, default=0 | FG made |
+| `field_goals_attempted` | Integer | NOT NULL, default=0 | FG attempted |
+| `two_pointers_made` | Integer | NOT NULL, default=0 | 2PT made |
+| `two_pointers_attempted` | Integer | NOT NULL, default=0 | 2PT attempted |
+| `three_pointers_made` | Integer | NOT NULL, default=0 | 3PT made |
+| `three_pointers_attempted` | Integer | NOT NULL, default=0 | 3PT attempted |
+| `free_throws_made` | Integer | NOT NULL, default=0 | FT made |
+| `free_throws_attempted` | Integer | NOT NULL, default=0 | FT attempted |
+| `offensive_rebounds` | Integer | NOT NULL, default=0 | Offensive rebounds |
+| `defensive_rebounds` | Integer | NOT NULL, default=0 | Defensive rebounds |
+| `total_rebounds` | Integer | NOT NULL, default=0 | Total rebounds |
+| `assists` | Integer | NOT NULL, default=0 | Assists |
+| `turnovers` | Integer | NOT NULL, default=0 | Turnovers |
+| `steals` | Integer | NOT NULL, default=0 | Steals |
+| `blocks` | Integer | NOT NULL, default=0 | Blocks |
+| `personal_fouls` | Integer | NOT NULL, default=0 | Personal fouls |
+| `plus_minus` | Integer | NOT NULL, default=0 | Plus/minus |
+| `efficiency` | Integer | NOT NULL, default=0 | Efficiency rating |
+| `extra_stats` | JSON | default={} | League-specific stats |
+| `created_at` | DateTime | NOT NULL | Creation timestamp |
+| `updated_at` | DateTime | NOT NULL | Last modification |
+
+**Unique Constraint:** `(game_id, player_id)` - One stat line per player per game
+
+### TeamGameStats
+
+Team-level aggregated statistics for a game (composite primary key).
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `game_id` | UUID | PK, FK → games.id | Game reference |
+| `team_id` | UUID | PK, FK → teams.id | Team reference |
+| `is_home` | Boolean | NOT NULL | Is this the home team |
+| `points` | Integer | NOT NULL, default=0 | Total points |
+| `field_goals_made` | Integer | NOT NULL, default=0 | FG made |
+| `field_goals_attempted` | Integer | NOT NULL, default=0 | FG attempted |
+| (... all standard stats ...) | | | |
+| `fast_break_points` | Integer | NOT NULL, default=0 | Fast break points |
+| `points_in_paint` | Integer | NOT NULL, default=0 | Points in the paint |
+| `second_chance_points` | Integer | NOT NULL, default=0 | Second chance points |
+| `bench_points` | Integer | NOT NULL, default=0 | Bench points |
+| `biggest_lead` | Integer | NOT NULL, default=0 | Biggest lead |
+| `time_leading` | Integer | NOT NULL, default=0 | Time leading in seconds |
+| `extra_stats` | JSON | default={} | League-specific stats |
+| `created_at` | DateTime | NOT NULL | Creation timestamp |
+| `updated_at` | DateTime | NOT NULL | Last modification |
+
+**Note:** Uses composite primary key `(game_id, team_id)`.
+
+### PlayByPlayEvent
+
+Individual play-by-play event in a game.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK, auto-generated | Unique identifier |
+| `game_id` | UUID | FK → games.id, NOT NULL | Game reference |
+| `event_number` | Integer | NOT NULL | Sequence in game |
+| `period` | Integer | NOT NULL | Period/quarter |
+| `clock` | String(20) | NOT NULL | Game clock (e.g., "10:30") |
+| `event_type` | String(50) | NOT NULL | SHOT, REBOUND, ASSIST, etc. |
+| `event_subtype` | String(50) | NULL | 2PT, 3PT, OFFENSIVE, etc. |
+| `player_id` | UUID | FK → players.id, NULL | Player involved |
+| `team_id` | UUID | FK → teams.id, NOT NULL | Team involved |
+| `success` | Boolean | NULL | For shots: made or missed |
+| `coord_x` | Float | NULL | Shot X coordinate |
+| `coord_y` | Float | NULL | Shot Y coordinate |
+| `attributes` | JSON | default={} | Extended attributes |
+| `description` | String(500) | NULL | Human-readable description |
+| `created_at` | DateTime | NOT NULL | Creation timestamp |
+| `updated_at` | DateTime | NOT NULL | Last modification |
+
+**Unique Constraint:** `(game_id, event_number)` - One event number per game
+
+**Relationships:**
+- `game`: Many-to-one with Game
+- `player`: Many-to-one with Player (nullable)
+- `team`: Many-to-one with Team
+- `related_events`: Many-to-many via PlayByPlayEventLink (events this links to)
+- `linked_from`: Many-to-many via PlayByPlayEventLink (events that link to this)
+
+### PlayByPlayEventLink
+
+Association table linking related play-by-play events.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `event_id` | UUID | PK, FK → play_by_play_events.id | Source event |
+| `related_event_id` | UUID | PK, FK → play_by_play_events.id | Related event |
+
+**Example (And-1 Play):**
+```
+Event 1: SHOT (2PT, made, player=Lessort)
+Event 2: ASSIST (player=Wilbekin) → links to [1]
+Event 3: FOUL (shooting, player=Opponent) → links to [1]
+Event 4: FREE_THROW (made, player=Lessort) → links to [1, 3]
+```
 
 ## JSON Fields (external_ids)
 

@@ -100,6 +100,18 @@ class Player(UUIDMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    game_stats: Mapped[list["PlayerGameStats"]] = relationship(
+        "PlayerGameStats",
+        back_populates="player",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    play_by_play_events: Mapped[list["PlayByPlayEvent"]] = relationship(
+        "PlayByPlayEvent",
+        back_populates="player",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     @property
     def full_name(self) -> str:
@@ -201,5 +213,7 @@ class PlayerTeamHistory(UUIDMixin, TimestampMixin, Base):
 
 
 if TYPE_CHECKING:
+    from src.models.game import PlayerGameStats
     from src.models.league import Season
+    from src.models.play_by_play import PlayByPlayEvent
     from src.models.team import Team

@@ -15,10 +15,15 @@ Entity models:
     - TeamSeason: Team participation in a season (many-to-many)
     - Player: Basketball player
     - PlayerTeamHistory: Player team affiliations by season
+    - Game: Basketball game between two teams
+    - PlayerGameStats: Per-player box score statistics
+    - TeamGameStats: Team-level aggregated statistics
+    - PlayByPlayEvent: Individual play-by-play event
+    - PlayByPlayEventLink: Association linking related events
 
 Usage:
     from src.models import Base, UUIDMixin, TimestampMixin
-    from src.models import League, Season, Team, Player
+    from src.models import League, Season, Team, Player, Game
 
     class MyModel(UUIDMixin, TimestampMixin, Base):
         __tablename__ = "my_table"
@@ -26,7 +31,9 @@ Usage:
 """
 
 from src.models.base import Base, TimestampMixin, UUIDMixin
+from src.models.game import Game, PlayerGameStats, TeamGameStats
 from src.models.league import League, Season
+from src.models.play_by_play import PlayByPlayEvent, PlayByPlayEventLink
 from src.models.player import Player, PlayerTeamHistory
 from src.models.team import Team, TeamSeason
 
@@ -44,4 +51,11 @@ __all__ = [
     # Player models
     "Player",
     "PlayerTeamHistory",
+    # Game models
+    "Game",
+    "PlayerGameStats",
+    "TeamGameStats",
+    # Play-by-play models
+    "PlayByPlayEvent",
+    "PlayByPlayEventLink",
 ]
