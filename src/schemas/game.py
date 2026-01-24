@@ -124,12 +124,8 @@ class GameCreate(BaseModel):
     home_team_id: UUID = Field(..., description="Home team UUID")
     away_team_id: UUID = Field(..., description="Away team UUID")
     game_date: datetime = Field(..., description="Date and time of the game")
-    status: GameStatus = Field(
-        default=GameStatus.SCHEDULED, description="Game status"
-    )
-    venue: str | None = Field(
-        None, max_length=200, description="Arena/venue name"
-    )
+    status: GameStatus = Field(default=GameStatus.SCHEDULED, description="Game status")
+    venue: str | None = Field(None, max_length=200, description="Arena/venue name")
     external_ids: dict[str, str] | None = Field(
         default=None, description="External provider ID mappings"
     )
@@ -249,9 +245,7 @@ class GameFilter(BaseModel):
     """
 
     season_id: UUID | None = Field(None, description="Filter by season UUID")
-    team_id: UUID | None = Field(
-        None, description="Filter by team UUID (home or away)"
-    )
+    team_id: UUID | None = Field(None, description="Filter by team UUID (home or away)")
     start_date: date | None = Field(
         None, description="Filter games on or after this date"
     )
