@@ -327,18 +327,14 @@ class TestListGames:
         _create_test_game_with_stats(test_db)
 
         # Should include the game
-        response = client.get(
-            "/api/v1/games?start_date=2024-01-01&end_date=2024-01-31"
-        )
+        response = client.get("/api/v1/games?start_date=2024-01-01&end_date=2024-01-31")
 
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 1
 
         # Should exclude the game
-        response = client.get(
-            "/api/v1/games?start_date=2024-02-01&end_date=2024-02-28"
-        )
+        response = client.get("/api/v1/games?start_date=2024-02-01&end_date=2024-02-28")
 
         assert response.status_code == 200
         data = response.json()
@@ -631,8 +627,8 @@ class TestGetPlayByPlay:
 
     def test_get_play_by_play_with_team_filter(self, client, test_db: Session):
         """Test filtering play-by-play by team."""
-        game, _, home_team, away_team, player1, _, player3 = _create_test_game_with_stats(
-            test_db
+        game, _, home_team, away_team, player1, _, player3 = (
+            _create_test_game_with_stats(test_db)
         )
 
         pbp_service = PlayByPlayService(test_db)
