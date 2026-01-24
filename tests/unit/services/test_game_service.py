@@ -6,12 +6,12 @@ external ID lookup, and score updates.
 """
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 from sqlalchemy.orm import Session
 
-from src.models.game import Game, PlayerGameStats, TeamGameStats
+from src.models.game import PlayerGameStats, TeamGameStats
 from src.models.league import League, Season
 from src.models.player import Player
 from src.models.team import Team
@@ -109,7 +109,7 @@ class TestGameService:
     ):
         """Test creating a game from Pydantic schema."""
         service = GameService(test_db)
-        game_date = datetime(2024, 1, 15, 19, 30, tzinfo=timezone.utc)
+        game_date = datetime(2024, 1, 15, 19, 30, tzinfo=UTC)
         data = GameCreate(
             season_id=nba_season.id,
             home_team_id=lakers.id,
@@ -138,7 +138,7 @@ class TestGameService:
             season_id=nba_season.id,
             home_team_id=lakers.id,
             away_team_id=celtics.id,
-            game_date=datetime(2024, 1, 15, 19, 30, tzinfo=timezone.utc),
+            game_date=datetime(2024, 1, 15, 19, 30, tzinfo=UTC),
         )
 
         game = service.create_game(data)
@@ -155,7 +155,7 @@ class TestGameService:
                 season_id=nba_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=UTC),
             )
         )
 
@@ -185,7 +185,7 @@ class TestGameService:
                 season_id=nba_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=UTC),
             )
         )
 
@@ -211,7 +211,7 @@ class TestGameService:
                 season_id=nba_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=UTC),
                 external_ids={"winner": "12345", "nba": "0022300567"},
             )
         )
@@ -232,7 +232,7 @@ class TestGameService:
                 season_id=nba_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=UTC),
                 external_ids={"winner": "12345"},
             )
         )
@@ -262,7 +262,7 @@ class TestGameService:
                 season_id=nba_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=UTC),
             )
         )
         service.create_game(
@@ -270,7 +270,7 @@ class TestGameService:
                 season_id=other_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2023, 1, 15, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2023, 1, 15, 19, 30, tzinfo=UTC),
             )
         )
 
@@ -302,7 +302,7 @@ class TestGameService:
                 season_id=nba_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=UTC),
             )
         )
         # Warriors vs Celtics (Lakers not in this game)
@@ -311,7 +311,7 @@ class TestGameService:
                 season_id=nba_season.id,
                 home_team_id=warriors.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2024, 1, 16, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 16, 19, 30, tzinfo=UTC),
             )
         )
 
@@ -331,7 +331,7 @@ class TestGameService:
                 season_id=nba_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2024, 1, 10, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 10, 19, 30, tzinfo=UTC),
             )
         )
         service.create_game(
@@ -339,7 +339,7 @@ class TestGameService:
                 season_id=nba_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2024, 1, 20, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 20, 19, 30, tzinfo=UTC),
             )
         )
         service.create_game(
@@ -347,7 +347,7 @@ class TestGameService:
                 season_id=nba_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2024, 1, 30, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 30, 19, 30, tzinfo=UTC),
             )
         )
 
@@ -369,7 +369,7 @@ class TestGameService:
                 season_id=nba_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=UTC),
                 status=GameStatus.FINAL,
             )
         )
@@ -378,7 +378,7 @@ class TestGameService:
                 season_id=nba_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2024, 1, 20, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 20, 19, 30, tzinfo=UTC),
                 status=GameStatus.SCHEDULED,
             )
         )
@@ -401,7 +401,7 @@ class TestGameService:
                     season_id=nba_season.id,
                     home_team_id=lakers.id,
                     away_team_id=celtics.id,
-                    game_date=datetime(2024, 1, i + 1, 19, 30, tzinfo=timezone.utc),
+                    game_date=datetime(2024, 1, i + 1, 19, 30, tzinfo=UTC),
                 )
             )
 
@@ -432,7 +432,7 @@ class TestGameService:
                 season_id=nba_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=UTC),
             )
         )
         # Lakers away game
@@ -441,7 +441,7 @@ class TestGameService:
                 season_id=nba_season.id,
                 home_team_id=warriors.id,
                 away_team_id=lakers.id,
-                game_date=datetime(2024, 1, 16, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 16, 19, 30, tzinfo=UTC),
             )
         )
         # Game without Lakers
@@ -450,7 +450,7 @@ class TestGameService:
                 season_id=nba_season.id,
                 home_team_id=warriors.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2024, 1, 17, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 17, 19, 30, tzinfo=UTC),
             )
         )
 
@@ -480,7 +480,7 @@ class TestGameService:
                 season_id=nba_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=UTC),
             )
         )
         service.create_game(
@@ -488,7 +488,7 @@ class TestGameService:
                 season_id=old_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2023, 1, 15, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2023, 1, 15, 19, 30, tzinfo=UTC),
             )
         )
 
@@ -515,7 +515,7 @@ class TestGameService:
                 season_id=nba_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=UTC),
                 status=GameStatus.FINAL,
             )
         )

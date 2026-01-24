@@ -5,8 +5,7 @@ Tests statistics business logic including per-game retrieval,
 game logs, bulk creation, and team stats aggregation.
 """
 
-import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 from sqlalchemy.orm import Session
@@ -112,7 +111,7 @@ class TestPlayerGameStatsService:
                 season_id=nba_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=UTC),
                 status=GameStatus.FINAL,
             )
         )
@@ -246,7 +245,7 @@ class TestPlayerGameStatsService:
                     season_id=nba_season.id,
                     home_team_id=lakers.id,
                     away_team_id=celtics.id,
-                    game_date=datetime(2024, 1, i + 10, 19, 30, tzinfo=timezone.utc),
+                    game_date=datetime(2024, 1, i + 10, 19, 30, tzinfo=UTC),
                     status=GameStatus.FINAL,
                 )
             )
@@ -299,7 +298,7 @@ class TestPlayerGameStatsService:
                 season_id=nba_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=UTC),
             )
         )
         stats_service.create_stats(
@@ -312,7 +311,7 @@ class TestPlayerGameStatsService:
                 season_id=old_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2023, 1, 15, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2023, 1, 15, 19, 30, tzinfo=UTC),
             )
         )
         stats_service.create_stats(
@@ -477,7 +476,7 @@ class TestTeamGameStatsService:
                 season_id=nba_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=UTC),
                 status=GameStatus.FINAL,
             )
         )
@@ -574,7 +573,7 @@ class TestTeamGameStatsService:
                     season_id=nba_season.id,
                     home_team_id=lakers.id if i % 2 == 0 else celtics.id,
                     away_team_id=celtics.id if i % 2 == 0 else lakers.id,
-                    game_date=datetime(2024, 1, i + 10, 19, 30, tzinfo=timezone.utc),
+                    game_date=datetime(2024, 1, i + 10, 19, 30, tzinfo=UTC),
                     status=GameStatus.FINAL,
                 )
             )

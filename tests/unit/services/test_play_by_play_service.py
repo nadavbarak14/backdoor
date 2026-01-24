@@ -6,7 +6,7 @@ filtering, event linking, bulk creation, and shot chart data.
 """
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 from sqlalchemy.orm import Session
@@ -105,7 +105,7 @@ class TestPlayByPlayService:
                 season_id=nba_season.id,
                 home_team_id=lakers.id,
                 away_team_id=celtics.id,
-                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=timezone.utc),
+                game_date=datetime(2024, 1, 15, 19, 30, tzinfo=UTC),
                 status=GameStatus.FINAL,
             )
         )
