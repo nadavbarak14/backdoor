@@ -139,7 +139,10 @@ def sample_player2(db_session: Session) -> Player:
 
 @pytest.fixture
 def sample_game(
-    db_session: Session, sample_season: Season, sample_team: Team, sample_away_team: Team
+    db_session: Session,
+    sample_season: Season,
+    sample_team: Team,
+    sample_away_team: Team,
 ) -> Game:
     """Create a sample game for testing."""
     game = Game(
