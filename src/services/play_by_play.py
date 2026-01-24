@@ -101,7 +101,9 @@ class PlayByPlayService(BaseService[PlayByPlayEvent]):
                 stmt = stmt.where(PlayByPlayEvent.period == filter_params.period)
 
             if filter_params.event_type:
-                stmt = stmt.where(PlayByPlayEvent.event_type == filter_params.event_type)
+                stmt = stmt.where(
+                    PlayByPlayEvent.event_type == filter_params.event_type
+                )
 
             if filter_params.player_id:
                 stmt = stmt.where(PlayByPlayEvent.player_id == filter_params.player_id)

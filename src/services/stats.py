@@ -566,15 +566,21 @@ class TeamGameStatsService:
             "is_home": is_home,
             "points": sum(ps.points for ps in player_stats),
             "field_goals_made": sum(ps.field_goals_made for ps in player_stats),
-            "field_goals_attempted": sum(ps.field_goals_attempted for ps in player_stats),
+            "field_goals_attempted": sum(
+                ps.field_goals_attempted for ps in player_stats
+            ),
             "two_pointers_made": sum(ps.two_pointers_made for ps in player_stats),
-            "two_pointers_attempted": sum(ps.two_pointers_attempted for ps in player_stats),
+            "two_pointers_attempted": sum(
+                ps.two_pointers_attempted for ps in player_stats
+            ),
             "three_pointers_made": sum(ps.three_pointers_made for ps in player_stats),
             "three_pointers_attempted": sum(
                 ps.three_pointers_attempted for ps in player_stats
             ),
             "free_throws_made": sum(ps.free_throws_made for ps in player_stats),
-            "free_throws_attempted": sum(ps.free_throws_attempted for ps in player_stats),
+            "free_throws_attempted": sum(
+                ps.free_throws_attempted for ps in player_stats
+            ),
             "offensive_rebounds": sum(ps.offensive_rebounds for ps in player_stats),
             "defensive_rebounds": sum(ps.defensive_rebounds for ps in player_stats),
             "total_rebounds": sum(ps.total_rebounds for ps in player_stats),
@@ -587,9 +593,7 @@ class TeamGameStatsService:
             "fast_break_points": 0,
             "points_in_paint": 0,
             "second_chance_points": 0,
-            "bench_points": sum(
-                ps.points for ps in player_stats if not ps.is_starter
-            ),
+            "bench_points": sum(ps.points for ps in player_stats if not ps.is_starter),
             "biggest_lead": 0,
             "time_leading": 0,
             "extra_stats": {},

@@ -242,7 +242,12 @@ class TestGameService:
         assert result is None
 
     def test_get_filtered_by_season(
-        self, test_db: Session, nba_league: League, nba_season: Season, lakers: Team, celtics: Team
+        self,
+        test_db: Session,
+        nba_league: League,
+        nba_season: Season,
+        lakers: Team,
+        celtics: Team,
     ):
         """Test filtering games by season."""
         service = GameService(test_db)
@@ -460,7 +465,12 @@ class TestGameService:
         assert len(games) == 2
 
     def test_get_by_team_with_season_filter(
-        self, test_db: Session, nba_league: League, nba_season: Season, lakers: Team, celtics: Team
+        self,
+        test_db: Session,
+        nba_league: League,
+        nba_season: Season,
+        lakers: Team,
+        celtics: Team,
     ):
         """Test getting games for a team filtered by season."""
         service = GameService(test_db)

@@ -211,13 +211,23 @@ class TestPlayerGameStatsService:
         service = PlayerGameStatsService(test_db)
 
         service.create_stats(
-            {"game_id": game.id, "player_id": lebron.id, "team_id": lakers.id, "points": 25}
+            {
+                "game_id": game.id,
+                "player_id": lebron.id,
+                "team_id": lakers.id,
+                "points": 25,
+            }
         )
         service.create_stats(
             {"game_id": game.id, "player_id": ad.id, "team_id": lakers.id, "points": 20}
         )
         service.create_stats(
-            {"game_id": game.id, "player_id": tatum.id, "team_id": celtics.id, "points": 30}
+            {
+                "game_id": game.id,
+                "player_id": tatum.id,
+                "team_id": celtics.id,
+                "points": 30,
+            }
         )
 
         lakers_stats = service.get_by_game_and_team(game.id, lakers.id)
@@ -302,7 +312,12 @@ class TestPlayerGameStatsService:
             )
         )
         stats_service.create_stats(
-            {"game_id": game1.id, "player_id": lebron.id, "team_id": lakers.id, "points": 25}
+            {
+                "game_id": game1.id,
+                "player_id": lebron.id,
+                "team_id": lakers.id,
+                "points": 25,
+            }
         )
 
         # Old season game
@@ -315,7 +330,12 @@ class TestPlayerGameStatsService:
             )
         )
         stats_service.create_stats(
-            {"game_id": game2.id, "player_id": lebron.id, "team_id": lakers.id, "points": 20}
+            {
+                "game_id": game2.id,
+                "player_id": lebron.id,
+                "team_id": lakers.id,
+                "points": 20,
+            }
         )
 
         game_log, total = stats_service.get_player_game_log(
@@ -332,7 +352,12 @@ class TestPlayerGameStatsService:
         service = PlayerGameStatsService(test_db)
 
         service.create_stats(
-            {"game_id": game.id, "player_id": lebron.id, "team_id": lakers.id, "points": 25}
+            {
+                "game_id": game.id,
+                "player_id": lebron.id,
+                "team_id": lakers.id,
+                "points": 25,
+            }
         )
 
         stats = service.get_by_player_and_game(lebron.id, game.id)
@@ -362,8 +387,18 @@ class TestPlayerGameStatsService:
         service = PlayerGameStatsService(test_db)
 
         stats_list = [
-            {"game_id": game.id, "player_id": lebron.id, "team_id": lakers.id, "points": 25},
-            {"game_id": game.id, "player_id": ad.id, "team_id": lakers.id, "points": 20},
+            {
+                "game_id": game.id,
+                "player_id": lebron.id,
+                "team_id": lakers.id,
+                "points": 25,
+            },
+            {
+                "game_id": game.id,
+                "player_id": ad.id,
+                "team_id": lakers.id,
+                "points": 20,
+            },
         ]
 
         created = service.bulk_create(stats_list)
@@ -380,10 +415,17 @@ class TestPlayerGameStatsService:
         service = PlayerGameStatsService(test_db)
 
         service.create_stats(
-            {"game_id": game.id, "player_id": lebron.id, "team_id": lakers.id, "points": 25}
+            {
+                "game_id": game.id,
+                "player_id": lebron.id,
+                "team_id": lakers.id,
+                "points": 25,
+            }
         )
 
-        updated = service.update_stats(game.id, lebron.id, {"points": 30, "assists": 10})
+        updated = service.update_stats(
+            game.id, lebron.id, {"points": 30, "assists": 10}
+        )
 
         assert updated is not None
         assert updated.points == 30
@@ -604,15 +646,15 @@ class TestTeamGameStatsService:
             {"game_id": game.id, "team_id": lakers.id, "is_home": True, "points": 112}
         )
 
-        updated = service.update_stats(game.id, lakers.id, {"points": 115, "assists": 28})
+        updated = service.update_stats(
+            game.id, lakers.id, {"points": 115, "assists": 28}
+        )
 
         assert updated is not None
         assert updated.points == 115
         assert updated.assists == 28
 
-    def test_update_stats_not_found(
-        self, test_db: Session, game: Game, lakers: Team
-    ):
+    def test_update_stats_not_found(self, test_db: Session, game: Game, lakers: Team):
         """Test update_stats returns None when not found."""
         service = TeamGameStatsService(test_db)
 

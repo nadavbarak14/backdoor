@@ -126,12 +126,9 @@ class GameService(BaseService[Game]):
             >>> games, total = service.get_filtered(filters, skip=0, limit=10)
             >>> print(f"Found {total} completed games for the Lakers")
         """
-        stmt = (
-            select(Game)
-            .options(
-                joinedload(Game.home_team),
-                joinedload(Game.away_team),
-            )
+        stmt = select(Game).options(
+            joinedload(Game.home_team),
+            joinedload(Game.away_team),
         )
 
         if filter_params.season_id:
@@ -152,9 +149,7 @@ class GameService(BaseService[Game]):
             stmt = stmt.where(Game.game_date >= start_datetime)
 
         if filter_params.end_date:
-            end_datetime = datetime.combine(
-                filter_params.end_date, datetime.max.time()
-            )
+            end_datetime = datetime.combine(filter_params.end_date, datetime.max.time())
             stmt = stmt.where(Game.game_date <= end_datetime)
 
         if filter_params.status:

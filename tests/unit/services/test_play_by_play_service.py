@@ -646,9 +646,7 @@ class TestPlayByPlayService:
         assert len(lebron_shots) == 1
         assert lebron_shots[0].player_id == lebron.id
 
-    def test_get_events_by_type(
-        self, test_db: Session, game: Game, lakers: Team
-    ):
+    def test_get_events_by_type(self, test_db: Session, game: Game, lakers: Team):
         """Test getting events by type."""
         service = PlayByPlayService(test_db)
 
@@ -734,9 +732,7 @@ class TestPlayByPlayService:
         assert deleted == 3
         assert service.count_by_game(game.id) == 0
 
-    def test_update_event(
-        self, test_db: Session, game: Game, lakers: Team
-    ):
+    def test_update_event(self, test_db: Session, game: Game, lakers: Team):
         """Test updating an event."""
         service = PlayByPlayService(test_db)
 
