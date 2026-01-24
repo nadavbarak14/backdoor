@@ -11,6 +11,7 @@ This directory contains external data synchronization logic for the Basketball A
 | `__init__.py` | Package exports |
 | `base.py` | Base sync client with common functionality |
 | `nba/` | NBA API integration (future) |
+| `winner/` | Winner League (Israeli Basketball) data fetching |
 | `scheduler.py` | Sync job scheduling (future) |
 
 ## Sync Architecture

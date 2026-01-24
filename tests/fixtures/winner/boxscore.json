@@ -1,0 +1,111 @@
+{
+  "GameId": "12345",
+  "HomeTeam": {
+    "TeamId": "100",
+    "TeamName": "Maccabi Tel Aviv",
+    "Score": 85,
+    "Players": [
+      {
+        "PlayerId": "1001",
+        "Name": "John Smith",
+        "JerseyNumber": "5",
+        "Minutes": "32:15",
+        "Points": 22,
+        "Rebounds": 8,
+        "Assists": 5,
+        "Steals": 2,
+        "Blocks": 1,
+        "Turnovers": 3,
+        "FGM": 8,
+        "FGA": 15,
+        "ThreePM": 3,
+        "ThreePA": 7,
+        "FTM": 3,
+        "FTA": 4
+      },
+      {
+        "PlayerId": "1002",
+        "Name": "David Cohen",
+        "JerseyNumber": "10",
+        "Minutes": "28:45",
+        "Points": 18,
+        "Rebounds": 3,
+        "Assists": 7,
+        "Steals": 1,
+        "Blocks": 0,
+        "Turnovers": 2,
+        "FGM": 6,
+        "FGA": 12,
+        "ThreePM": 2,
+        "ThreePA": 5,
+        "FTM": 4,
+        "FTA": 4
+      },
+      {
+        "PlayerId": "1003",
+        "Name": "Michael Brown",
+        "JerseyNumber": "23",
+        "Minutes": "25:30",
+        "Points": 15,
+        "Rebounds": 10,
+        "Assists": 2,
+        "Steals": 0,
+        "Blocks": 3,
+        "Turnovers": 1,
+        "FGM": 5,
+        "FGA": 9,
+        "ThreePM": 0,
+        "ThreePA": 1,
+        "FTM": 5,
+        "FTA": 6
+      }
+    ]
+  },
+  "AwayTeam": {
+    "TeamId": "101",
+    "TeamName": "Hapoel Jerusalem",
+    "Score": 78,
+    "Players": [
+      {
+        "PlayerId": "2001",
+        "Name": "Alex Johnson",
+        "JerseyNumber": "7",
+        "Minutes": "30:00",
+        "Points": 20,
+        "Rebounds": 5,
+        "Assists": 4,
+        "Steals": 1,
+        "Blocks": 0,
+        "Turnovers": 2,
+        "FGM": 7,
+        "FGA": 14,
+        "ThreePM": 4,
+        "ThreePA": 8,
+        "FTM": 2,
+        "FTA": 2
+      },
+      {
+        "PlayerId": "2002",
+        "Name": "Chris Davis",
+        "JerseyNumber": "15",
+        "Minutes": "27:30",
+        "Points": 16,
+        "Rebounds": 7,
+        "Assists": 2,
+        "Steals": 2,
+        "Blocks": 1,
+        "Turnovers": 3,
+        "FGM": 6,
+        "FGA": 11,
+        "ThreePM": 2,
+        "ThreePA": 4,
+        "FTM": 2,
+        "FTA": 3
+      }
+    ]
+  },
+  "GameDate": "2024-01-15T19:30:00",
+  "Arena": "Menora Mivtachim Arena",
+  "Attendance": 8500,
+  "Referees": ["Yossi Levi", "Ronen Stern", "Avi Goldstein"]
+}

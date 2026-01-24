@@ -1,0 +1,46 @@
+{
+  "games": [
+    {
+      "GameId": "12345",
+      "HomeTeamId": "100",
+      "AwayTeamId": "101",
+      "HomeTeamName": "Maccabi Tel Aviv",
+      "AwayTeamName": "Hapoel Jerusalem",
+      "HomeScore": 85,
+      "AwayScore": 78,
+      "GameDate": "2024-01-15T19:30:00",
+      "Status": "Final",
+      "Round": 15,
+      "Arena": "Menora Mivtachim Arena"
+    },
+    {
+      "GameId": "12346",
+      "HomeTeamId": "102",
+      "AwayTeamId": "103",
+      "HomeTeamName": "Hapoel Tel Aviv",
+      "AwayTeamName": "Bnei Herzliya",
+      "HomeScore": 92,
+      "AwayScore": 88,
+      "GameDate": "2024-01-16T20:00:00",
+      "Status": "Final",
+      "Round": 15,
+      "Arena": "Drive-In Arena"
+    },
+    {
+      "GameId": "12347",
+      "HomeTeamId": "104",
+      "AwayTeamId": "100",
+      "HomeTeamName": "Ironi Nahariya",
+      "AwayTeamName": "Maccabi Tel Aviv",
+      "HomeScore": null,
+      "AwayScore": null,
+      "GameDate": "2024-01-20T19:00:00",
+      "Status": "Scheduled",
+      "Round": 16,
+      "Arena": "Nahariya Sports Hall"
+    }
+  ],
+  "season": "2023-24",
+  "league": "Winner League",
+  "lastUpdated": "2024-01-17T10:30:00Z"
+}

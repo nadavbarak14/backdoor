@@ -17,6 +17,7 @@ SQLAlchemy ORM models for the Basketball Analytics Platform database. This modul
 | `play_by_play.py` | PlayByPlayEvent and PlayByPlayEventLink models |
 | `stats.py` | PlayerSeasonStats model for pre-computed season aggregates |
 | `sync.py` | SyncLog model for tracking data synchronization operations |
+| `sync_cache.py` | SyncCache model for caching external API data |
 
 ## Entity Relationship Diagram
 

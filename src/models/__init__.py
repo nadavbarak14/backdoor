@@ -7,6 +7,7 @@ This package provides:
     - Base: SQLAlchemy declarative base for all models
     - UUIDMixin: Adds UUID primary key to models
     - TimestampMixin: Adds created_at and updated_at timestamps
+    - SyncCache: Model for caching raw external data
 
 Entity models:
     - League: Basketball league (e.g., NBA, EuroLeague)
@@ -39,6 +40,7 @@ from src.models.play_by_play import PlayByPlayEvent, PlayByPlayEventLink
 from src.models.player import Player, PlayerTeamHistory
 from src.models.stats import PlayerSeasonStats
 from src.models.sync import SyncLog
+from src.models.sync_cache import SyncCache
 from src.models.team import Team, TeamSeason
 
 __all__ = [
@@ -66,4 +68,5 @@ __all__ = [
     "PlayerSeasonStats",
     # Sync models
     "SyncLog",
+    "SyncCache",
 ]
