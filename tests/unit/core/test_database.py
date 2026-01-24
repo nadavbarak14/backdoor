@@ -7,7 +7,8 @@ Tests for src/core/database.py covering:
 - get_db dependency behavior
 """
 
-import pytest
+import contextlib
+
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -84,10 +85,8 @@ class TestGetDb:
             assert isinstance(session, Session)
         finally:
             # Complete the generator to trigger cleanup
-            try:
+            with contextlib.suppress(StopIteration):
                 next(gen)
-            except StopIteration:
-                pass
 
     def test_get_db_session_is_usable(self):
         """Session from get_db should be able to execute queries."""
@@ -99,10 +98,8 @@ class TestGetDb:
             assert row is not None
             assert row[0] == 1
         finally:
-            try:
+            with contextlib.suppress(StopIteration):
                 next(gen)
-            except StopIteration:
-                pass
 
     def test_get_db_closes_session(self):
         """get_db should close the session after use."""
@@ -110,10 +107,8 @@ class TestGetDb:
         session = next(gen)
 
         # Complete the generator
-        try:
+        with contextlib.suppress(StopIteration):
             next(gen)
-        except StopIteration:
-            pass
 
         # Session should be closed (attempting to use it may raise or return None)
         # We can check the _is_closed attribute or connection state

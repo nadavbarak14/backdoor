@@ -22,7 +22,6 @@ primary keys and audit timestamps across the database.
 
 import uuid
 from datetime import datetime
-from typing import Any
 
 from sqlalchemy import DateTime, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
