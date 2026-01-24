@@ -2,12 +2,13 @@
 Players Router Module
 
 FastAPI router for player-related endpoints.
-Provides endpoints for searching players and retrieving player details
-with team history.
+Provides endpoints for searching players, retrieving player details
+with team history, and accessing player game logs.
 
 Endpoints:
     GET /players - Search players with filters
     GET /players/{player_id} - Get player with team history
+    GET /players/{player_id}/games - Get player game log
 
 Usage:
     from src.api.v1.players import router
@@ -23,12 +24,14 @@ from sqlalchemy.orm import Session
 from src.core import get_db
 from src.schemas import (
     PlayerFilter,
+    PlayerGameLogResponse,
+    PlayerGameStatsWithGameResponse,
     PlayerListResponse,
     PlayerResponse,
     PlayerTeamHistoryResponse,
     PlayerWithHistoryResponse,
 )
-from src.services import PlayerService
+from src.services import PlayerGameStatsService, PlayerService
 
 router = APIRouter(prefix="/players", tags=["Players"])
 
@@ -181,3 +184,128 @@ def get_player(
         updated_at=player.updated_at,
         team_history=team_history,
     )
+
+
+@router.get(
+    "/{player_id}/games",
+    response_model=PlayerGameLogResponse,
+    summary="Get Player Game Log",
+    description="Retrieve a player's game-by-game statistics.",
+    responses={
+        404: {"description": "Player not found"},
+    },
+)
+def get_player_games(
+    player_id: UUID,
+    season_id: UUID | None = Query(
+        default=None,
+        description="Filter by season ID",
+    ),
+    skip: int = Query(
+        default=0,
+        ge=0,
+        description="Number of records to skip for pagination",
+    ),
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=500,
+        description="Maximum number of records to return",
+    ),
+    db: Session = Depends(get_db),
+) -> PlayerGameLogResponse:
+    """
+    Get a player's game log with statistics.
+
+    Args:
+        player_id: UUID of the player.
+        season_id: Optional filter by season.
+        skip: Number of records to skip (for pagination).
+        limit: Maximum number of records to return.
+        db: Database session (injected).
+
+    Returns:
+        PlayerGameLogResponse with list of games and stats.
+
+    Raises:
+        HTTPException: 404 if player not found.
+
+    Example:
+        >>> response = client.get(f"/api/v1/players/{player_id}/games")
+        >>> data = response.json()
+        >>> for game in data["items"]:
+        ...     print(f"{game['game_date']}: {game['points']} pts ({game['result']})")
+    """
+    # Check player exists
+    player_service = PlayerService(db)
+    player = player_service.get_by_id(player_id)
+
+    if player is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Player with id {player_id} not found",
+        )
+
+    stats_service = PlayerGameStatsService(db)
+    game_log, total = stats_service.get_player_game_log(
+        player_id=player_id,
+        season_id=season_id,
+        skip=skip,
+        limit=limit,
+    )
+
+    items = []
+    for stat in game_log:
+        game = stat.game
+        # Determine opponent and if player's team was home
+        is_home = stat.team_id == game.home_team_id
+        if is_home:
+            opponent_team_id = game.away_team_id
+            opponent_team_name = game.away_team.name
+            team_score = game.home_score or 0
+            opponent_score = game.away_score or 0
+        else:
+            opponent_team_id = game.home_team_id
+            opponent_team_name = game.home_team.name
+            team_score = game.away_score or 0
+            opponent_score = game.home_score or 0
+
+        items.append(
+            PlayerGameStatsWithGameResponse(
+                id=stat.id,
+                game_id=stat.game_id,
+                player_id=stat.player_id,
+                player_name=stat.player.full_name,
+                team_id=stat.team_id,
+                minutes_played=stat.minutes_played,
+                is_starter=stat.is_starter,
+                points=stat.points,
+                field_goals_made=stat.field_goals_made,
+                field_goals_attempted=stat.field_goals_attempted,
+                two_pointers_made=stat.two_pointers_made,
+                two_pointers_attempted=stat.two_pointers_attempted,
+                three_pointers_made=stat.three_pointers_made,
+                three_pointers_attempted=stat.three_pointers_attempted,
+                free_throws_made=stat.free_throws_made,
+                free_throws_attempted=stat.free_throws_attempted,
+                offensive_rebounds=stat.offensive_rebounds,
+                defensive_rebounds=stat.defensive_rebounds,
+                total_rebounds=stat.total_rebounds,
+                assists=stat.assists,
+                turnovers=stat.turnovers,
+                steals=stat.steals,
+                blocks=stat.blocks,
+                personal_fouls=stat.personal_fouls,
+                plus_minus=stat.plus_minus,
+                efficiency=stat.efficiency,
+                extra_stats=stat.extra_stats or {},
+                game_date=game.game_date,
+                opponent_team_id=opponent_team_id,
+                opponent_team_name=opponent_team_name,
+                is_home=is_home,
+                team_score=team_score,
+                opponent_score=opponent_score,
+            )
+        )
+
+    return PlayerGameLogResponse(items=items, total=total)

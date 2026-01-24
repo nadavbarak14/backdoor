@@ -8,6 +8,7 @@ Routers included:
     - /leagues - League management endpoints
     - /teams - Team management endpoints
     - /players - Player management endpoints
+    - /games - Game management endpoints
 
 Usage:
     from src.api.v1.router import router as api_v1_router
@@ -17,6 +18,7 @@ Usage:
 
 from fastapi import APIRouter
 
+from src.api.v1.games import router as games_router
 from src.api.v1.leagues import router as leagues_router
 from src.api.v1.players import router as players_router
 from src.api.v1.teams import router as teams_router
@@ -27,3 +29,4 @@ router = APIRouter()
 router.include_router(leagues_router)
 router.include_router(teams_router)
 router.include_router(players_router)
+router.include_router(games_router)
