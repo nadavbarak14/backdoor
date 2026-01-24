@@ -242,3 +242,50 @@ Before marking a ticket as complete, verify:
 | Validation | Pydantic v2 |
 | Testing | pytest |
 | HTTP Client | httpx |
+| Package Manager | uv |
+
+## Development Commands
+
+This project uses `uv` as the package manager. All commands should be run with `uv run`.
+
+### Setup
+
+```bash
+# Create virtual environment and install dependencies
+uv venv
+uv pip install -e ".[dev]"
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+uv run python -m pytest
+
+# Run specific test file
+uv run python -m pytest tests/unit/core/test_database.py
+
+# Run with verbose output
+uv run python -m pytest -v
+
+# Run with coverage
+uv run python -m pytest --cov=src
+```
+
+### Linting
+
+```bash
+# Check linting
+uv run ruff check .
+
+# Fix linting issues
+uv run ruff check . --fix
+
+# Format code
+uv run black .
+```
+
+### Common Issues
+
+- If virtual environment is corrupted, delete `.venv` and recreate: `rm -rf .venv && uv venv && uv pip install -e ".[dev]"`
+- Always use `uv run python -m pytest` not just `pytest` or `uv run pytest`
