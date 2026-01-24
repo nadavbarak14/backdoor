@@ -11,6 +11,8 @@ This directory contains all automated tests for the Basketball Analytics Platfor
 | `__init__.py` | Package marker for the test suite |
 | `conftest.py` | Shared pytest fixtures (database sessions, test client) |
 | `test_placeholder.py` | Placeholder test to verify pytest runs |
+| `unit/` | Unit tests for isolated component testing |
+| `integration/` | Integration tests including migration tests |
 
 ## Running Tests
 
