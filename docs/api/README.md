@@ -114,6 +114,10 @@ The API is versioned via URL path:
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/v1/sync/logs` | Get sync operation history |
+| GET | `/api/v1/sync/status` | Get current sync status for all sources |
+| POST | `/api/v1/sync/{source}/season/{season_id}` | Trigger sync for a season |
+| POST | `/api/v1/sync/{source}/game/{game_id}` | Trigger sync for a single game |
+| POST | `/api/v1/sync/{source}/teams/{season_id}` | Sync team rosters for a season |
 
 [Full Sync API Reference](sync.md)
 
