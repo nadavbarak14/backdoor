@@ -6,9 +6,10 @@ Pydantic models for analytics filtering and configuration.
 This module provides filter schemas for advanced analytics queries:
 - ClutchFilter: Configure clutch time criteria (time remaining, score margin)
 - SituationalFilter: Filter PBP events by situational attributes
+- OpponentFilter: Filter by opponent team and home/away games
 
 Usage:
-    from src.schemas.analytics import ClutchFilter, SituationalFilter
+    from src.schemas.analytics import ClutchFilter, SituationalFilter, OpponentFilter
 
     # NBA standard clutch: last 5 min of Q4/OT, within 5 points
     filter = ClutchFilter()
@@ -22,13 +23,21 @@ Usage:
     # Filter for contested catch-and-shoot attempts
     filter = SituationalFilter(contested=True, shot_type="CATCH_AND_SHOOT")
 
+    # Filter for games against a specific opponent
+    filter = OpponentFilter(opponent_team_id=celtics_id)
+
+    # Filter for home games only
+    filter = OpponentFilter(home_only=True)
+
 Clutch Time Definitions (research sources):
 - NBA official: Last 5 minutes of 4th quarter or OT, score within 5 points
 - "Crunch time" / "Super clutch": Last 2 minutes, within 3 points
 - Source: NBA.com/stats, Basketball Reference clutch stats
 """
 
-from pydantic import BaseModel, Field
+from uuid import UUID
+
+from pydantic import BaseModel, Field, model_validator
 
 
 class ClutchFilter(BaseModel):
@@ -132,3 +141,57 @@ class SituationalFilter(BaseModel):
     )
 
     model_config = {"frozen": True}
+
+
+class OpponentFilter(BaseModel):
+    """
+    Filter configuration for opponent-based and home/away analysis.
+
+    Filters stats by opponent team and/or home/away game location.
+    Used with AnalyticsService methods to get games against specific
+    opponents or player performance splits by game location.
+
+    Attributes:
+        opponent_team_id: UUID of the opponent team to filter against.
+            If None, no opponent filtering is applied.
+        home_only: If True, only include home games.
+            Default False.
+        away_only: If True, only include away games.
+            Default False.
+
+    Note:
+        home_only and away_only are mutually exclusive.
+        Setting both to True will raise a ValidationError.
+
+    Example:
+        >>> # Get stats vs Celtics only
+        >>> filter = OpponentFilter(opponent_team_id=celtics_id)
+
+        >>> # Get home game stats only
+        >>> filter = OpponentFilter(home_only=True)
+
+        >>> # Get away games vs Celtics
+        >>> filter = OpponentFilter(opponent_team_id=celtics_id, away_only=True)
+    """
+
+    opponent_team_id: UUID | None = Field(
+        default=None,
+        description="UUID of opponent team to filter against",
+    )
+    home_only: bool = Field(
+        default=False,
+        description="If True, only include home games",
+    )
+    away_only: bool = Field(
+        default=False,
+        description="If True, only include away games",
+    )
+
+    model_config = {"frozen": True}
+
+    @model_validator(mode="after")
+    def validate_home_away_exclusive(self) -> "OpponentFilter":
+        """Validate that home_only and away_only are mutually exclusive."""
+        if self.home_only and self.away_only:
+            raise ValueError("home_only and away_only cannot both be True")
+        return self
