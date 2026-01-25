@@ -17,11 +17,9 @@ import pytest
 
 from src.models.league import League, Season
 from src.models.player import Player, PlayerTeamHistory
-from src.models.team import Team
 from src.sync.deduplication import (
     PlayerDeduplicator,
     TeamMatcher,
-    normalize_name,
 )
 from src.sync.types import RawPlayerInfo, RawTeam
 
@@ -386,7 +384,7 @@ class TestPlayerDeduplication:
         )
 
         winner_season = setup_leagues["winner"]["season"]
-        euroleague_season = setup_leagues["euroleague"]["season"]
+        _euroleague_season = setup_leagues["euroleague"]["season"]  # noqa: F841
 
         # Step 1: Import all Winner League players
         winner_players = {}

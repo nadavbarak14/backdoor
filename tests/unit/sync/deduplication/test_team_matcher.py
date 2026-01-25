@@ -4,8 +4,6 @@ Team Matcher Tests
 Tests for team matching and deduplication across data sources.
 """
 
-import pytest
-
 from src.models.team import Team
 from src.sync.deduplication.team_matcher import TeamMatcher
 from src.sync.types import RawTeam

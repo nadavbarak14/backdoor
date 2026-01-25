@@ -4,8 +4,6 @@ Normalizer Tests
 Tests for name normalization utilities used in deduplication.
 """
 
-import pytest
-
 from src.sync.deduplication.normalizer import (
     names_match,
     normalize_name,
