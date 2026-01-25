@@ -427,7 +427,9 @@ def get_player_career_stats(
             two_point_pct=s.two_point_pct * 100 if s.two_point_pct else None,
             three_point_pct=s.three_point_pct * 100 if s.three_point_pct else None,
             free_throw_pct=s.free_throw_pct * 100 if s.free_throw_pct else None,
-            true_shooting_pct=s.true_shooting_pct * 100 if s.true_shooting_pct else None,
+            true_shooting_pct=(
+                s.true_shooting_pct * 100 if s.true_shooting_pct else None
+            ),
             effective_field_goal_pct=(
                 s.effective_field_goal_pct * 100 if s.effective_field_goal_pct else None
             ),
@@ -552,7 +554,9 @@ def get_player_season_stats(
             two_point_pct=s.two_point_pct * 100 if s.two_point_pct else None,
             three_point_pct=s.three_point_pct * 100 if s.three_point_pct else None,
             free_throw_pct=s.free_throw_pct * 100 if s.free_throw_pct else None,
-            true_shooting_pct=s.true_shooting_pct * 100 if s.true_shooting_pct else None,
+            true_shooting_pct=(
+                s.true_shooting_pct * 100 if s.true_shooting_pct else None
+            ),
             effective_field_goal_pct=(
                 s.effective_field_goal_pct * 100 if s.effective_field_goal_pct else None
             ),
