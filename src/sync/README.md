@@ -2,105 +2,177 @@
 
 ## Purpose
 
-This directory contains external data synchronization logic for the Basketball Analytics Platform. It handles importing data from external APIs (like the NBA API) into the local database.
+This directory contains external data synchronization logic for the Basketball Analytics Platform. It handles importing data from external APIs (Winner League, Euroleague, etc.) into the local database.
 
 ## Contents
 
 | File/Directory | Description |
 |----------------|-------------|
 | `__init__.py` | Package exports |
-| `base.py` | Base sync client with common functionality |
-| `nba/` | NBA API integration (future) |
+| `types.py` | Raw data types for sync (RawSeason, RawTeam, RawGame, etc.) |
+| `config.py` | Sync configuration (SyncConfig, SyncSourceConfig) |
+| `tracking.py` | Sync tracking to prevent re-syncing (SyncTracker) |
+| `exceptions.py` | Sync-specific exception classes |
+| `adapters/` | Abstract base classes for data adapters |
 | `winner/` | Winner League (Israeli Basketball) data fetching |
 | `euroleague/` | Euroleague and EuroCup data fetching |
-| `scheduler.py` | Sync job scheduling (future) |
 
 ## Sync Architecture
 
 ```
-External API  →  Sync Client  →  Service Layer  →  Database
-   (NBA)         (fetch)        (transform)       (store)
+External API  →  Adapter  →  Raw Types  →  Service Layer  →  Database
+   (API)        (fetch)    (transform)     (validate)       (store)
+                   ↓
+              SyncTracker
+             (prevent dups)
 ```
 
-## Sync Client Pattern
+## Components
+
+### Raw Types (`types.py`)
+
+Dataclasses representing data from external sources before transformation:
 
 ```python
-import httpx
-from src.core.config import settings
+from src.sync.types import RawSeason, RawTeam, RawGame, RawBoxScore
 
-class NBAClient:
-    """Client for NBA API data fetching."""
-
-    BASE_URL = "https://api.nba.com"
-
-    def __init__(self):
-        self.client = httpx.Client(
-            base_url=self.BASE_URL,
-            timeout=30.0
-        )
-
-    def get_players(self, season: str) -> list[dict]:
-        """Fetch all players for a season."""
-        response = self.client.get(f"/players/{season}")
-        response.raise_for_status()
-        return response.json()["players"]
-
-    def get_games(self, date: str) -> list[dict]:
-        """Fetch games for a specific date."""
-        response = self.client.get(f"/games/{date}")
-        response.raise_for_status()
-        return response.json()["games"]
+season = RawSeason(
+    external_id="2024-25",
+    name="2024-25 Season",
+    start_date=date(2024, 10, 1),
+    is_current=True
+)
 ```
 
-## Sync Job Pattern
+### Adapters (`adapters/`)
+
+Abstract base classes for fetching data from external sources:
 
 ```python
-from sqlalchemy.orm import Session
-from src.sync.nba.client import NBAClient
-from src.services.player import PlayerService
+from src.sync.adapters import BaseLeagueAdapter
 
-class PlayerSync:
-    """Sync players from NBA API."""
+class WinnerAdapter(BaseLeagueAdapter):
+    source_name = "winner"
 
-    def __init__(self, db: Session):
-        self.db = db
-        self.client = NBAClient()
-        self.service = PlayerService(db)
+    async def get_seasons(self) -> list[RawSeason]:
+        # Fetch from Winner API
+        ...
+```
 
-    def sync_all(self, season: str) -> int:
-        """
-        Sync all players for a season.
+### Sync Tracking (`tracking.py`)
 
-        Returns:
-            Number of players synced
-        """
-        players = self.client.get_players(season)
-        count = 0
-        for player_data in players:
-            self.service.upsert(player_data)
-            count += 1
-        self.db.commit()
-        return count
+Prevents re-syncing games that have already been imported:
+
+```python
+from src.sync.tracking import SyncTracker
+
+tracker = SyncTracker(db_session)
+
+# Check if already synced
+if not tracker.is_game_synced("winner", "game-123"):
+    # Sync the game
+    game = sync_game(...)
+    tracker.mark_game_synced("winner", "game-123", game.id)
+```
+
+### Configuration (`config.py`)
+
+Configure which sources are enabled and their sync settings:
+
+```python
+from src.sync.config import SyncConfig
+
+config = SyncConfig.from_settings()
+
+if config.is_source_enabled("winner"):
+    sync_winner_data()
+```
+
+### Exceptions (`exceptions.py`)
+
+Sync-specific exceptions for error handling:
+
+```python
+from src.sync.exceptions import GameNotFoundError, RateLimitError
+
+try:
+    boxscore = await adapter.get_game_boxscore("game-123")
+except GameNotFoundError:
+    logger.warning("Game not found")
+except RateLimitError as e:
+    await asyncio.sleep(e.retry_after)
 ```
 
 ## Usage
 
-```python
-from src.sync.nba.player_sync import PlayerSync
+### Implementing a New Adapter
 
-# In a scheduled job or management command
-with SessionLocal() as db:
-    sync = PlayerSync(db)
-    count = sync.sync_all("2024-25")
-    print(f"Synced {count} players")
+```python
+from src.sync.adapters import BaseLeagueAdapter
+from src.sync.types import RawSeason, RawTeam, RawGame, RawBoxScore, RawPBPEvent
+
+class MyLeagueAdapter(BaseLeagueAdapter):
+    source_name = "my_league"
+
+    async def get_seasons(self) -> list[RawSeason]:
+        response = await self.client.get("/seasons")
+        return [RawSeason(...) for s in response["seasons"]]
+
+    async def get_teams(self, season_id: str) -> list[RawTeam]:
+        ...
+
+    async def get_schedule(self, season_id: str) -> list[RawGame]:
+        ...
+
+    async def get_game_boxscore(self, game_id: str) -> RawBoxScore:
+        ...
+
+    async def get_game_pbp(self, game_id: str) -> list[RawPBPEvent]:
+        ...
+
+    def is_game_final(self, game: RawGame) -> bool:
+        return game.status == "final"
+```
+
+### Syncing Data
+
+```python
+from src.sync.tracking import SyncTracker
+from src.sync.config import SyncConfig
+
+async def sync_games(db: Session, adapter: BaseLeagueAdapter):
+    config = SyncConfig.from_settings()
+    tracker = SyncTracker(db)
+
+    if not config.is_source_enabled(adapter.source_name):
+        return
+
+    # Get schedule
+    games = await adapter.get_schedule("2024-25")
+
+    # Filter to unsynced games
+    external_ids = [g.external_id for g in games]
+    unsynced_ids = tracker.get_unsynced_games(adapter.source_name, external_ids)
+
+    for game in games:
+        if game.external_id not in unsynced_ids:
+            continue
+
+        if adapter.is_game_final(game):
+            boxscore = await adapter.get_game_boxscore(game.external_id)
+            # Transform and save...
+            tracker.mark_game_synced(adapter.source_name, game.external_id, saved_game.id)
 ```
 
 ## Dependencies
 
-- **Internal**: `src/core/`, `src/services/`
+- **Internal**: `src/core/`, `src/models/`, `src/services/`
 - **External**: `httpx`
 
 ## Related Documentation
 
+- [Adapters README](adapters/README.md)
+- [Winner README](winner/README.md)
+- [Euroleague README](euroleague/README.md)
 - [Services](../services/README.md)
 - [Architecture](../../docs/architecture.md)

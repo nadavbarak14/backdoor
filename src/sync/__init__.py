@@ -5,6 +5,12 @@ External data synchronization for the Basketball Analytics Platform.
 Handles importing data from external APIs into the local database.
 
 Usage:
+    # Base infrastructure
+    from src.sync.adapters import BaseLeagueAdapter, BasePlayerInfoAdapter
+    from src.sync.types import RawSeason, RawTeam, RawGame, RawBoxScore
+    from src.sync.config import SyncConfig, SyncSourceConfig
+    from src.sync.tracking import SyncTracker
+
     # Winner League
     from src.sync.winner import WinnerClient, WinnerScraper
 
@@ -12,6 +18,11 @@ Usage:
     from src.sync.euroleague import EuroleagueClient, EuroleagueDirectClient
 """
 
+# Base infrastructure
+from src.sync.adapters import BaseLeagueAdapter, BasePlayerInfoAdapter
+from src.sync.config import SyncConfig, SyncSourceConfig
+
+# Euroleague
 from src.sync.euroleague import (
     EuroleagueClient,
     EuroleagueConfig,
@@ -21,6 +32,29 @@ from src.sync.euroleague import (
     RosterPlayer,
     TeamData,
 )
+from src.sync.exceptions import (
+    AdapterError,
+    ConnectionError,
+    DataValidationError,
+    GameNotFoundError,
+    PlayerNotFoundError,
+    RateLimitError,
+    SeasonNotFoundError,
+    SyncConfigError,
+    SyncError,
+)
+from src.sync.tracking import SyncTracker
+from src.sync.types import (
+    RawBoxScore,
+    RawGame,
+    RawPBPEvent,
+    RawPlayerInfo,
+    RawPlayerStats,
+    RawSeason,
+    RawTeam,
+)
+
+# Winner League
 from src.sync.winner import (
     CacheResult,
     HistoricalResults,
@@ -34,6 +68,32 @@ from src.sync.winner import (
 )
 
 __all__ = [
+    # Base infrastructure - Adapters
+    "BaseLeagueAdapter",
+    "BasePlayerInfoAdapter",
+    # Base infrastructure - Config
+    "SyncConfig",
+    "SyncSourceConfig",
+    # Base infrastructure - Tracking
+    "SyncTracker",
+    # Base infrastructure - Types
+    "RawSeason",
+    "RawTeam",
+    "RawGame",
+    "RawPlayerStats",
+    "RawBoxScore",
+    "RawPBPEvent",
+    "RawPlayerInfo",
+    # Base infrastructure - Exceptions
+    "SyncError",
+    "AdapterError",
+    "ConnectionError",
+    "RateLimitError",
+    "GameNotFoundError",
+    "SeasonNotFoundError",
+    "PlayerNotFoundError",
+    "DataValidationError",
+    "SyncConfigError",
     # Winner League
     "WinnerClient",
     "WinnerScraper",
