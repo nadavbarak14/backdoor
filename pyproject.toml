@@ -30,6 +30,8 @@ dependencies = [
     "alembic>=1.13.0",
     "httpx>=0.26.0",
     "beautifulsoup4>=4.12.0",
+    "euroleague-api>=0.0.21",
+    "xmltodict>=0.13.0",
 ]
 
 [project.optional-dependencies]
