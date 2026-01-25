@@ -66,7 +66,9 @@ class TestOpponentFilter:
 
     def test_opponent_filter_home_away_mutual_exclusion(self):
         """Verify home_only and away_only cannot both be True."""
-        with pytest.raises(ValueError, match="home_only and away_only cannot both be True"):
+        with pytest.raises(
+            ValueError, match="home_only and away_only cannot both be True"
+        ):
             OpponentFilter(home_only=True, away_only=True)
 
 
