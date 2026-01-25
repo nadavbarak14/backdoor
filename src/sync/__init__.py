@@ -11,6 +11,9 @@ Usage:
     from src.sync.config import SyncConfig, SyncSourceConfig
     from src.sync.tracking import SyncTracker
 
+    # Player Info Service
+    from src.sync.player_info import PlayerInfoService, MergedPlayerInfo
+
     # Winner League
     from src.sync.winner import WinnerClient, WinnerScraper
 
@@ -21,6 +24,9 @@ Usage:
 # Base infrastructure
 from src.sync.adapters import BaseLeagueAdapter, BasePlayerInfoAdapter
 from src.sync.config import SyncConfig, SyncSourceConfig
+
+# Player Info Service
+from src.sync.player_info import MergedPlayerInfo, PlayerInfoService, merge_player_info
 
 # Euroleague
 from src.sync.euroleague import (
@@ -76,6 +82,10 @@ __all__ = [
     "SyncSourceConfig",
     # Base infrastructure - Tracking
     "SyncTracker",
+    # Player Info Service
+    "PlayerInfoService",
+    "MergedPlayerInfo",
+    "merge_player_info",
     # Base infrastructure - Types
     "RawSeason",
     "RawTeam",
