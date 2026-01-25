@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pytest
 
-
 # Get the project root
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 
