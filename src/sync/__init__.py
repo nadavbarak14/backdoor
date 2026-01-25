@@ -5,13 +5,22 @@ External data synchronization for the Basketball Analytics Platform.
 Handles importing data from external APIs into the local database.
 
 Usage:
-    from src.sync.nba.client import NBAClient
-    from src.sync.player_sync import PlayerSync
-
     # Winner League
     from src.sync.winner import WinnerClient, WinnerScraper
+
+    # Euroleague
+    from src.sync.euroleague import EuroleagueClient, EuroleagueDirectClient
 """
 
+from src.sync.euroleague import (
+    EuroleagueClient,
+    EuroleagueConfig,
+    EuroleagueDirectClient,
+    EuroleagueError,
+    PlayerData,
+    RosterPlayer,
+    TeamData,
+)
 from src.sync.winner import (
     CacheResult,
     HistoricalResults,
@@ -35,4 +44,12 @@ __all__ = [
     "TeamRoster",
     "HistoricalResults",
     "RateLimiter",
+    # Euroleague
+    "EuroleagueClient",
+    "EuroleagueDirectClient",
+    "EuroleagueConfig",
+    "EuroleagueError",
+    "TeamData",
+    "PlayerData",
+    "RosterPlayer",
 ]
