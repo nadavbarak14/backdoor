@@ -12,14 +12,26 @@ Usage:
     - From detail view, click season to navigate to Teams filtered by that season
 """
 
-import streamlit as st
-from sqlalchemy import func
+import sys
+from pathlib import Path
 
-from src.models.game import Game
-from src.models.league import League, Season
-from src.models.team import TeamSeason
-from viewer.components.navigation import back_button, get_param, navigate_to
-from viewer.db import get_session
+# Add project root to path for Streamlit page imports
+_project_root = Path(__file__).parent.parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
+import streamlit as st  # noqa: E402
+from sqlalchemy import func  # noqa: E402
+
+from src.models.game import Game  # noqa: E402
+from src.models.league import League, Season  # noqa: E402
+from src.models.team import TeamSeason  # noqa: E402
+from viewer.components.navigation import (  # noqa: E402
+    back_button,
+    get_param,
+    navigate_to,
+)
+from viewer.db import get_session  # noqa: E402
 
 st.set_page_config(page_title="Leagues", page_icon="📋", layout="wide")
 
