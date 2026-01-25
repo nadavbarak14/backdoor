@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<player>
+    <name>EDWARDS, CARSEN</name>
+    <height>1.8</height>
+    <birthdate>12 March, 1998</birthdate>
+    <country>United States of America</country>
+    <clubcode>MUN</clubcode>
+    <clubname>FC Bayern Munich</clubname>
+    <dorsal>3</dorsal>
+    <position>Guard</position>
+    <stats>
+        <accumulated>
+            <season code="E2024">
+                <gamesplayed>35</gamesplayed>
+                <timeplayed>1008:53</timeplayed>
+                <score>713</score>
+                <fieldgoalsmade2>151</fieldgoalsmade2>
+                <fieldgoalsmade3>100</fieldgoalsmade3>
+                <freethrowsmade>111</freethrowsmade>
+                <totalrebounds>82</totalrebounds>
+                <assistances>115</assistances>
+                <steals>34</steals>
+                <turnovers>82</turnovers>
+                <valuation>586</valuation>
+            </season>
+        </accumulated>
+    </stats>
+</player>

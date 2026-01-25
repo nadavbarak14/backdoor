@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<clubs>
+    <club code="BER" tvcode="BER">
+        <name>ALBA Berlin</name>
+        <clubname>ALBA Berlin</clubname>
+        <countrycode>GER</countrycode>
+        <countryname>Germany</countryname>
+        <website>http://www.albaberlin.de</website>
+        <arena name="UBER ARENA" />
+        <player code="011987" name="EDWARDS, CARSEN" dorsal="3" position="Guard" countrycode="USA" countryname="United States of America" />
+        <player code="007025" name="MATTISSECK, JONAS" dorsal="9" position="Guard" countrycode="GER" countryname="Germany" />
+        <player code="008780" name="HERMANNSSON, MARTIN" dorsal="15" position="Guard" countrycode="ISL" countryname="Iceland" />
+    </club>
+    <club code="PAN" tvcode="PAO">
+        <name>Panathinaikos AKTOR Athens</name>
+        <clubname>Panathinaikos</clubname>
+        <countrycode>GRE</countrycode>
+        <countryname>Greece</countryname>
+        <website>http://www.paobc.gr</website>
+        <arena name="OAKA" />
+        <player code="012774" name="NUNN, KENDRICK" dorsal="0" position="Guard" countrycode="USA" countryname="United States of America" />
+        <player code="002328" name="GRIGONIS, MARIUS" dorsal="40" position="Guard" countrycode="LTU" countryname="Lithuania" />
+    </club>
+</clubs>

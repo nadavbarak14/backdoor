@@ -1,0 +1,111 @@
+{
+    "Live": false,
+    "Referees": "JAVOR, DAMIR, PEERANDI, RAIN, SUKYS, ARTURAS",
+    "Attendance": "11856",
+    "ByQuarter": [
+        {"Team": "ALBA BERLIN", "Quarter1": 17, "Quarter2": 19, "Quarter3": 21, "Quarter4": 20},
+        {"Team": "PANATHINAIKOS AKTOR ATHENS", "Quarter1": 26, "Quarter2": 19, "Quarter3": 17, "Quarter4": 25}
+    ],
+    "EndOfQuarter": [
+        {"Team": "ALBA BERLIN", "Quarter1": 17, "Quarter2": 36, "Quarter3": 57, "Quarter4": 77},
+        {"Team": "PANATHINAIKOS AKTOR ATHENS", "Quarter1": 26, "Quarter2": 45, "Quarter3": 62, "Quarter4": 87}
+    ],
+    "Stats": [
+        {
+            "Team": "ALBA BERLIN",
+            "Coach": "GONZALEZ, ISRAEL",
+            "PlayersStats": [
+                {
+                    "Player_ID": "P007025",
+                    "IsStarter": 1,
+                    "IsPlaying": 1,
+                    "Team": "BER",
+                    "Dorsal": "9",
+                    "Player": "MATTISSECK, JONAS",
+                    "Minutes": "24:35",
+                    "Points": 6,
+                    "FieldGoalsMade2": 2,
+                    "FieldGoalsAttempted2": 4,
+                    "FieldGoalsMade3": 0,
+                    "FieldGoalsAttempted3": 2,
+                    "FreeThrowsMade": 2,
+                    "FreeThrowsAttempted": 2,
+                    "OffensiveRebounds": 1,
+                    "DefensiveRebounds": 2,
+                    "TotalRebounds": 3,
+                    "Assistances": 3,
+                    "Steals": 0,
+                    "Turnovers": 1,
+                    "BlocksFavour": 0,
+                    "BlocksAgainst": 0,
+                    "FoulsCommited": 2,
+                    "FoulsReceived": 2,
+                    "Valuation": 8,
+                    "Plusminus": -5
+                },
+                {
+                    "Player_ID": "P008780",
+                    "IsStarter": 1,
+                    "IsPlaying": 1,
+                    "Team": "BER",
+                    "Dorsal": "15",
+                    "Player": "HERMANNSSON, MARTIN",
+                    "Minutes": "28:42",
+                    "Points": 12,
+                    "FieldGoalsMade2": 3,
+                    "FieldGoalsAttempted2": 5,
+                    "FieldGoalsMade3": 2,
+                    "FieldGoalsAttempted3": 4,
+                    "FreeThrowsMade": 0,
+                    "FreeThrowsAttempted": 0,
+                    "OffensiveRebounds": 0,
+                    "DefensiveRebounds": 3,
+                    "TotalRebounds": 3,
+                    "Assistances": 5,
+                    "Steals": 1,
+                    "Turnovers": 2,
+                    "BlocksFavour": 0,
+                    "BlocksAgainst": 1,
+                    "FoulsCommited": 3,
+                    "FoulsReceived": 1,
+                    "Valuation": 12,
+                    "Plusminus": -8
+                }
+            ]
+        },
+        {
+            "Team": "PANATHINAIKOS AKTOR ATHENS",
+            "Coach": "ATAMAN, ERGIN",
+            "PlayersStats": [
+                {
+                    "Player_ID": "P012774",
+                    "IsStarter": 1,
+                    "IsPlaying": 1,
+                    "Team": "PAN",
+                    "Dorsal": "0",
+                    "Player": "NUNN, KENDRICK",
+                    "Minutes": "30:15",
+                    "Points": 22,
+                    "FieldGoalsMade2": 5,
+                    "FieldGoalsAttempted2": 8,
+                    "FieldGoalsMade3": 3,
+                    "FieldGoalsAttempted3": 6,
+                    "FreeThrowsMade": 3,
+                    "FreeThrowsAttempted": 4,
+                    "OffensiveRebounds": 0,
+                    "DefensiveRebounds": 2,
+                    "TotalRebounds": 2,
+                    "Assistances": 4,
+                    "Steals": 2,
+                    "Turnovers": 1,
+                    "BlocksFavour": 0,
+                    "BlocksAgainst": 0,
+                    "FoulsCommited": 2,
+                    "FoulsReceived": 4,
+                    "Valuation": 24,
+                    "Plusminus": 12
+                }
+            ]
+        }
+    ]
+}
