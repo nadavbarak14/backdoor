@@ -16,6 +16,8 @@ Pydantic models for API request validation and response serialization. Schemas d
 | `game.py` | Game, GameStatus, EventType, and BoxScore schemas |
 | `stats.py` | PlayerGameStats and TeamGameStats schemas with computed fields |
 | `play_by_play.py` | Play-by-play event schemas |
+| `player_stats.py` | PlayerSeasonStats, CareerStats, and LeagueLeaders schemas |
+| `sync.py` | SyncLog and SyncStatus schemas for data synchronization |
 
 ## Naming Conventions
 
@@ -107,6 +109,26 @@ Pydantic models for API request validation and response serialization. Schemas d
 | `PlayByPlayResponse` | Game PBP data | game_id, events, total_events |
 | `PlayByPlayFilter` | Filter PBP events | period?, event_type?, player_id?, team_id? |
 
+### Player Stats Schemas (`player_stats.py`)
+
+| Schema | Purpose | Fields |
+|--------|---------|--------|
+| `StatsCategory` | Enum | POINTS, REBOUNDS, ASSISTS, STEALS, BLOCKS, FIELD_GOAL_PCT, THREE_POINT_PCT, FREE_THROW_PCT, MINUTES, EFFICIENCY |
+| `PlayerSeasonStatsResponse` | Season stats | id, player/team/season info, totals, averages, percentages (0-100), advanced stats, last_calculated, computed avg_minutes_display |
+| `PlayerCareerStatsResponse` | Career stats | player_id, player_name, career totals, career averages, seasons list |
+| `LeagueLeaderEntry` | Leader entry | rank, player_id, player_name, team_id, team_name, value, games_played |
+| `LeagueLeadersResponse` | Leaders list | category, season_id, season_name, min_games, leaders |
+| `LeagueLeadersFilter` | Filter leaders | season_id, category?, limit? (1-100, default 10), min_games? (default 0) |
+
+### Sync Schemas (`sync.py`)
+
+| Schema | Purpose | Fields |
+|--------|---------|--------|
+| `SyncStatus` | Enum | STARTED, COMPLETED, FAILED, PARTIAL |
+| `SyncLogResponse` | Sync log entry | id, source, entity_type, status, season_id?, season_name?, game_id?, record counts, error fields, timestamps, computed duration_seconds |
+| `SyncLogListResponse` | Sync log list | items, total |
+| `SyncLogFilter` | Filter sync logs | source?, entity_type?, status?, season_id?, start_date?, end_date?, page (default 1), page_size (1-100, default 20) |
+
 ## Validation Rules
 
 ### String Length Constraints
@@ -168,6 +190,8 @@ Stats schemas include computed fields that are automatically calculated:
 | PlayerGameStatsWithGameResponse | result | `"W"` if team_score > opponent_score else `"L"` |
 | TeamGameStatsResponse | field_goal_pct, two_point_pct, three_point_pct, free_throw_pct | Same as player |
 | TeamGameSummaryResponse | result | Same as PlayerGameStatsWithGameResponse |
+| PlayerSeasonStatsResponse | avg_minutes_display | `f"{mins}:{secs:02d}"` from avg_minutes (seconds) |
+| SyncLogResponse | duration_seconds | `(completed_at - started_at).total_seconds()` (None if still running) |
 
 ## Usage Examples
 
