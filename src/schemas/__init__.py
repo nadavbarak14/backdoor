@@ -84,7 +84,10 @@ from src.schemas.sync import (
     SyncLogFilter,
     SyncLogListResponse,
     SyncLogResponse,
+    SyncSourceStatus,
     SyncStatus,
+    SyncStatusResponse,
+    SyncTriggerRequest,
 )
 from src.schemas.team import (
     TeamCreate,
@@ -165,4 +168,7 @@ __all__ = [
     "SyncLogResponse",
     "SyncLogListResponse",
     "SyncLogFilter",
+    "SyncTriggerRequest",
+    "SyncSourceStatus",
+    "SyncStatusResponse",
 ]

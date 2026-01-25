@@ -33,6 +33,12 @@ Usage:
 from src.sync.adapters import BaseLeagueAdapter, BasePlayerInfoAdapter
 from src.sync.config import SyncConfig, SyncSourceConfig
 
+# Entity syncers
+from src.sync.entities import GameSyncer, PlayerSyncer, TeamSyncer
+
+# Sync manager
+from src.sync.manager import SyncManager
+
 # Deduplication
 from src.sync.deduplication import (
     PlayerDeduplicator,
@@ -99,6 +105,12 @@ __all__ = [
     "SyncSourceConfig",
     # Base infrastructure - Tracking
     "SyncTracker",
+    # Sync manager
+    "SyncManager",
+    # Entity syncers
+    "GameSyncer",
+    "PlayerSyncer",
+    "TeamSyncer",
     # Deduplication
     "PlayerDeduplicator",
     "TeamMatcher",
