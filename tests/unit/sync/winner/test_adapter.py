@@ -186,7 +186,9 @@ class TestGetSeasons:
         assert seasons[0].external_id == "2023-24"
 
     @pytest.mark.asyncio
-    async def test_season_name_format(self, adapter, mock_client, sample_games_response):
+    async def test_season_name_format(
+        self, adapter, mock_client, sample_games_response
+    ):
         """Test that season name is formatted correctly."""
         mock_client.fetch_games_all.return_value = CacheResult(
             data=sample_games_response,

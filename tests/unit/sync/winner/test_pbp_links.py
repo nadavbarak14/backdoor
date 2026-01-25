@@ -348,7 +348,9 @@ class TestEdgeCases:
     def test_first_event_never_has_links(self, mapper):
         """First event should never have links."""
         events = [
-            create_event(1, 1, "10:00", "assist", "100"),  # Assist first - shouldn't link
+            create_event(
+                1, 1, "10:00", "assist", "100"
+            ),  # Assist first - shouldn't link
         ]
 
         linked = mapper.infer_pbp_links(events)
