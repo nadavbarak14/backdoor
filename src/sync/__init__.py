@@ -27,6 +27,9 @@ Usage:
 
     # Euroleague
     from src.sync.euroleague import EuroleagueClient, EuroleagueDirectClient
+
+    # iBasketball
+    from src.sync.ibasketball import IBasketballAdapter, IBasketballApiClient
 """
 
 # Base infrastructure
@@ -65,6 +68,16 @@ from src.sync.exceptions import (
     SeasonNotFoundError,
     SyncConfigError,
     SyncError,
+)
+
+# iBasketball
+from src.sync.ibasketball import (
+    IBasketballAdapter,
+    IBasketballApiClient,
+    IBasketballConfig,
+    IBasketballError,
+    IBasketballMapper,
+    IBasketballScraper,
 )
 
 # Sync manager
@@ -157,4 +170,11 @@ __all__ = [
     "TeamData",
     "PlayerData",
     "RosterPlayer",
+    # iBasketball
+    "IBasketballAdapter",
+    "IBasketballApiClient",
+    "IBasketballScraper",
+    "IBasketballMapper",
+    "IBasketballConfig",
+    "IBasketballError",
 ]

@@ -198,6 +198,12 @@ class SyncConfig:
                     auto_sync_enabled=False,
                     sync_interval_minutes=30,
                 ),
+                "ibasketball": SyncSourceConfig(
+                    source_name="ibasketball",
+                    enabled=True,
+                    auto_sync_enabled=False,
+                    sync_interval_minutes=60,
+                ),
             }
         )
 

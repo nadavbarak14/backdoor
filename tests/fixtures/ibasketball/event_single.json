@@ -1,0 +1,115 @@
+{
+  "id": 123456,
+  "date": "2024-01-15T19:30:00",
+  "date_gmt": "2024-01-15T17:30:00",
+  "status": "publish",
+  "link": "https://ibasketball.co.il/event/team-a-vs-team-b/",
+  "slug": "team-a-vs-team-b",
+  "title": {
+    "rendered": "Team A vs Team B"
+  },
+  "teams": [100, 101],
+  "team_names": {
+    "100": "Team A",
+    "101": "Team B"
+  },
+  "results": {
+    "100": {
+      "pts": 85,
+      "outcome": "win"
+    },
+    "101": {
+      "pts": 78,
+      "outcome": "loss"
+    }
+  },
+  "performance": {
+    "100": {
+      "1001": {
+        "pts": 22,
+        "fgm": 8,
+        "fga": 15,
+        "threepm": 2,
+        "threepa": 5,
+        "ftm": 4,
+        "fta": 5,
+        "reb": 8,
+        "off": 2,
+        "def": 6,
+        "ast": 5,
+        "stl": 2,
+        "blk": 1,
+        "to": 3,
+        "pf": 2,
+        "min": "32:15",
+        "starter": true
+      },
+      "1002": {
+        "pts": 15,
+        "fgm": 5,
+        "fga": 10,
+        "threepm": 3,
+        "threepa": 6,
+        "ftm": 2,
+        "fta": 2,
+        "reb": 3,
+        "off": 0,
+        "def": 3,
+        "ast": 3,
+        "stl": 1,
+        "blk": 0,
+        "to": 2,
+        "pf": 1,
+        "min": "28:00",
+        "starter": true
+      }
+    },
+    "101": {
+      "2001": {
+        "pts": 20,
+        "fgm": 7,
+        "fga": 14,
+        "threepm": 2,
+        "threepa": 4,
+        "ftm": 4,
+        "fta": 6,
+        "reb": 7,
+        "off": 1,
+        "def": 6,
+        "ast": 4,
+        "stl": 1,
+        "blk": 2,
+        "to": 4,
+        "pf": 3,
+        "min": "35:45",
+        "starter": true
+      },
+      "2002": {
+        "pts": 18,
+        "fgm": 6,
+        "fga": 12,
+        "threepm": 4,
+        "threepa": 7,
+        "ftm": 2,
+        "fta": 2,
+        "reb": 2,
+        "off": 0,
+        "def": 2,
+        "ast": 6,
+        "stl": 0,
+        "blk": 0,
+        "to": 1,
+        "pf": 2,
+        "min": "30:30",
+        "starter": true
+      }
+    }
+  },
+  "player_names": {
+    "1001": "John Smith",
+    "1002": "Mike Johnson",
+    "2001": "David Williams",
+    "2002": "Chris Brown"
+  },
+  "leagues": [119474]
+}
