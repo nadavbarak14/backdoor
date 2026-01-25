@@ -39,7 +39,8 @@ from sqlalchemy.orm import Session
 
 from src.models.game import Game, PlayerGameStats
 from src.models.play_by_play import PlayByPlayEvent
-from src.schemas.analytics import ClutchFilter, SituationalFilter
+from src.schemas.analytics import ClutchFilter, SituationalFilter, TimeFilter
+from src.schemas.game import EventType
 from src.services.game import GameService
 from src.services.play_by_play import PlayByPlayService
 from src.services.player_stats import PlayerSeasonStatsService
@@ -1254,3 +1255,113 @@ class AnalyticsService:
         lineups.sort(key=lambda x: x["plus_minus"], reverse=True)
 
         return lineups
+
+    def get_events_by_time(
+        self,
+        game_id: UUID,
+        time_filter: TimeFilter,
+        event_type: EventType | None = None,
+    ) -> list[PlayByPlayEvent]:
+        """Get play-by-play events filtered by time/period criteria."""
+        game = self.game_service.get_by_id(game_id)
+        if game is None:
+            return []
+
+        all_events = self.pbp_service.get_by_game(game_id)
+        valid_periods: set[int] | None = None
+        if time_filter.period is not None:
+            valid_periods = {time_filter.period}
+        elif time_filter.periods is not None:
+            valid_periods = set(time_filter.periods)
+
+        matching: list[PlayByPlayEvent] = []
+        for event in all_events:
+            if event_type is not None and event.event_type != event_type.value:
+                continue
+            if valid_periods is not None and event.period not in valid_periods:
+                continue
+            try:
+                secs = self._parse_clock_to_seconds(event.clock)
+            except ValueError:
+                continue
+            if (
+                time_filter.min_time_remaining is not None
+                and secs < time_filter.min_time_remaining
+            ):
+                continue
+            if (
+                time_filter.max_time_remaining is not None
+                and secs > time_filter.max_time_remaining
+            ):
+                continue
+            if time_filter.exclude_garbage_time:
+                home, away = self._get_game_score_at_time(game_id, event.period, secs)
+                if abs(home - away) > 20:
+                    continue
+            matching.append(event)
+        return matching
+
+    def get_player_stats_by_quarter(self, player_id: UUID, game_id: UUID) -> dict:
+        """Get player stats broken down by quarter (1-4) and OT."""
+        game = self.game_service.get_by_id(game_id)
+        if game is None:
+            return {}
+
+        events = self.pbp_service.get_by_game(game_id)
+
+        def empty() -> dict:
+            return {
+                "points": 0,
+                "fgm": 0,
+                "fga": 0,
+                "fg3m": 0,
+                "fg3a": 0,
+                "ftm": 0,
+                "fta": 0,
+                "rebounds": 0,
+                "assists": 0,
+                "steals": 0,
+                "blocks": 0,
+                "turnovers": 0,
+            }
+
+        result: dict = {1: empty(), 2: empty(), 3: empty(), 4: empty()}
+        ot_stats = empty()
+        has_ot = False
+
+        for event in events:
+            if event.player_id != player_id:
+                continue
+            stats = result[event.period] if event.period <= 4 else ot_stats
+            if event.period > 4:
+                has_ot = True
+
+            if event.event_type == EventType.SHOT.value:
+                stats["fga"] += 1
+                is_3pt = event.event_subtype == "3PT"
+                if is_3pt:
+                    stats["fg3a"] += 1
+                if event.success:
+                    stats["fgm"] += 1
+                    stats["points"] += 3 if is_3pt else 2
+                    if is_3pt:
+                        stats["fg3m"] += 1
+            elif event.event_type == EventType.FREE_THROW.value:
+                stats["fta"] += 1
+                if event.success:
+                    stats["ftm"] += 1
+                    stats["points"] += 1
+            elif event.event_type == EventType.REBOUND.value:
+                stats["rebounds"] += 1
+            elif event.event_type == EventType.ASSIST.value:
+                stats["assists"] += 1
+            elif event.event_type == EventType.STEAL.value:
+                stats["steals"] += 1
+            elif event.event_type == EventType.BLOCK.value:
+                stats["blocks"] += 1
+            elif event.event_type == EventType.TURNOVER.value:
+                stats["turnovers"] += 1
+
+        if has_ot:
+            result["OT"] = ot_stats
+        return result

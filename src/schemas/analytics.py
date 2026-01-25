@@ -195,3 +195,32 @@ class OpponentFilter(BaseModel):
         if self.home_only and self.away_only:
             raise ValueError("home_only and away_only cannot both be True")
         return self
+
+
+class TimeFilter(BaseModel):
+    """Filter for time-based period analysis (quarter, OT, garbage time)."""
+
+    period: int | None = Field(default=None, ge=1, le=10)
+    periods: list[int] | None = Field(default=None)
+    exclude_garbage_time: bool = Field(default=False)
+    min_time_remaining: int | None = Field(default=None, ge=0, le=720)
+    max_time_remaining: int | None = Field(default=None, ge=0, le=720)
+
+    model_config = {"frozen": True}
+
+    @model_validator(mode="after")
+    def validate_filters(self) -> "TimeFilter":
+        """Validate period and time range constraints."""
+        if self.period is not None and self.periods is not None:
+            raise ValueError("period and periods cannot both be set")
+        if self.periods is not None:
+            for p in self.periods:
+                if not 1 <= p <= 10:
+                    raise ValueError(f"Period {p} must be between 1 and 10")
+        if (
+            self.min_time_remaining is not None
+            and self.max_time_remaining is not None
+            and self.min_time_remaining > self.max_time_remaining
+        ):
+            raise ValueError("min_time_remaining must be <= max_time_remaining")
+        return self
