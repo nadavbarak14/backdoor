@@ -21,7 +21,12 @@ Usage:
     from src.schemas.base import PaginatedResponse
 """
 
-from src.schemas.analytics import ClutchFilter, SituationalFilter
+from src.schemas.analytics import (
+    ClutchFilter,
+    OpponentFilter,
+    SituationalFilter,
+    TimeFilter,
+)
 from src.schemas.base import OrmBase, PaginatedResponse
 from src.schemas.game import (
     EventType,
@@ -94,7 +99,9 @@ from src.schemas.team import (
 __all__ = [
     # Analytics schemas
     "ClutchFilter",
+    "OpponentFilter",
     "SituationalFilter",
+    "TimeFilter",
     # Base utilities
     "OrmBase",
     "PaginatedResponse",

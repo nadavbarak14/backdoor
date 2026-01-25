@@ -18,6 +18,7 @@ Pydantic models for API request validation and response serialization. Schemas d
 | `play_by_play.py` | Play-by-play event schemas |
 | `player_stats.py` | PlayerSeasonStats, CareerStats, and LeagueLeaders schemas |
 | `sync.py` | SyncLog and SyncStatus schemas for data synchronization |
+| `analytics.py` | Analytics filter schemas (ClutchFilter, SituationalFilter, OpponentFilter, TimeFilter) |
 
 ## Naming Conventions
 
@@ -128,6 +129,25 @@ Pydantic models for API request validation and response serialization. Schemas d
 | `SyncLogResponse` | Sync log entry | id, source, entity_type, status, season_id?, season_name?, game_id?, record counts, error fields, timestamps, computed duration_seconds |
 | `SyncLogListResponse` | Sync log list | items, total |
 | `SyncLogFilter` | Filter sync logs | source?, entity_type?, status?, season_id?, start_date?, end_date?, page (default 1), page_size (1-100, default 20) |
+
+### Analytics Schemas (`analytics.py`)
+
+| Schema | Purpose | Fields |
+|--------|---------|--------|
+| `ClutchFilter` | Configure clutch time criteria | time_remaining_seconds (default 300), score_margin (default 5), include_overtime (default True), min_period (default 4) |
+| `SituationalFilter` | Filter PBP events by attributes | fast_break?, second_chance?, contested?, shot_type? |
+| `OpponentFilter` | Filter by opponent/home/away | opponent_team_id?, home_only (default False), away_only (default False) |
+| `TimeFilter` | Filter by time/period criteria | period?, periods?, exclude_garbage_time (default False), min_time_remaining?, max_time_remaining? |
+
+**ClutchFilter defaults** match NBA standard clutch time definition:
+- Last 5 minutes of 4th quarter or overtime
+- Score within 5 points
+
+**SituationalFilter shot_type options:** `PULL_UP`, `CATCH_AND_SHOOT`, `POST_UP`
+
+**OpponentFilter note:** `home_only` and `away_only` are mutually exclusive.
+
+**TimeFilter note:** `period` and `periods` are mutually exclusive. Use `periods` for multiple periods (e.g., `[1, 2]` for first half).
 
 ## Validation Rules
 
