@@ -14,6 +14,14 @@ Usage:
     # Player Info Service
     from src.sync.player_info import PlayerInfoService, MergedPlayerInfo
 
+    # Deduplication
+    from src.sync.deduplication import (
+        PlayerDeduplicator,
+        TeamMatcher,
+        normalize_name,
+        names_match,
+    )
+
     # Winner League
     from src.sync.winner import WinnerClient, WinnerScraper
 
@@ -24,6 +32,15 @@ Usage:
 # Base infrastructure
 from src.sync.adapters import BaseLeagueAdapter, BasePlayerInfoAdapter
 from src.sync.config import SyncConfig, SyncSourceConfig
+
+# Deduplication
+from src.sync.deduplication import (
+    PlayerDeduplicator,
+    TeamMatcher,
+    names_match,
+    normalize_name,
+    parse_full_name,
+)
 
 # Euroleague
 from src.sync.euroleague import (
@@ -82,6 +99,12 @@ __all__ = [
     "SyncSourceConfig",
     # Base infrastructure - Tracking
     "SyncTracker",
+    # Deduplication
+    "PlayerDeduplicator",
+    "TeamMatcher",
+    "normalize_name",
+    "names_match",
+    "parse_full_name",
     # Player Info Service
     "PlayerInfoService",
     "MergedPlayerInfo",

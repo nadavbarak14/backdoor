@@ -14,6 +14,8 @@ This directory contains external data synchronization logic for the Basketball A
 | `tracking.py` | Sync tracking to prevent re-syncing (SyncTracker) |
 | `exceptions.py` | Sync-specific exception classes |
 | `adapters/` | Abstract base classes for data adapters |
+| `deduplication/` | Player and team deduplication across sources |
+| `player_info/` | Player info service for merging player data |
 | `winner/` | Winner League (Israeli Basketball) data fetching |
 | `euroleague/` | Euroleague and EuroCup data fetching |
 
@@ -172,6 +174,8 @@ async def sync_games(db: Session, adapter: BaseLeagueAdapter):
 ## Related Documentation
 
 - [Adapters README](adapters/README.md)
+- [Deduplication README](deduplication/README.md)
+- [Player Info README](player_info/README.md)
 - [Winner README](winner/README.md)
 - [Euroleague README](euroleague/README.md)
 - [Services](../services/README.md)
