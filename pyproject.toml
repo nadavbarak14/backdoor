@@ -42,6 +42,10 @@ dev = [
     "ruff>=0.1.0",
     "black>=24.1.0",
 ]
+viewer = [
+    "streamlit>=1.30.0",
+    "pandas>=2.0.0",
+]
 
 [project.urls]
 "Homepage" = "https://github.com/nadavbarak14/backdoor"
