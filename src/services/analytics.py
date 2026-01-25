@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 
 from src.models.game import Game
 from src.models.play_by_play import PlayByPlayEvent
-from src.schemas.analytics import ClutchFilter
+from src.schemas.analytics import ClutchFilter, SituationalFilter
 from src.services.game import GameService
 from src.services.play_by_play import PlayByPlayService
 from src.services.player_stats import PlayerSeasonStatsService
@@ -338,3 +338,167 @@ class AnalyticsService:
                 clutch_events.append(event)
 
         return clutch_events
+
+    def _event_matches_situational_filter(
+        self,
+        event: PlayByPlayEvent,
+        filter: SituationalFilter,
+    ) -> bool:
+        """
+        Check if an event matches the situational filter criteria.
+
+        Compares the event's attributes JSON against the filter fields.
+        Only non-None filter fields are checked.
+
+        Args:
+            event: The play-by-play event to check.
+            filter: SituationalFilter with criteria to match.
+
+        Returns:
+            True if the event matches all non-None filter criteria.
+
+        Example:
+            >>> filter = SituationalFilter(fast_break=True)
+            >>> matches = service._event_matches_situational_filter(event, filter)
+        """
+        attrs = event.attributes or {}
+
+        if (
+            filter.fast_break is not None
+            and attrs.get("fast_break") != filter.fast_break
+        ):
+            return False
+
+        if (
+            filter.second_chance is not None
+            and attrs.get("second_chance") != filter.second_chance
+        ):
+            return False
+
+        if filter.contested is not None and attrs.get("contested") != filter.contested:
+            return False
+
+        return not (
+            filter.shot_type is not None and attrs.get("shot_type") != filter.shot_type
+        )
+
+    def get_situational_shots(
+        self,
+        game_id: UUID,
+        player_id: UUID | None = None,
+        team_id: UUID | None = None,
+        filter: SituationalFilter | None = None,
+    ) -> list[PlayByPlayEvent]:
+        """
+        Get shot events filtered by situational attributes.
+
+        Retrieves SHOT events from a game that match the specified situational
+        criteria (fast break, second chance, contested, shot type). Optionally
+        filter by player or team.
+
+        Args:
+            game_id: UUID of the game.
+            player_id: Optional UUID to filter by specific player.
+            team_id: Optional UUID to filter by specific team.
+            filter: SituationalFilter with criteria. If None, returns all shots.
+
+        Returns:
+            List of PlayByPlayEvent (shots) matching the filter criteria.
+            Empty list if game not found or no matching events.
+
+        Example:
+            >>> # Get all fast break shots in a game
+            >>> filter = SituationalFilter(fast_break=True)
+            >>> shots = service.get_situational_shots(game_id, filter=filter)
+
+            >>> # Get contested shots by a specific player
+            >>> filter = SituationalFilter(contested=True)
+            >>> shots = service.get_situational_shots(
+            ...     game_id, player_id=player.id, filter=filter
+            ... )
+        """
+        if filter is None:
+            filter = SituationalFilter()
+
+        # Get all events for the game
+        all_events = self.pbp_service.get_by_game(game_id)
+
+        matching_shots: list[PlayByPlayEvent] = []
+
+        for event in all_events:
+            # Only consider SHOT events
+            if event.event_type != "SHOT":
+                continue
+
+            # Filter by player if specified
+            if player_id is not None and event.player_id != player_id:
+                continue
+
+            # Filter by team if specified
+            if team_id is not None and event.team_id != team_id:
+                continue
+
+            # Check situational filter
+            if self._event_matches_situational_filter(event, filter):
+                matching_shots.append(event)
+
+        return matching_shots
+
+    def get_situational_stats(
+        self,
+        game_ids: list[UUID],
+        player_id: UUID,
+        filter: SituationalFilter | None = None,
+    ) -> dict:
+        """
+        Calculate shooting statistics for situational shots across multiple games.
+
+        Aggregates made/attempted counts and calculates field goal percentage
+        for shots matching the situational filter criteria.
+
+        Args:
+            game_ids: List of game UUIDs to aggregate across.
+            player_id: UUID of the player to get stats for.
+            filter: SituationalFilter with criteria. If None, returns all shot stats.
+
+        Returns:
+            Dictionary with shooting statistics:
+            - made: Number of successful shots
+            - attempted: Number of shot attempts
+            - pct: Field goal percentage (0.0-1.0), 0.0 if no attempts
+
+        Example:
+            >>> filter = SituationalFilter(fast_break=True)
+            >>> stats = service.get_situational_stats(
+            ...     game_ids=[game1.id, game2.id],
+            ...     player_id=player.id,
+            ...     filter=filter
+            ... )
+            >>> print(f"Fast break FG%: {stats['pct']:.1%}")
+            Fast break FG%: 65.0%
+        """
+        if filter is None:
+            filter = SituationalFilter()
+
+        made = 0
+        attempted = 0
+
+        for game_id in game_ids:
+            shots = self.get_situational_shots(
+                game_id=game_id,
+                player_id=player_id,
+                filter=filter,
+            )
+
+            for shot in shots:
+                attempted += 1
+                if shot.success:
+                    made += 1
+
+        pct = made / attempted if attempted > 0 else 0.0
+
+        return {
+            "made": made,
+            "attempted": attempted,
+            "pct": pct,
+        }
