@@ -91,7 +91,9 @@ class IBasketballConfig:
 
     # Base URLs
     base_url: str = field(default="https://ibasketball.co.il")
-    api_base_url: str = field(default="https://ibasketball.co.il/wp-json/sportspress/v2")
+    api_base_url: str = field(
+        default="https://ibasketball.co.il/wp-json/sportspress/v2"
+    )
 
     # API Endpoints
     events_endpoint: str = field(default="/events")
@@ -105,18 +107,20 @@ class IBasketballConfig:
     player_page_template: str = field(default="/player/{player_slug}/")
 
     # League Configurations
-    leagues: dict[str, LeagueConfig] = field(default_factory=lambda: {
-        "liga_al": LeagueConfig(
-            league_id="119473",
-            name="Liga Alef",
-            short_name="Liga Al",
-        ),
-        "liga_leumit": LeagueConfig(
-            league_id="119474",
-            name="Liga Leumit",
-            short_name="Liga Leumit",
-        ),
-    })
+    leagues: dict[str, LeagueConfig] = field(
+        default_factory=lambda: {
+            "liga_al": LeagueConfig(
+                league_id="119473",
+                name="Liga Alef",
+                short_name="Liga Al",
+            ),
+            "liga_leumit": LeagueConfig(
+                league_id="119474",
+                name="Liga Leumit",
+                short_name="Liga Leumit",
+            ),
+        }
+    )
     default_league: str = field(default="liga_leumit")
 
     # Rate Limiting

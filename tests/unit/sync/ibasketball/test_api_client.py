@@ -166,7 +166,9 @@ class TestIBasketballApiClient:
 
             mock_response = MagicMock()
             mock_response.status_code = 200
-            mock_response.json.side_effect = json.JSONDecodeError("Invalid JSON", "doc", 0)
+            mock_response.json.side_effect = json.JSONDecodeError(
+                "Invalid JSON", "doc", 0
+            )
             mock_response.text = "not json"
 
             mock_http_client = MagicMock()

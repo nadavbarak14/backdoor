@@ -457,6 +457,7 @@ class IBasketballMapper:
             >>> stats.points
             22
         """
+
         # Parse stats using mapping
         def get_stat(key: str, default: int = 0) -> int:
             value = stats.get(key)
