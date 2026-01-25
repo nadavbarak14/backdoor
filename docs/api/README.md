@@ -13,6 +13,8 @@ Comprehensive API reference for the Basketball Analytics Platform REST API.
 | [teams.md](teams.md) | Teams API reference |
 | [players.md](players.md) | Players API reference |
 | [games.md](games.md) | Games, box scores, and play-by-play reference |
+| [stats.md](stats.md) | Player stats and league leaders reference |
+| [sync.md](sync.md) | Sync operation tracking reference |
 
 ## Quick Start
 
@@ -84,6 +86,8 @@ The API is versioned via URL path:
 | GET | `/api/v1/players` | Search players |
 | GET | `/api/v1/players/{id}` | Get player with history |
 | GET | `/api/v1/players/{id}/games` | Get player game log |
+| GET | `/api/v1/players/{id}/stats` | Get player career stats |
+| GET | `/api/v1/players/{id}/stats/{season_id}` | Get player season stats |
 
 [Full Players API Reference](players.md)
 
@@ -96,6 +100,22 @@ The API is versioned via URL path:
 | GET | `/api/v1/games/{id}/pbp` | Get play-by-play events |
 
 [Full Games API Reference](games.md)
+
+### Stats
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/stats/leaders` | Get league leaders by category |
+
+[Full Stats API Reference](stats.md)
+
+### Sync
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/sync/logs` | Get sync operation history |
+
+[Full Sync API Reference](sync.md)
 
 ### Health
 

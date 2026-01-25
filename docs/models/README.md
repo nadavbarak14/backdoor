@@ -11,6 +11,7 @@ Documentation for the database schema and data models used in the Basketball Ana
 | `README.md` | This file - models overview |
 | `game-stats.md` | Game statistics field reference |
 | `play-by-play.md` | Play-by-play event types and linking |
+| `aggregated-stats.md` | Aggregated season stats and sync tracking |
 | `erd.md` | Entity relationship diagram (future) |
 | `player.md` | Player model details (future) |
 | `team.md` | Team model details (future) |
@@ -34,6 +35,7 @@ Documentation for the database schema and data models used in the Basketball Ana
 | PlayerGameStats | Per-game player statistics |
 | TeamGameStats | Per-game team statistics |
 | PlayerSeasonStats | Aggregated season stats |
+| SyncLog | Sync operation tracking |
 
 ## Base Model Features
 
