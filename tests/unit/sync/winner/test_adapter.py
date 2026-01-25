@@ -6,11 +6,11 @@ and BasePlayerInfoAdapter.
 """
 
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from src.sync.types import RawBoxScore, RawGame, RawSeason, RawTeam
+from src.sync.types import RawBoxScore, RawGame, RawSeason
 from src.sync.winner.adapter import WinnerAdapter
 from src.sync.winner.client import CacheResult
 from src.sync.winner.mapper import WinnerMapper
