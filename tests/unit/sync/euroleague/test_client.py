@@ -248,7 +248,9 @@ class TestEuroleagueClientFetchMethods:
     ):
         """Test fetch_game_boxscore fetches from API."""
         mock_bs_instance = MagicMock()
-        mock_bs_instance.get_player_boxscore_stats_data.return_value = sample_boxscore_df
+        mock_bs_instance.get_player_boxscore_stats_data.return_value = (
+            sample_boxscore_df
+        )
         mock_boxscore_class.return_value = mock_bs_instance
 
         client = EuroleagueClient(mock_db)
@@ -292,7 +294,9 @@ class TestEuroleagueClientFetchMethods:
     ):
         """Test fetch_multiple_boxscores fetches multiple games."""
         mock_bs_instance = MagicMock()
-        mock_bs_instance.get_player_boxscore_stats_data.return_value = sample_boxscore_df
+        mock_bs_instance.get_player_boxscore_stats_data.return_value = (
+            sample_boxscore_df
+        )
         mock_boxscore_class.return_value = mock_bs_instance
 
         client = EuroleagueClient(mock_db)

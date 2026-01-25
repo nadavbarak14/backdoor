@@ -1,6 +1,5 @@
 """Unit tests for Euroleague configuration."""
 
-
 from src.sync.euroleague.config import EuroleagueConfig
 
 
@@ -68,7 +67,8 @@ class TestEuroleagueConfig:
         # Boxscore
         url = config.get_live_url("Boxscore", 1, 2024)
         assert (
-            url == "https://live.euroleague.net/api/Boxscore?gamecode=1&seasoncode=E2024"
+            url
+            == "https://live.euroleague.net/api/Boxscore?gamecode=1&seasoncode=E2024"
         )
 
         # Header

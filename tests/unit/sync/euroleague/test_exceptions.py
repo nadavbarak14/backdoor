@@ -1,6 +1,5 @@
 """Unit tests for Euroleague exceptions."""
 
-
 from src.sync.euroleague.exceptions import (
     EuroleagueAPIError,
     EuroleagueError,
