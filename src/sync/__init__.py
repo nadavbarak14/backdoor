@@ -33,12 +33,6 @@ Usage:
 from src.sync.adapters import BaseLeagueAdapter, BasePlayerInfoAdapter
 from src.sync.config import SyncConfig, SyncSourceConfig
 
-# Entity syncers
-from src.sync.entities import GameSyncer, PlayerSyncer, TeamSyncer
-
-# Sync manager
-from src.sync.manager import SyncManager
-
 # Deduplication
 from src.sync.deduplication import (
     PlayerDeduplicator,
@@ -47,6 +41,9 @@ from src.sync.deduplication import (
     normalize_name,
     parse_full_name,
 )
+
+# Entity syncers
+from src.sync.entities import GameSyncer, PlayerSyncer, TeamSyncer
 
 # Euroleague
 from src.sync.euroleague import (
@@ -69,6 +66,9 @@ from src.sync.exceptions import (
     SyncConfigError,
     SyncError,
 )
+
+# Sync manager
+from src.sync.manager import SyncManager
 
 # Player Info Service
 from src.sync.player_info import MergedPlayerInfo, PlayerInfoService, merge_player_info
