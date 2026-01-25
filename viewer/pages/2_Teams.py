@@ -86,9 +86,7 @@ def get_teams_for_season(season_id: str) -> list[dict]:
     """
     with get_session() as session:
         team_seasons = (
-            session.query(TeamSeason)
-            .filter(TeamSeason.season_id == season_id)
-            .all()
+            session.query(TeamSeason).filter(TeamSeason.season_id == season_id).all()
         )
 
         result = []
@@ -119,10 +117,7 @@ def get_all_seasons() -> list[dict]:
     """
     with get_session() as session:
         seasons = (
-            session.query(Season)
-            .join(League)
-            .order_by(Season.start_date.desc())
-            .all()
+            session.query(Season).join(League).order_by(Season.start_date.desc()).all()
         )
         return [
             {
@@ -209,9 +204,11 @@ def get_seasons_for_team(team_id: str) -> list[dict]:
         return [
             {
                 "id": str(ts.season_id),
-                "name": f"{ts.season.league.name} - {ts.season.name}"
-                if ts.season.league
-                else ts.season.name,
+                "name": (
+                    f"{ts.season.league.name} - {ts.season.name}"
+                    if ts.season.league
+                    else ts.season.name
+                ),
                 "is_current": ts.season.is_current,
             }
             for ts in team_seasons
@@ -391,7 +388,9 @@ def render_list_view():
             "Country", country_options, key="team_country_filter"
         )
         selected_country = (
-            None if selected_country_option == "All Countries" else selected_country_option
+            None
+            if selected_country_option == "All Countries"
+            else selected_country_option
         )
 
     # Search box
@@ -409,7 +408,9 @@ def render_list_view():
     # Also filter by league if selected (for all-teams view)
     if selected_league and not selected_season:
         # For all-teams view, we need to filter by teams that have at least one season in the league
-        league_season_ids = {s["id"] for s in all_seasons if s["league_id"] == selected_league}
+        league_season_ids = {
+            s["id"] for s in all_seasons if s["league_id"] == selected_league
+        }
         # Get teams for these seasons
         teams_in_league = set()
         for sid in league_season_ids:
@@ -535,7 +536,9 @@ def render_detail_view(team_id: str):
                     if st.button(player["name"], key=f"player_{player['player_id']}"):
                         navigate_to("3_Players", player_id=player["player_id"])
 
-                cols[1].write(str(player["jersey_number"]) if player["jersey_number"] else "-")
+                cols[1].write(
+                    str(player["jersey_number"]) if player["jersey_number"] else "-"
+                )
                 cols[2].write(player["position"])
                 cols[3].write(player["nationality"])
         else:
