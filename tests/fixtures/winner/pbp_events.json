@@ -1,0 +1,116 @@
+{
+  "GameId": "12345",
+  "Events": [
+    {
+      "EventId": "1",
+      "Quarter": 1,
+      "GameClock": "10:00",
+      "EventType": "JUMP_BALL",
+      "TeamId": "100",
+      "PlayerId": "1003",
+      "Description": "Jump ball won by Michael Brown",
+      "HomeScore": 0,
+      "AwayScore": 0
+    },
+    {
+      "EventId": "2",
+      "Quarter": 1,
+      "GameClock": "09:45",
+      "EventType": "MADE_2PT",
+      "TeamId": "100",
+      "PlayerId": "1001",
+      "Description": "John Smith makes 2-pt shot from paint",
+      "HomeScore": 2,
+      "AwayScore": 0
+    },
+    {
+      "EventId": "3",
+      "Quarter": 1,
+      "GameClock": "09:30",
+      "EventType": "TURNOVER",
+      "TeamId": "101",
+      "PlayerId": "2001",
+      "Description": "Alex Johnson bad pass turnover",
+      "HomeScore": 2,
+      "AwayScore": 0
+    },
+    {
+      "EventId": "4",
+      "Quarter": 1,
+      "GameClock": "09:15",
+      "EventType": "MADE_3PT",
+      "TeamId": "100",
+      "PlayerId": "1002",
+      "Description": "David Cohen makes 3-pt shot",
+      "HomeScore": 5,
+      "AwayScore": 0
+    },
+    {
+      "EventId": "5",
+      "Quarter": 1,
+      "GameClock": "09:00",
+      "EventType": "MADE_2PT",
+      "TeamId": "101",
+      "PlayerId": "2002",
+      "Description": "Chris Davis makes layup",
+      "HomeScore": 5,
+      "AwayScore": 2
+    },
+    {
+      "EventId": "6",
+      "Quarter": 1,
+      "GameClock": "08:45",
+      "EventType": "FOUL",
+      "TeamId": "100",
+      "PlayerId": "1003",
+      "Description": "Personal foul by Michael Brown",
+      "HomeScore": 5,
+      "AwayScore": 2
+    },
+    {
+      "EventId": "7",
+      "Quarter": 1,
+      "GameClock": "08:45",
+      "EventType": "MADE_FT",
+      "TeamId": "101",
+      "PlayerId": "2002",
+      "Description": "Chris Davis makes free throw 1 of 2",
+      "HomeScore": 5,
+      "AwayScore": 3
+    },
+    {
+      "EventId": "8",
+      "Quarter": 1,
+      "GameClock": "08:45",
+      "EventType": "MADE_FT",
+      "TeamId": "101",
+      "PlayerId": "2002",
+      "Description": "Chris Davis makes free throw 2 of 2",
+      "HomeScore": 5,
+      "AwayScore": 4
+    },
+    {
+      "EventId": "9",
+      "Quarter": 1,
+      "GameClock": "08:30",
+      "EventType": "REBOUND",
+      "TeamId": "100",
+      "PlayerId": "1003",
+      "Description": "Michael Brown defensive rebound",
+      "HomeScore": 5,
+      "AwayScore": 4
+    },
+    {
+      "EventId": "10",
+      "Quarter": 1,
+      "GameClock": "08:15",
+      "EventType": "MADE_3PT",
+      "TeamId": "101",
+      "PlayerId": "2001",
+      "Description": "Alex Johnson makes 3-pt shot",
+      "HomeScore": 5,
+      "AwayScore": 7
+    }
+  ],
+  "TotalEvents": 245
+}

@@ -29,6 +29,7 @@ dependencies = [
     "pydantic-settings>=2.1.0",
     "alembic>=1.13.0",
     "httpx>=0.26.0",
+    "beautifulsoup4>=4.12.0",
 ]
 
 [project.optional-dependencies]
@@ -72,7 +73,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # unused imports in __init__.py
-"tests/*" = ["ARG", "SIM300"]  # unused arguments, yoda conditions in tests
+"tests/*" = ["ARG", "SIM117", "SIM300"]  # unused arguments, nested with, yoda conditions in tests
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]

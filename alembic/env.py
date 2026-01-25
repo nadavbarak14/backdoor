@@ -38,6 +38,7 @@ from src.models.play_by_play import PlayByPlayEvent, PlayByPlayEventLink  # noqa
 from src.models.player import Player, PlayerTeamHistory  # noqa: F401
 from src.models.stats import PlayerSeasonStats  # noqa: F401
 from src.models.sync import SyncLog  # noqa: F401
+from src.models.sync_cache import SyncCache  # noqa: F401
 from src.models.team import Team, TeamSeason  # noqa: F401
 
 # Alembic Config object for access to .ini file values
