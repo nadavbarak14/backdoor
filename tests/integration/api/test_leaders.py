@@ -180,7 +180,7 @@ class TestGetLeagueLeaders:
         """Test getting league leaders with limit parameter."""
         setup = create_test_setup(test_db)
 
-        for player, ppg, rank in setup["players"]:
+        for player, ppg, _rank in setup["players"]:
             create_player_stats(
                 test_db,
                 player.id,
