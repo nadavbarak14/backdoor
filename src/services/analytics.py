@@ -3,7 +3,8 @@ Analytics Service Module
 
 Provides advanced analytics capabilities for the Basketball Analytics Platform.
 This service composes existing services to provide higher-level analysis tools
-including clutch time filtering, situational analysis, and lineup statistics.
+including clutch time filtering, situational analysis, opponent-based analysis,
+and home/away performance splits.
 
 This module exports:
     - AnalyticsService: Orchestration layer for analytics queries
@@ -19,6 +20,15 @@ Usage:
     # Get game score at a specific point in time
     home_score, away_score = service._get_game_score_at_time(game_id, period=4, time_remaining=300)
 
+    # Get games between two teams
+    games = service.get_games_vs_opponent(lakers_id, celtics_id, season_id)
+
+    # Get player performance vs specific opponent
+    stats = service.get_player_stats_vs_opponent(lebron_id, celtics_id)
+
+    # Get home/away performance split
+    split = service.get_player_home_away_split(lebron_id, season_id)
+
 The service wraps existing services and does not query the database directly.
 All data access goes through composed services for proper separation of concerns.
 """
@@ -27,7 +37,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from src.models.game import Game
+from src.models.game import Game, PlayerGameStats
 from src.models.play_by_play import PlayByPlayEvent
 from src.schemas.analytics import ClutchFilter, SituationalFilter
 from src.services.game import GameService
@@ -501,4 +511,203 @@ class AnalyticsService:
             "made": made,
             "attempted": attempted,
             "pct": pct,
+        }
+
+    def get_games_vs_opponent(
+        self,
+        team_id: UUID,
+        opponent_id: UUID,
+        season_id: UUID | None = None,
+    ) -> list[Game]:
+        """
+        Get all games between two teams.
+
+        Returns games where the specified team played against the opponent,
+        regardless of home/away status. Optionally filtered by season.
+
+        Args:
+            team_id: UUID of the team.
+            opponent_id: UUID of the opponent team.
+            season_id: Optional UUID of the season to filter by.
+
+        Returns:
+            List of Game objects where these teams played each other.
+            Empty list if no games found.
+
+        Example:
+            >>> games = service.get_games_vs_opponent(
+            ...     team_id=lakers_id,
+            ...     opponent_id=celtics_id,
+            ...     season_id=season_2024_id
+            ... )
+            >>> print(f"Lakers vs Celtics: {len(games)} games this season")
+        """
+        from sqlalchemy import and_, or_, select
+
+        # Get games where team_id vs opponent_id (either home or away)
+        stmt = select(Game).where(
+            or_(
+                and_(Game.home_team_id == team_id, Game.away_team_id == opponent_id),
+                and_(Game.home_team_id == opponent_id, Game.away_team_id == team_id),
+            )
+        )
+
+        if season_id is not None:
+            stmt = stmt.where(Game.season_id == season_id)
+
+        stmt = stmt.order_by(Game.game_date.desc())
+
+        return list(self.db.scalars(stmt).all())
+
+    def get_player_stats_vs_opponent(
+        self,
+        player_id: UUID,
+        opponent_id: UUID,
+        season_id: UUID | None = None,
+    ) -> list[PlayerGameStats]:
+        """
+        Get player's game stats against a specific opponent.
+
+        Returns all PlayerGameStats for games where the player's team
+        played against the specified opponent.
+
+        Args:
+            player_id: UUID of the player.
+            opponent_id: UUID of the opponent team.
+            season_id: Optional UUID of the season to filter by.
+
+        Returns:
+            List of PlayerGameStats for games against the opponent.
+            Empty list if no games found.
+
+        Example:
+            >>> stats = service.get_player_stats_vs_opponent(
+            ...     player_id=lebron_id,
+            ...     opponent_id=celtics_id,
+            ...     season_id=season_2024_id
+            ... )
+            >>> avg_pts = sum(s.points for s in stats) / len(stats) if stats else 0
+            >>> print(f"LeBron vs Celtics: {avg_pts:.1f} PPG")
+        """
+        from sqlalchemy import or_, select
+        from sqlalchemy.orm import joinedload
+
+        # Get games where opponent is either home or away team
+        stmt = (
+            select(PlayerGameStats)
+            .options(
+                joinedload(PlayerGameStats.game),
+                joinedload(PlayerGameStats.player),
+                joinedload(PlayerGameStats.team),
+            )
+            .join(Game)
+            .where(PlayerGameStats.player_id == player_id)
+            .where(
+                or_(
+                    Game.home_team_id == opponent_id,
+                    Game.away_team_id == opponent_id,
+                )
+            )
+            # Exclude games where player is ON the opponent team
+            .where(PlayerGameStats.team_id != opponent_id)
+        )
+
+        if season_id is not None:
+            stmt = stmt.where(Game.season_id == season_id)
+
+        stmt = stmt.order_by(Game.game_date.desc())
+
+        return list(self.db.scalars(stmt).unique().all())
+
+    def get_player_home_away_split(
+        self,
+        player_id: UUID,
+        season_id: UUID,
+    ) -> dict:
+        """
+        Get player's home vs away performance split.
+
+        Calculates aggregated statistics for home games and away games
+        separately, allowing comparison of home court advantage.
+
+        Args:
+            player_id: UUID of the player.
+            season_id: UUID of the season.
+
+        Returns:
+            Dictionary with 'home' and 'away' keys, each containing:
+            - games: Number of games played
+            - points: Total points
+            - rebounds: Total rebounds
+            - assists: Total assists
+            - avg_points: Points per game
+            - avg_rebounds: Rebounds per game
+            - avg_assists: Assists per game
+
+        Example:
+            >>> split = service.get_player_home_away_split(
+            ...     player_id=lebron_id,
+            ...     season_id=season_2024_id
+            ... )
+            >>> print(f"Home PPG: {split['home']['avg_points']:.1f}")
+            >>> print(f"Away PPG: {split['away']['avg_points']:.1f}")
+        """
+        from sqlalchemy import select
+        from sqlalchemy.orm import joinedload
+
+        # Get all player stats for the season with game info
+        stmt = (
+            select(PlayerGameStats)
+            .options(
+                joinedload(PlayerGameStats.game),
+                joinedload(PlayerGameStats.team),
+            )
+            .join(Game)
+            .where(PlayerGameStats.player_id == player_id)
+            .where(Game.season_id == season_id)
+        )
+
+        all_stats = list(self.db.scalars(stmt).unique().all())
+
+        home_stats: list[PlayerGameStats] = []
+        away_stats: list[PlayerGameStats] = []
+
+        for stat in all_stats:
+            # Player is home if their team is the home team
+            if stat.team_id == stat.game.home_team_id:
+                home_stats.append(stat)
+            else:
+                away_stats.append(stat)
+
+        def aggregate_stats(stats_list: list[PlayerGameStats]) -> dict:
+            """Aggregate a list of stats into totals and averages."""
+            if not stats_list:
+                return {
+                    "games": 0,
+                    "points": 0,
+                    "rebounds": 0,
+                    "assists": 0,
+                    "avg_points": 0.0,
+                    "avg_rebounds": 0.0,
+                    "avg_assists": 0.0,
+                }
+
+            games = len(stats_list)
+            points = sum(s.points for s in stats_list)
+            rebounds = sum(s.total_rebounds for s in stats_list)
+            assists = sum(s.assists for s in stats_list)
+
+            return {
+                "games": games,
+                "points": points,
+                "rebounds": rebounds,
+                "assists": assists,
+                "avg_points": points / games,
+                "avg_rebounds": rebounds / games,
+                "avg_assists": assists / games,
+            }
+
+        return {
+            "home": aggregate_stats(home_stats),
+            "away": aggregate_stats(away_stats),
         }
