@@ -102,7 +102,10 @@ class WinnerMapper:
         Parse a datetime string from Winner API format.
 
         Args:
-            date_str: Date string in ISO format (e.g., "2024-01-15T19:30:00").
+            date_str: Date string in various formats:
+                - ISO format: "2024-01-15T19:30:00"
+                - DD/MM/YYYY format: "21/09/2025"
+                - Basic format: "2024-01-15"
 
         Returns:
             Parsed datetime object.
@@ -115,6 +118,9 @@ class WinnerMapper:
             >>> dt = mapper.parse_datetime("2024-01-15T19:30:00")
             >>> dt.year
             2024
+            >>> dt = mapper.parse_datetime("21/09/2025")
+            >>> dt.year
+            2025
         """
         if not date_str:
             return datetime.now()
@@ -123,18 +129,35 @@ class WinnerMapper:
             # Try ISO format first
             return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
         except ValueError:
-            # Fall back to basic format
-            try:
-                return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                return datetime.strptime(date_str, "%Y-%m-%d")
+            pass
+
+        # Try DD/MM/YYYY format (used by real API in game_date_txt)
+        try:
+            return datetime.strptime(date_str, "%d/%m/%Y")
+        except ValueError:
+            pass
+
+        # Fall back to basic formats
+        try:
+            return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            pass
+
+        try:
+            return datetime.strptime(date_str, "%Y-%m-%d")
+        except ValueError:
+            return datetime.now()
 
     def map_season(self, season_str: str, games_data: dict) -> RawSeason:
         """
         Map season information from games_all response.
 
+        If season_str is empty, infers the season from game data:
+        - Uses game_year field if available (real API)
+        - Falls back to parsing game dates
+
         Args:
-            season_str: Season string (e.g., "2023-24").
+            season_str: Season string (e.g., "2023-24"), or empty to infer.
             games_data: Full games_all response data.
 
         Returns:
@@ -145,6 +168,10 @@ class WinnerMapper:
             >>> season = mapper.map_season("2023-24", {"games": []})
             >>> season.external_id
             '2023-24'
+            >>> # Or infer from game_year
+            >>> season = mapper.map_season("", {"games": [{"game_year": 2026}]})
+            >>> season.external_id
+            '2025-26'
         """
         # Determine if current season based on games
         is_current = True  # Winner API typically returns current season
@@ -154,10 +181,36 @@ class WinnerMapper:
         end_date = None
         games = games_data.get("games", [])
 
+        # Infer season from games if not provided
+        if not season_str and games:
+            # Try game_year field first (real API uses this)
+            first_game = games[0]
+            game_year = first_game.get("game_year")
+            if game_year:
+                # game_year is the end year of the season (e.g., 2026 for 2025-26)
+                start_year = game_year - 1
+                season_str = f"{start_year}-{str(game_year)[-2:]}"
+            else:
+                # Fall back to parsing game dates
+                game_date_str = first_game.get("game_date_txt") or first_game.get(
+                    "GameDate"
+                )
+                if game_date_str:
+                    try:
+                        game_date = self.parse_datetime(game_date_str)
+                        year = game_date.year
+                        month = game_date.month
+                        if month >= 9:  # Season starts in September
+                            season_str = f"{year}-{str(year + 1)[-2:]}"
+                        else:
+                            season_str = f"{year - 1}-{str(year)[-2:]}"
+                    except ValueError:
+                        pass
+
         if games:
             dates = []
             for game in games:
-                game_date_str = game.get("GameDate")
+                game_date_str = game.get("game_date_txt") or game.get("GameDate")
                 if game_date_str:
                     try:
                         dates.append(self.parse_datetime(game_date_str))
@@ -202,6 +255,12 @@ class WinnerMapper:
         """
         Extract unique teams from games_all response.
 
+        Handles both legacy and real API field names:
+        - HomeTeamId / team1 -> team external_id
+        - HomeTeamName / team_name_eng_1 -> team name
+        - AwayTeamId / team2 -> team external_id
+        - AwayTeamName / team_name_eng_2 -> team name
+
         Args:
             games_data: Full games_all response with games list.
 
@@ -218,21 +277,33 @@ class WinnerMapper:
         games = games_data.get("games", [])
 
         for game in games:
-            # Extract home team
-            home_id = str(game.get("HomeTeamId", ""))
+            # Extract home team (try real API fields first, then legacy)
+            home_id = str(game.get("team1") or game.get("HomeTeamId") or "")
+            home_name = (
+                game.get("team_name_eng_1")
+                or game.get("team_name_1")
+                or game.get("HomeTeamName")
+                or ""
+            )
             if home_id and home_id not in teams_dict:
                 teams_dict[home_id] = RawTeam(
                     external_id=home_id,
-                    name=game.get("HomeTeamName", ""),
+                    name=home_name,
                     short_name=None,
                 )
 
-            # Extract away team
-            away_id = str(game.get("AwayTeamId", ""))
+            # Extract away team (try real API fields first, then legacy)
+            away_id = str(game.get("team2") or game.get("AwayTeamId") or "")
+            away_name = (
+                game.get("team_name_eng_2")
+                or game.get("team_name_2")
+                or game.get("AwayTeamName")
+                or ""
+            )
             if away_id and away_id not in teams_dict:
                 teams_dict[away_id] = RawTeam(
                     external_id=away_id,
-                    name=game.get("AwayTeamName", ""),
+                    name=away_name,
                     short_name=None,
                 )
 
@@ -241,6 +312,14 @@ class WinnerMapper:
     def map_game(self, data: dict) -> RawGame:
         """
         Map a game from games_all response to RawGame.
+
+        Handles both legacy field names and real API field names:
+        - GameId / ExternalID -> external_id
+        - HomeTeamId / team1 -> home_team_external_id
+        - AwayTeamId / team2 -> away_team_external_id
+        - GameDate / game_date_txt -> game_date
+        - HomeScore / score_team1 -> home_score
+        - AwayScore / score_team2 -> away_score
 
         Args:
             data: Single game dictionary from games_all.
@@ -251,28 +330,58 @@ class WinnerMapper:
         Example:
             >>> mapper = WinnerMapper()
             >>> game = mapper.map_game({
-            ...     "GameId": "12345",
-            ...     "HomeTeamId": "100",
-            ...     "AwayTeamId": "101",
-            ...     "GameDate": "2024-01-15T19:30:00",
-            ...     "Status": "Final"
+            ...     "ExternalID": "24",
+            ...     "team1": 1109,
+            ...     "team2": 1112,
+            ...     "game_date_txt": "21/09/2025",
+            ...     "score_team1": 79,
+            ...     "score_team2": 84
             ... })
             >>> game.external_id
-            '12345'
+            '24'
         """
-        # Parse status to lowercase
+        # Extract game ID (try real API field first, then legacy)
+        game_id = data.get("ExternalID") or data.get("GameId") or ""
+
+        # Extract team IDs (try real API fields first, then legacy)
+        home_team_id = data.get("team1") or data.get("HomeTeamId") or ""
+        away_team_id = data.get("team2") or data.get("AwayTeamId") or ""
+
+        # Extract scores (try real API fields first, then legacy)
+        home_score = data.get("score_team1")
+        if home_score is None:
+            home_score = data.get("HomeScore")
+        away_score = data.get("score_team2")
+        if away_score is None:
+            away_score = data.get("AwayScore")
+
+        # Extract date (try real API field first, then legacy)
+        date_str = data.get("game_date_txt") or data.get("GameDate") or ""
+
+        # Determine status
         status = (data.get("Status") or "").lower()
         if status not in ("scheduled", "live", "final"):
-            status = "final" if data.get("HomeScore") is not None else "scheduled"
+            # Real API uses isLive flag and scores to determine status
+            is_live = data.get("isLive", 0)
+            if (
+                is_live
+                and home_score is not None
+                and away_score is not None
+                or home_score is not None
+                and away_score is not None
+            ):
+                status = "final"
+            else:
+                status = "scheduled"
 
         return RawGame(
-            external_id=str(data.get("GameId", "")),
-            home_team_external_id=str(data.get("HomeTeamId", "")),
-            away_team_external_id=str(data.get("AwayTeamId", "")),
-            game_date=self.parse_datetime(data.get("GameDate", "")),
+            external_id=str(game_id),
+            home_team_external_id=str(home_team_id),
+            away_team_external_id=str(away_team_id),
+            game_date=self.parse_datetime(date_str),
             status=status,
-            home_score=data.get("HomeScore"),
-            away_score=data.get("AwayScore"),
+            home_score=home_score,
+            away_score=away_score,
         )
 
     def map_player_stats(self, data: dict, team_id: str) -> RawPlayerStats:

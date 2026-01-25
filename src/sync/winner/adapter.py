@@ -93,15 +93,27 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         """
         Get games_all data, using cache if available.
 
+        The Winner API may return the data in different formats:
+        - List containing a dict: [{"games": [...]}]
+        - Direct dict: {"games": [...]}
+
+        This method normalizes both formats to a dict.
+
         Args:
             force: If True, bypass cache and refetch.
 
         Returns:
-            Games data dictionary.
+            Games data dictionary with "games" key.
         """
         if self._games_cache is None or force:
             result = self.client.fetch_games_all(force=force)
-            self._games_cache = result.data
+            data = result.data
+
+            # Handle list wrapper - API sometimes returns [{"games": [...]}]
+            if isinstance(data, list) and len(data) > 0:
+                data = data[0]
+
+            self._games_cache = data
         return self._games_cache
 
     async def get_seasons(self) -> list[RawSeason]:
