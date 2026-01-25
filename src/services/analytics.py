@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 
 from src.models.game import Game
 from src.models.play_by_play import PlayByPlayEvent
+from src.schemas.analytics import ClutchFilter
 from src.services.game import GameService
 from src.services.play_by_play import PlayByPlayService
 from src.services.player_stats import PlayerSeasonStatsService
@@ -266,3 +267,74 @@ class AnalyticsService:
             ...     print(f"{game.home_team.name} vs {game.away_team.name}")
         """
         return self.game_service.get_by_id(game_id)
+
+    def get_clutch_events(
+        self,
+        game_id: UUID,
+        clutch_filter: ClutchFilter | None = None,
+    ) -> list[PlayByPlayEvent]:
+        """
+        Get all play-by-play events that occurred during clutch time.
+
+        Clutch time is defined by the filter parameters:
+        - Time remaining in period <= threshold
+        - Score margin <= threshold
+        - Period >= minimum (typically 4th quarter or OT)
+
+        Args:
+            game_id: UUID of the game.
+            clutch_filter: ClutchFilter with criteria. Uses NBA defaults if None.
+
+        Returns:
+            List of PlayByPlayEvent that occurred during clutch moments.
+            Empty list if game not found or no clutch moments.
+
+        Example:
+            >>> # Get clutch events with NBA standard definition
+            >>> events = service.get_clutch_events(game_id)
+            >>>
+            >>> # Get "super clutch" events (last 2 min, within 3 pts)
+            >>> filter = ClutchFilter(time_remaining_seconds=120, score_margin=3)
+            >>> events = service.get_clutch_events(game_id, filter)
+        """
+        if clutch_filter is None:
+            clutch_filter = ClutchFilter()
+
+        game = self.game_service.get_by_id(game_id)
+        if game is None:
+            return []
+
+        # Get all events for the game
+        all_events = self.pbp_service.get_by_game(game_id)
+
+        clutch_events: list[PlayByPlayEvent] = []
+
+        for event in all_events:
+            # Check period constraint
+            if event.period < clutch_filter.min_period:
+                continue
+
+            # Check overtime inclusion
+            if event.period > 4 and not clutch_filter.include_overtime:
+                continue
+
+            # Check time remaining
+            try:
+                event_seconds = self._parse_clock_to_seconds(event.clock)
+            except ValueError:
+                continue
+
+            if event_seconds > clutch_filter.time_remaining_seconds:
+                continue
+
+            # Check score margin BEFORE this event (add 1 second to exclude this event)
+            # This determines if the moment was clutch when the event occurred
+            home_score, away_score = self._get_game_score_at_time(
+                game_id, event.period, event_seconds + 1
+            )
+            margin = abs(home_score - away_score)
+
+            if margin <= clutch_filter.score_margin:
+                clutch_events.append(event)
+
+        return clutch_events

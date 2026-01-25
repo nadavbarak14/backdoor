@@ -21,6 +21,7 @@ Usage:
     from src.schemas.base import PaginatedResponse
 """
 
+from src.schemas.analytics import ClutchFilter
 from src.schemas.base import OrmBase, PaginatedResponse
 from src.schemas.game import (
     EventType,
@@ -91,6 +92,8 @@ from src.schemas.team import (
 )
 
 __all__ = [
+    # Analytics schemas
+    "ClutchFilter",
     # Base utilities
     "OrmBase",
     "PaginatedResponse",
