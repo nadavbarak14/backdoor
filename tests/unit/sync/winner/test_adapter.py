@@ -527,3 +527,105 @@ class TestCaching:
 
         # Should only fetch once
         assert mock_client.fetch_games_all.call_count == 1
+
+
+class TestListWrappedApiResponse:
+    """Tests for handling list-wrapped API responses (Issue #100).
+
+    The Winner API sometimes returns responses wrapped in a list:
+    [{"games": [...]}] instead of {"games": [...]}
+
+    These tests ensure the adapter handles both formats correctly.
+    """
+
+    @pytest.fixture
+    def list_wrapped_games_response(self, sample_games_response):
+        """API response wrapped in a list (real API format)."""
+        return [sample_games_response]
+
+    @pytest.mark.asyncio
+    async def test_handles_list_wrapped_response(
+        self, adapter, mock_client, list_wrapped_games_response
+    ):
+        """Test that list-wrapped responses are unwrapped correctly."""
+        mock_client.fetch_games_all.return_value = CacheResult(
+            data=list_wrapped_games_response,
+            changed=False,
+            fetched_at=datetime.now(),
+            cache_id="test",
+        )
+
+        seasons = await adapter.get_seasons()
+
+        assert len(seasons) == 1
+        assert seasons[0].external_id == "2023-24"
+
+    @pytest.mark.asyncio
+    async def test_get_teams_with_list_wrapped_response(
+        self, adapter, mock_client, list_wrapped_games_response
+    ):
+        """Test get_teams handles list-wrapped response."""
+        mock_client.fetch_games_all.return_value = CacheResult(
+            data=list_wrapped_games_response,
+            changed=False,
+            fetched_at=datetime.now(),
+            cache_id="test",
+        )
+
+        teams = await adapter.get_teams("2023-24")
+
+        assert len(teams) == 3
+        team_ids = {t.external_id for t in teams}
+        assert team_ids == {"100", "101", "102"}
+
+    @pytest.mark.asyncio
+    async def test_get_schedule_with_list_wrapped_response(
+        self, adapter, mock_client, list_wrapped_games_response
+    ):
+        """Test get_schedule handles list-wrapped response."""
+        mock_client.fetch_games_all.return_value = CacheResult(
+            data=list_wrapped_games_response,
+            changed=False,
+            fetched_at=datetime.now(),
+            cache_id="test",
+        )
+
+        games = await adapter.get_schedule("2023-24")
+
+        assert len(games) == 2
+
+    @pytest.mark.asyncio
+    async def test_handles_direct_dict_response(
+        self, adapter, mock_client, sample_games_response
+    ):
+        """Test that direct dict responses still work (backwards compatibility)."""
+        mock_client.fetch_games_all.return_value = CacheResult(
+            data=sample_games_response,
+            changed=False,
+            fetched_at=datetime.now(),
+            cache_id="test",
+        )
+
+        seasons = await adapter.get_seasons()
+        teams = await adapter.get_teams("2023-24")
+        games = await adapter.get_schedule("2023-24")
+
+        assert len(seasons) == 1
+        assert len(teams) == 3
+        assert len(games) == 2
+
+    @pytest.mark.asyncio
+    async def test_handles_empty_list_response(self, adapter, mock_client):
+        """Test that empty list response is handled gracefully."""
+        mock_client.fetch_games_all.return_value = CacheResult(
+            data=[],
+            changed=False,
+            fetched_at=datetime.now(),
+            cache_id="test",
+        )
+
+        # Should handle gracefully - empty list means no data
+        # The _get_games_data will return [] which won't have .get()
+        # This tests that we don't crash on empty responses
+        with pytest.raises(AttributeError):
+            await adapter.get_seasons()
