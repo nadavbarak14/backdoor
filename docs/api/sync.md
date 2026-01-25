@@ -245,7 +245,294 @@ curl "http://localhost:8000/api/v1/sync/logs?page=2&page_size=50"
    curl "http://localhost:8000/api/v1/sync/logs?source=winner&page_size=10"
    ```
 
+---
+
+## Get Sync Status
+
+Get current sync status for all configured sources.
+
+```
+GET /api/v1/sync/status
+```
+
+### Response
+
+```json
+{
+  "sources": [
+    {
+      "name": "winner",
+      "enabled": true,
+      "auto_sync_enabled": false,
+      "sync_interval_minutes": 60,
+      "running_syncs": 0,
+      "latest_season_sync": {
+        "id": "uuid",
+        "status": "COMPLETED",
+        "started_at": "2024-01-15T10:00:00Z",
+        "records_processed": 150,
+        "records_created": 10
+      },
+      "latest_game_sync": null
+    }
+  ],
+  "total_running_syncs": 0
+}
+```
+
+### Response Fields
+
+| Field | Description |
+|-------|-------------|
+| sources | List of configured data sources |
+| sources[].name | Source identifier |
+| sources[].enabled | Whether source is active |
+| sources[].auto_sync_enabled | Whether scheduled syncs are enabled |
+| sources[].sync_interval_minutes | Interval between auto syncs |
+| sources[].running_syncs | Number of syncs currently in progress |
+| sources[].latest_season_sync | Most recent season sync info |
+| sources[].latest_game_sync | Most recent individual game sync info |
+| total_running_syncs | Total syncs in progress across all sources |
+
+### Example
+
+```bash
+curl http://localhost:8000/api/v1/sync/status
+```
+
+---
+
+## Sync Season
+
+Trigger sync for all games in a season.
+
+```
+POST /api/v1/sync/{source}/season/{season_id}
+```
+
+### Path Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| source | string | Data source name (e.g., "winner", "euroleague") |
+| season_id | string | External season identifier (e.g., "2024-25") |
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| include_pbp | boolean | true | Whether to sync play-by-play data |
+
+### Response
+
+Returns a `SyncLogResponse` with sync operation results.
+
+```json
+{
+  "id": "uuid",
+  "source": "winner",
+  "entity_type": "season",
+  "status": "COMPLETED",
+  "season_id": "uuid",
+  "season_name": "2024-25",
+  "records_processed": 150,
+  "records_created": 10,
+  "records_updated": 0,
+  "records_skipped": 140,
+  "started_at": "2024-01-15T10:00:00Z",
+  "completed_at": "2024-01-15T10:05:30Z"
+}
+```
+
+### Example
+
+```bash
+# Sync Winner League 2024-25 season with PBP
+curl -X POST "http://localhost:8000/api/v1/sync/winner/season/2024-25"
+
+# Sync without PBP (faster)
+curl -X POST "http://localhost:8000/api/v1/sync/winner/season/2024-25?include_pbp=false"
+```
+
+### Notes
+
+- Only syncs games with "final" status
+- Skips games that have already been synced
+- Creates Team, Player, Game, PlayerGameStats, TeamGameStats records
+- If include_pbp=true, also creates PlayByPlayEvent records
+
+---
+
+## Sync Game
+
+Trigger sync for a single game.
+
+```
+POST /api/v1/sync/{source}/game/{game_id}
+```
+
+### Path Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| source | string | Data source name |
+| game_id | string | External game identifier |
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| include_pbp | boolean | true | Whether to sync play-by-play data |
+
+### Response
+
+Returns a `SyncLogResponse` with sync operation results.
+
+```json
+{
+  "id": "uuid",
+  "source": "winner",
+  "entity_type": "game",
+  "status": "COMPLETED",
+  "game_id": "uuid",
+  "records_processed": 1,
+  "records_created": 1,
+  "records_updated": 0,
+  "records_skipped": 0,
+  "started_at": "2024-01-15T10:00:00Z",
+  "completed_at": "2024-01-15T10:00:05Z"
+}
+```
+
+### Example
+
+```bash
+# Sync a specific game
+curl -X POST "http://localhost:8000/api/v1/sync/winner/game/12345"
+```
+
+### Notes
+
+- If game is already synced, returns immediately with `records_skipped: 1`
+- Syncs box score and optionally PBP in one operation
+
+---
+
+## Sync Teams
+
+Sync team rosters for a season.
+
+```
+POST /api/v1/sync/{source}/teams/{season_id}
+```
+
+### Path Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| source | string | Data source name |
+| season_id | string | External season identifier |
+
+### Response
+
+Returns a `SyncLogResponse` with sync operation results.
+
+```json
+{
+  "id": "uuid",
+  "source": "winner",
+  "entity_type": "teams",
+  "status": "COMPLETED",
+  "season_id": "uuid",
+  "season_name": "2024-25",
+  "records_processed": 12,
+  "records_created": 2,
+  "records_updated": 10,
+  "records_skipped": 0,
+  "started_at": "2024-01-15T10:00:00Z",
+  "completed_at": "2024-01-15T10:00:15Z"
+}
+```
+
+### Example
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/sync/winner/teams/2024-25"
+```
+
+### Notes
+
+- Creates or updates Team and TeamSeason records
+- Uses deduplication to match existing teams
+
+---
+
+## Error Responses
+
+### 400 Bad Request
+
+Returned when source is invalid or not enabled:
+
+```json
+{
+  "detail": "Unknown source: invalid_source"
+}
+```
+
+```json
+{
+  "detail": "Source euroleague is not enabled"
+}
+```
+
+### 500 Internal Server Error
+
+Returned when sync fails unexpectedly:
+
+```json
+{
+  "detail": "Sync failed: Connection timeout"
+}
+```
+
+---
+
+## Sync Workflow Examples
+
+### Initial Season Sync
+
+```bash
+# 1. Sync teams first (optional, season sync does this too)
+curl -X POST "http://localhost:8000/api/v1/sync/winner/teams/2024-25"
+
+# 2. Sync all games for the season
+curl -X POST "http://localhost:8000/api/v1/sync/winner/season/2024-25"
+
+# 3. Check sync status
+curl "http://localhost:8000/api/v1/sync/status"
+
+# 4. View sync logs
+curl "http://localhost:8000/api/v1/sync/logs?source=winner&status=COMPLETED"
+```
+
+### Incremental Sync
+
+```bash
+# Sync only new games (already synced games are skipped)
+curl -X POST "http://localhost:8000/api/v1/sync/winner/season/2024-25"
+```
+
+### Sync Single Game
+
+```bash
+# Sync a specific game that might have been missed
+curl -X POST "http://localhost:8000/api/v1/sync/winner/game/12345"
+```
+
 ## Related Documentation
 
+- [Sync Architecture](../sync/architecture.md) - Detailed sync architecture
+- [Deduplication](../sync/deduplication.md) - Player/team deduplication strategy
+- [Field Mappings](../sync/field-mappings.md) - API field mappings
 - [Aggregated Stats Model](../models/aggregated-stats.md) - SyncLog model details
 - [Stats API](stats.md) - Statistics endpoints
