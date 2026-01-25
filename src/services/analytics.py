@@ -711,3 +711,231 @@ class AnalyticsService:
             "home": aggregate_stats(home_stats),
             "away": aggregate_stats(away_stats),
         }
+
+    def _get_starters_for_game(self, game_id: UUID, team_id: UUID) -> set[UUID]:
+        """Get starting player IDs for a team in a game."""
+        from sqlalchemy import select
+
+        stmt = (
+            select(PlayerGameStats)
+            .where(PlayerGameStats.game_id == game_id)
+            .where(PlayerGameStats.team_id == team_id)
+            .where(PlayerGameStats.is_starter == True)  # noqa: E712
+        )
+        starters = list(self.db.scalars(stmt).all())
+        if len(starters) >= 5:
+            return {s.player_id for s in starters[:5]}
+
+        # Fallback: first 5 players with events
+        events = self.pbp_service.get_by_game(game_id)
+        seen: set[UUID] = set()
+        for event in events:
+            if (
+                event.team_id == team_id
+                and event.player_id
+                and event.player_id not in seen
+            ):
+                seen.add(event.player_id)
+                if len(seen) >= 5:
+                    break
+        return seen
+
+    def _build_on_court_timeline(
+        self,
+        game_id: UUID,
+        player_id: UUID,
+        team_id: UUID,
+        events: list[PlayByPlayEvent],
+    ) -> list[tuple[int, int, int, int, bool]]:
+        """Build timeline of (period, start_sec, end_sec, duration, is_on) tuples."""
+        is_on = player_id in self._get_starters_for_game(game_id, team_id)
+        stints: list[tuple[int, int, int, int, bool]] = []
+        REG_SECS, OT_SECS = 720, 300
+
+        current_period = 1
+        start_time = REG_SECS
+
+        for event in events:
+            if event.event_type != "SUBSTITUTION" or event.player_id != player_id:
+                continue
+            try:
+                event_secs = self._parse_clock_to_seconds(event.clock)
+            except ValueError:
+                continue
+
+            if event.period != current_period:
+                if start_time > 0:
+                    stints.append((current_period, start_time, 0, start_time, is_on))
+                current_period = event.period
+                start_time = REG_SECS if current_period <= 4 else OT_SECS
+
+            if event.event_subtype == "IN" and not is_on:
+                if start_time - event_secs > 0:
+                    stints.append(
+                        (
+                            current_period,
+                            start_time,
+                            event_secs,
+                            start_time - event_secs,
+                            False,
+                        )
+                    )
+                start_time, is_on = event_secs, True
+            elif event.event_subtype == "OUT" and is_on:
+                if start_time - event_secs > 0:
+                    stints.append(
+                        (
+                            current_period,
+                            start_time,
+                            event_secs,
+                            start_time - event_secs,
+                            True,
+                        )
+                    )
+                start_time, is_on = event_secs, False
+
+        max_period = max((e.period for e in events), default=current_period)
+        if start_time > 0:
+            stints.append((current_period, start_time, 0, start_time, is_on))
+        for period in range(current_period + 1, max_period + 1):
+            length = REG_SECS if period <= 4 else OT_SECS
+            stints.append((period, length, 0, length, is_on))
+        return stints
+
+    def _is_player_on_at_time(
+        self,
+        stints: list[tuple[int, int, int, int, bool]],
+        period: int,
+        time_remaining: int,
+    ) -> bool:
+        """Check if player was on court at a specific time."""
+        for p, start, end, _, is_on in stints:
+            if p == period and (
+                start >= time_remaining > end or time_remaining == start
+            ):
+                return is_on
+        return False
+
+    def get_player_on_off_stats(self, player_id: UUID, game_id: UUID) -> dict:
+        """
+        Calculate player on/off court stats for a game.
+
+        Returns dict with 'on' and 'off' keys containing team_pts, opp_pts,
+        plus_minus, and minutes.
+        """
+        empty = {
+            "on": {"team_pts": 0, "opp_pts": 0, "plus_minus": 0, "minutes": 0.0},
+            "off": {"team_pts": 0, "opp_pts": 0, "plus_minus": 0, "minutes": 0.0},
+        }
+
+        game = self.game_service.get_by_id(game_id)
+        if not game:
+            return empty
+
+        player_stats = self.player_stats_service.get_by_player_and_game(
+            player_id=player_id, game_id=game_id
+        )
+        if not player_stats:
+            return empty
+
+        team_id = player_stats.team_id
+        opp_id = (
+            game.away_team_id if team_id == game.home_team_id else game.home_team_id
+        )
+        events = self.pbp_service.get_by_game(game_id)
+        stints = self._build_on_court_timeline(game_id, player_id, team_id, events)
+
+        on_team, on_opp, on_secs = 0, 0, 0
+        off_team, off_opp, off_secs = 0, 0, 0
+
+        for _, _, _, dur, is_on in stints:
+            if is_on:
+                on_secs += dur
+            else:
+                off_secs += dur
+
+        for event in events:
+            if event.event_type not in ("SHOT", "FREE_THROW") or not event.success:
+                continue
+            pts = self._get_points_for_event(event)
+            if pts == 0:
+                continue
+            try:
+                secs = self._parse_clock_to_seconds(event.clock)
+            except ValueError:
+                continue
+
+            is_on = self._is_player_on_at_time(stints, event.period, secs)
+            if event.team_id == team_id:
+                on_team += pts if is_on else 0
+                off_team += pts if not is_on else 0
+            elif event.team_id == opp_id:
+                on_opp += pts if is_on else 0
+                off_opp += pts if not is_on else 0
+
+        return {
+            "on": {
+                "team_pts": on_team,
+                "opp_pts": on_opp,
+                "plus_minus": on_team - on_opp,
+                "minutes": round(on_secs / 60, 1),
+            },
+            "off": {
+                "team_pts": off_team,
+                "opp_pts": off_opp,
+                "plus_minus": off_team - off_opp,
+                "minutes": round(off_secs / 60, 1),
+            },
+        }
+
+    def get_player_on_off_for_season(self, player_id: UUID, season_id: UUID) -> dict:
+        """
+        Aggregate player on/off stats across a season.
+
+        Returns dict with 'on' and 'off' keys containing team_pts, opp_pts,
+        plus_minus, minutes, and games count.
+        """
+        from sqlalchemy import select
+
+        stmt = (
+            select(PlayerGameStats)
+            .join(Game)
+            .where(PlayerGameStats.player_id == player_id)
+            .where(Game.season_id == season_id)
+        )
+        stats = list(self.db.scalars(stmt).all())
+
+        totals = {
+            "on": {
+                "team_pts": 0,
+                "opp_pts": 0,
+                "plus_minus": 0,
+                "minutes": 0.0,
+                "games": 0,
+            },
+            "off": {
+                "team_pts": 0,
+                "opp_pts": 0,
+                "plus_minus": 0,
+                "minutes": 0.0,
+                "games": 0,
+            },
+        }
+        seen: set[UUID] = set()
+
+        for stat in stats:
+            if stat.game_id in seen:
+                continue
+            seen.add(stat.game_id)
+            gs = self.get_player_on_off_stats(player_id, stat.game_id)
+            for key in ("on", "off"):
+                totals[key]["team_pts"] += gs[key]["team_pts"]
+                totals[key]["opp_pts"] += gs[key]["opp_pts"]
+                totals[key]["minutes"] += gs[key]["minutes"]
+
+        for key in ("on", "off"):
+            totals[key]["plus_minus"] = totals[key]["team_pts"] - totals[key]["opp_pts"]
+            totals[key]["games"] = len(seen)
+            totals[key]["minutes"] = round(totals[key]["minutes"], 1)
+
+        return totals
