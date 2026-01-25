@@ -14,7 +14,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.orm import Session
 
-from src.models.game import Game, PlayerGameStats, TeamGameStats
+from src.models.game import PlayerGameStats
 from src.models.league import League, Season
 from src.models.play_by_play import PlayByPlayEvent, PlayByPlayEventLink
 from src.models.player import Player
