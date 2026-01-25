@@ -185,3 +185,68 @@ class SyncLogFilter(BaseModel):
     )
     page: int = Field(default=1, ge=1, description="Page number")
     page_size: int = Field(default=20, ge=1, le=100, description="Items per page")
+
+
+class SyncTriggerRequest(BaseModel):
+    """
+    Schema for triggering a sync operation.
+
+    Attributes:
+        include_pbp: Whether to sync play-by-play data.
+
+    Example:
+        >>> request = SyncTriggerRequest(include_pbp=True)
+    """
+
+    include_pbp: bool = Field(default=True, description="Include play-by-play data")
+
+
+class SyncSourceStatus(BaseModel):
+    """
+    Schema for sync status of a single source.
+
+    Attributes:
+        name: Source name (e.g., "winner", "euroleague").
+        enabled: Whether the source is enabled.
+        auto_sync_enabled: Whether auto-sync is enabled.
+        sync_interval_minutes: Interval for auto-sync in minutes.
+        running_syncs: Number of currently running syncs.
+        latest_season_sync: Info about the latest season sync.
+        latest_game_sync: Info about the latest game sync.
+
+    Example:
+        >>> status = SyncSourceStatus(
+        ...     name="winner",
+        ...     enabled=True,
+        ...     auto_sync_enabled=False,
+        ...     sync_interval_minutes=60,
+        ...     running_syncs=0
+        ... )
+    """
+
+    name: str
+    enabled: bool
+    auto_sync_enabled: bool = False
+    sync_interval_minutes: int = 60
+    running_syncs: int = 0
+    latest_season_sync: dict[str, Any] | None = None
+    latest_game_sync: dict[str, Any] | None = None
+
+
+class SyncStatusResponse(BaseModel):
+    """
+    Schema for overall sync status response.
+
+    Attributes:
+        sources: List of source status objects.
+        total_running_syncs: Total number of running syncs across all sources.
+
+    Example:
+        >>> response = SyncStatusResponse(
+        ...     sources=[SyncSourceStatus(name="winner", enabled=True)],
+        ...     total_running_syncs=0
+        ... )
+    """
+
+    sources: list[SyncSourceStatus]
+    total_running_syncs: int = 0
