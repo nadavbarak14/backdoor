@@ -12,15 +12,12 @@ from datetime import UTC, date, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
-import pytest
 from sqlalchemy.orm import Session
 
 from src.models.game import Game
-from src.models.league import League, Season
 from src.models.team import Team
 from src.schemas import LeagueCreate, SeasonCreate
 from src.services import LeagueService, SeasonService, SyncLogService
-from src.sync.types import RawBoxScore, RawGame, RawPlayerStats, RawSeason, RawTeam
 
 
 def create_test_setup(test_db: Session) -> dict:
@@ -211,7 +208,7 @@ class TestSyncGame:
 
     def test_sync_game_returns_sync_log(self, client, test_db: Session):
         """Test syncing game returns a sync log response."""
-        setup = create_test_setup(test_db)
+        create_test_setup(test_db)
 
         with patch("src.api.v1.sync._get_sync_manager") as mock_get_manager:
             mock_manager = MagicMock()
