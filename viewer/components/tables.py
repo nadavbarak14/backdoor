@@ -122,7 +122,9 @@ def format_player_table(players: list[dict]) -> pd.DataFrame:
     Expected dict keys: id, name, position, nationality, height_cm, team_name
     """
     if not players:
-        return pd.DataFrame(columns=["Name", "Position", "Team", "Nationality", "Height"])
+        return pd.DataFrame(
+            columns=["Name", "Position", "Team", "Nationality", "Height"]
+        )
 
     df = pd.DataFrame(players)
 
@@ -244,7 +246,18 @@ def format_box_score(stats: list[dict]) -> pd.DataFrame:
     """
     if not stats:
         return pd.DataFrame(
-            columns=["Player", "MIN", "PTS", "REB", "AST", "STL", "BLK", "TO", "PF", "+/-"]
+            columns=[
+                "Player",
+                "MIN",
+                "PTS",
+                "REB",
+                "AST",
+                "STL",
+                "BLK",
+                "TO",
+                "PF",
+                "+/-",
+            ]
         )
 
     df = pd.DataFrame(stats)
@@ -252,7 +265,11 @@ def format_box_score(stats: list[dict]) -> pd.DataFrame:
     # Format minutes (from seconds to MM:SS if needed)
     if "minutes" in df.columns:
         df["min_display"] = df["minutes"].apply(
-            lambda x: f"{x // 60}:{x % 60:02d}" if pd.notna(x) and isinstance(x, int) and x > 60 else str(x) if pd.notna(x) else "-"
+            lambda x: (
+                f"{x // 60}:{x % 60:02d}"
+                if pd.notna(x) and isinstance(x, int) and x > 60
+                else str(x) if pd.notna(x) else "-"
+            )
         )
     else:
         df["min_display"] = "-"
@@ -304,7 +321,9 @@ def format_game_log(games: list[dict]) -> pd.DataFrame:
                        rebounds_total, assists, plus_minus
     """
     if not games:
-        return pd.DataFrame(columns=["Date", "Opponent", "Result", "MIN", "PTS", "REB", "AST", "+/-"])
+        return pd.DataFrame(
+            columns=["Date", "Opponent", "Result", "MIN", "PTS", "REB", "AST", "+/-"]
+        )
 
     df = pd.DataFrame(games)
 

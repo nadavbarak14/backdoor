@@ -48,10 +48,7 @@ def get_recent_syncs() -> list[dict]:
     """
     with get_session() as session:
         logs = (
-            session.query(SyncLog)
-            .order_by(SyncLog.started_at.desc())
-            .limit(10)
-            .all()
+            session.query(SyncLog).order_by(SyncLog.started_at.desc()).limit(10).all()
         )
         return [
             {
@@ -60,8 +57,14 @@ def get_recent_syncs() -> list[dict]:
                 "status": log.status,
                 "records_processed": log.records_processed,
                 "records_created": log.records_created,
-                "started_at": log.started_at.strftime("%Y-%m-%d %H:%M") if log.started_at else "-",
-                "completed_at": log.completed_at.strftime("%Y-%m-%d %H:%M") if log.completed_at else "-",
+                "started_at": (
+                    log.started_at.strftime("%Y-%m-%d %H:%M") if log.started_at else "-"
+                ),
+                "completed_at": (
+                    log.completed_at.strftime("%Y-%m-%d %H:%M")
+                    if log.completed_at
+                    else "-"
+                ),
             }
             for log in logs
         ]
@@ -147,7 +150,15 @@ def main():
         import pandas as pd
 
         df = pd.DataFrame(syncs)
-        df.columns = ["Source", "Entity", "Status", "Processed", "Created", "Started", "Completed"]
+        df.columns = [
+            "Source",
+            "Entity",
+            "Status",
+            "Processed",
+            "Created",
+            "Started",
+            "Completed",
+        ]
 
         # Color code status
         status_colors = {
