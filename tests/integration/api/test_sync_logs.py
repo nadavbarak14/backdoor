@@ -5,7 +5,7 @@ Tests:
     - GET /api/v1/sync/logs - Get sync operation history
 """
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import date
 
 from sqlalchemy.orm import Session
 

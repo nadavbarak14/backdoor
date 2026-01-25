@@ -11,7 +11,6 @@ from datetime import UTC, date, datetime
 
 from sqlalchemy.orm import Session
 
-from src.models.game import Game, PlayerGameStats
 from src.models.stats import PlayerSeasonStats
 from src.schemas import (
     LeagueCreate,
