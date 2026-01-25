@@ -25,9 +25,6 @@ Usage:
 from src.sync.adapters import BaseLeagueAdapter, BasePlayerInfoAdapter
 from src.sync.config import SyncConfig, SyncSourceConfig
 
-# Player Info Service
-from src.sync.player_info import MergedPlayerInfo, PlayerInfoService, merge_player_info
-
 # Euroleague
 from src.sync.euroleague import (
     EuroleagueClient,
@@ -49,6 +46,9 @@ from src.sync.exceptions import (
     SyncConfigError,
     SyncError,
 )
+
+# Player Info Service
+from src.sync.player_info import MergedPlayerInfo, PlayerInfoService, merge_player_info
 from src.sync.tracking import SyncTracker
 from src.sync.types import (
     RawBoxScore,
