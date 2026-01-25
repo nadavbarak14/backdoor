@@ -676,9 +676,7 @@ def render_detail_view(game_id: str):
         )
 
         # Render bench
-        bench_totals = (
-            render_box_score_section(bench, "Bench") if bench else (0, 0, 0)
-        )
+        bench_totals = render_box_score_section(bench, "Bench") if bench else (0, 0, 0)
 
         # Team totals
         total_pts = starter_totals[0] + bench_totals[0]
