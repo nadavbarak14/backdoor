@@ -62,13 +62,15 @@ def create_test_setup(test_db: Session) -> dict:
 
     # Create players
     players = []
-    for i, (first, last, ppg) in enumerate([
-        ("Scottie", "Wilbekin", 18.5),
-        ("Wade", "Baldwin", 16.2),
-        ("Tamir", "Blatt", 14.8),
-        ("John", "DiBartolomeo", 12.1),
-        ("Yovel", "Zoosman", 10.5),
-    ]):
+    for i, (first, last, ppg) in enumerate(
+        [
+            ("Scottie", "Wilbekin", 18.5),
+            ("Wade", "Baldwin", 16.2),
+            ("Tamir", "Blatt", 14.8),
+            ("John", "DiBartolomeo", 12.1),
+            ("Yovel", "Zoosman", 10.5),
+        ]
+    ):
         player = player_service.create_player(
             PlayerCreate(first_name=first, last_name=last, position="PG")
         )

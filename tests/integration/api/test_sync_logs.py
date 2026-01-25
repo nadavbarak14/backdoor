@@ -155,9 +155,7 @@ class TestListSyncLogs:
             )
             sync_service.complete_sync(sync.id, i * 10, i * 10, 0, 0)
 
-        response = client.get(
-            "/api/v1/sync/logs", params={"page": 2, "page_size": 2}
-        )
+        response = client.get("/api/v1/sync/logs", params={"page": 2, "page_size": 2})
 
         assert response.status_code == 200
         data = response.json()
