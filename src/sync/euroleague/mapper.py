@@ -684,8 +684,8 @@ class EuroleagueMapper:
         )
 
     def map_player_from_roster(
-        self, data: dict, team_code: str
-    ) -> RawPlayerInfo:  # noqa: ARG002
+        self, data: dict, team_code: str  # noqa: ARG002
+    ) -> RawPlayerInfo:
         """
         Map player data from team roster to RawPlayerInfo.
 
