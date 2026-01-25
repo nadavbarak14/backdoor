@@ -70,6 +70,17 @@ print("Import structure OK")
         assert result.returncode == 0, f"Page import check failed: {result.stderr}"
 
 
+def streamlit_available() -> bool:
+    """Check if streamlit is installed."""
+    try:
+        import streamlit  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
+@pytest.mark.skipif(not streamlit_available(), reason="Streamlit not installed")
 class TestViewerComponentImports:
     """Test that viewer components can be imported."""
 
