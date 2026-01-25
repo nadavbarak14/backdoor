@@ -101,8 +101,20 @@ def sample_boxscore_response():
     return {
         "Live": False,
         "ByQuarter": [
-            {"Team": "ALBA BERLIN", "Quarter1": 17, "Quarter2": 19, "Quarter3": 21, "Quarter4": 20},
-            {"Team": "PANATHINAIKOS", "Quarter1": 26, "Quarter2": 19, "Quarter3": 17, "Quarter4": 25},
+            {
+                "Team": "ALBA BERLIN",
+                "Quarter1": 17,
+                "Quarter2": 19,
+                "Quarter3": 21,
+                "Quarter4": 20,
+            },
+            {
+                "Team": "PANATHINAIKOS",
+                "Quarter1": 26,
+                "Quarter2": 19,
+                "Quarter3": 17,
+                "Quarter4": 25,
+            },
         ],
         "Stats": [
             {
@@ -468,8 +480,7 @@ class TestSearchPlayer:
         assert len(results) >= 1
         # Verify search found the player
         found = any(
-            "MATTISSECK" in p.last_name or "MATTISSECK" in p.first_name
-            for p in results
+            "MATTISSECK" in p.last_name or "MATTISSECK" in p.first_name for p in results
         )
         assert found
 

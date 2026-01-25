@@ -33,8 +33,20 @@ def sample_boxscore_data():
     return {
         "Live": False,
         "ByQuarter": [
-            {"Team": "ALBA BERLIN", "Quarter1": 17, "Quarter2": 19, "Quarter3": 21, "Quarter4": 20},
-            {"Team": "PANATHINAIKOS", "Quarter1": 26, "Quarter2": 19, "Quarter3": 17, "Quarter4": 25},
+            {
+                "Team": "ALBA BERLIN",
+                "Quarter1": 17,
+                "Quarter2": 19,
+                "Quarter3": 21,
+                "Quarter4": 20,
+            },
+            {
+                "Team": "PANATHINAIKOS",
+                "Quarter1": 26,
+                "Quarter2": 19,
+                "Quarter3": 17,
+                "Quarter4": 25,
+            },
         ],
         "Stats": [
             {
@@ -305,9 +317,7 @@ class TestMapBoxscoreFromLive:
 
     def test_maps_live_boxscore(self, mapper, sample_boxscore_data):
         """Test mapping live boxscore data."""
-        boxscore = mapper.map_boxscore_from_live(
-            sample_boxscore_data, 1, 2024, "E"
-        )
+        boxscore = mapper.map_boxscore_from_live(sample_boxscore_data, 1, 2024, "E")
 
         assert isinstance(boxscore, RawBoxScore)
         assert boxscore.game.external_id == "E2024_1"
@@ -316,9 +326,7 @@ class TestMapBoxscoreFromLive:
 
     def test_players_split_by_team(self, mapper, sample_boxscore_data):
         """Test that players are split by team."""
-        boxscore = mapper.map_boxscore_from_live(
-            sample_boxscore_data, 1, 2024, "E"
-        )
+        boxscore = mapper.map_boxscore_from_live(sample_boxscore_data, 1, 2024, "E")
 
         assert len(boxscore.home_players) == 1
         assert len(boxscore.away_players) == 1
@@ -327,9 +335,7 @@ class TestMapBoxscoreFromLive:
 
     def test_scores_calculated(self, mapper, sample_boxscore_data):
         """Test that scores are calculated from quarters."""
-        boxscore = mapper.map_boxscore_from_live(
-            sample_boxscore_data, 1, 2024, "E"
-        )
+        boxscore = mapper.map_boxscore_from_live(sample_boxscore_data, 1, 2024, "E")
 
         # Home: 17 + 19 + 21 + 20 = 77
         # Away: 26 + 19 + 17 + 25 = 87
@@ -390,7 +396,9 @@ class TestMapPbpEvent:
         for euro_type, expected_type in event_mappings:
             data = {"PLAYTYPE": euro_type, "PERIOD": 1, "MARKERTIME": "05:00"}
             event = mapper.map_pbp_event(data, 1)
-            assert event.event_type == expected_type, f"{euro_type} should map to {expected_type}"
+            assert (
+                event.event_type == expected_type
+            ), f"{euro_type} should map to {expected_type}"
 
 
 class TestMapPbpFromLive:
