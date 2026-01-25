@@ -45,16 +45,28 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 ### 3. Install dependencies
 
-For development (includes testing and linting tools):
+**Development (includes testing and linting tools):**
 
 ```bash
-pip install -e ".[dev]"
+uv pip install -e ".[dev]"
 ```
 
-For production only:
+**Production only:**
 
 ```bash
-pip install -e .
+uv pip install -e .
+```
+
+**With internal viewer:**
+
+```bash
+uv pip install -e ".[viewer]"
+```
+
+**All dependencies:**
+
+```bash
+uv pip install -e ".[dev,viewer]"
 ```
 
 ## Development
@@ -133,12 +145,14 @@ Run tests matching a pattern:
 pytest -k "test_player"
 ```
 
-### Running the Application
+## Running the Application
 
-Start the development server:
+### Backend API
+
+Start the FastAPI development server:
 
 ```bash
-uvicorn src.main:app --reload
+uv run uvicorn src.main:app --reload
 ```
 
 The API will be available at `http://localhost:8000`.
@@ -147,6 +161,31 @@ API documentation is available at:
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
 
+### Internal Data Viewer
+
+The project includes a Streamlit-based internal viewer for browsing synced data.
+
+**Install viewer dependencies:**
+
+```bash
+uv pip install -e ".[viewer]"
+```
+
+**Start the viewer:**
+
+```bash
+uv run streamlit run viewer/app.py
+```
+
+The viewer will be available at `http://localhost:8501`.
+
+Features:
+- Browse leagues, teams, players, and games
+- View entity relationships and statistics
+- Monitor sync activity
+
+See `viewer/README.md` for detailed documentation.
+
 ## Project Structure
 
 ```
@@ -154,9 +193,11 @@ basketball-analytics/
 ├── CLAUDE.md                 # Development guidelines
 ├── README.md                 # This file
 ├── pyproject.toml            # Project configuration
+├── alembic/                  # Database migrations
 ├── docs/                     # Documentation
 │   ├── api/                  # API documentation
-│   └── models/               # Data model documentation
+│   ├── models/               # Data model documentation
+│   └── sync/                 # Sync layer documentation
 ├── src/                      # Source code
 │   ├── api/                  # API routes
 │   ├── core/                 # Core configuration
@@ -164,6 +205,11 @@ basketball-analytics/
 │   ├── schemas/              # Pydantic schemas
 │   ├── services/             # Business logic
 │   └── sync/                 # Data synchronization
+├── viewer/                   # Internal data viewer (Streamlit)
+│   ├── app.py                # Home dashboard
+│   ├── db.py                 # Database session management
+│   ├── pages/                # Viewer pages
+│   └── components/           # Reusable UI components
 └── tests/                    # Test files
 ```
 
