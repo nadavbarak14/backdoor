@@ -5,15 +5,22 @@ Pydantic models for analytics filtering and configuration.
 
 This module provides filter schemas for advanced analytics queries:
 - ClutchFilter: Configure clutch time criteria (time remaining, score margin)
+- SituationalFilter: Filter PBP events by situational attributes
 
 Usage:
-    from src.schemas.analytics import ClutchFilter
+    from src.schemas.analytics import ClutchFilter, SituationalFilter
 
     # NBA standard clutch: last 5 min of Q4/OT, within 5 points
     filter = ClutchFilter()
 
     # Super clutch: last 2 min, within 3 points
     filter = ClutchFilter(time_remaining_seconds=120, score_margin=3)
+
+    # Filter for fast break shots
+    filter = SituationalFilter(fast_break=True)
+
+    # Filter for contested catch-and-shoot attempts
+    filter = SituationalFilter(contested=True, shot_type="CATCH_AND_SHOOT")
 
 Clutch Time Definitions (research sources):
 - NBA official: Last 5 minutes of 4th quarter or OT, score within 5 points
@@ -73,6 +80,55 @@ class ClutchFilter(BaseModel):
         ge=1,
         le=10,
         description="Minimum period for clutch (4 = 4th quarter)",
+    )
+
+    model_config = {"frozen": True}
+
+
+class SituationalFilter(BaseModel):
+    """
+    Filter configuration for situational shot analysis.
+
+    Filters play-by-play events based on situational attributes stored
+    in the event's attributes JSON field. All filter fields are optional;
+    only non-None fields are applied as filter criteria.
+
+    Attributes:
+        fast_break: Filter for fast break opportunities.
+            True = only fast break, False = exclude fast break, None = no filter.
+        second_chance: Filter for second chance (offensive rebound) opportunities.
+            True = only second chance, False = exclude, None = no filter.
+        contested: Filter for contested shot attempts.
+            True = only contested, False = only uncontested, None = no filter.
+        shot_type: Filter by shot type classification.
+            Options: "PULL_UP", "CATCH_AND_SHOOT", "POST_UP", None = no filter.
+
+    Example:
+        >>> # Get all fast break shots
+        >>> filter = SituationalFilter(fast_break=True)
+
+        >>> # Get contested catch-and-shoot attempts
+        >>> filter = SituationalFilter(contested=True, shot_type="CATCH_AND_SHOOT")
+
+        >>> # Get uncontested shots that are NOT fast breaks
+        >>> filter = SituationalFilter(fast_break=False, contested=False)
+    """
+
+    fast_break: bool | None = Field(
+        default=None,
+        description="Filter for fast break opportunities (True/False/None)",
+    )
+    second_chance: bool | None = Field(
+        default=None,
+        description="Filter for second chance opportunities (True/False/None)",
+    )
+    contested: bool | None = Field(
+        default=None,
+        description="Filter for contested shot attempts (True/False/None)",
+    )
+    shot_type: str | None = Field(
+        default=None,
+        description="Shot type: PULL_UP, CATCH_AND_SHOOT, POST_UP",
     )
 
     model_config = {"frozen": True}
