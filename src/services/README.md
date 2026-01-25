@@ -19,6 +19,7 @@ Business logic layer for the Basketball Analytics Platform. Services encapsulate
 | `stats_calculation.py` | StatsCalculationService for aggregated season stats |
 | `player_stats.py` | PlayerSeasonStatsService for season stats queries |
 | `sync_service.py` | SyncLogService for tracking sync operations |
+| `analytics.py` | AnalyticsService for advanced analytics (clutch, situational, lineup) |
 
 ## Architecture Overview
 
@@ -237,6 +238,39 @@ Extends BaseService with sync operation tracking.
 | `get_latest_successful` | `(source, entity_type, season_id?) -> SyncLog \| None` | Most recent successful sync |
 | `get_filtered` | `(filter_params: SyncLogFilter) -> tuple[list[SyncLog], int]` | Filter sync logs |
 | `get_running_syncs` | `(source?: str) -> list[SyncLog]` | Currently running syncs |
+
+### AnalyticsService
+
+Orchestration service for advanced basketball analytics. Composes existing services for clutch time, situational analysis, opponent splits, lineup analysis, and on/off court statistics.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `get_clutch_events` | `(game_id: UUID, clutch_filter?: ClutchFilter) -> list[PlayByPlayEvent]` | Get PBP events during clutch time |
+| `get_situational_shots` | `(game_id: UUID, player_id?: UUID, team_id?: UUID, filter?: SituationalFilter) -> list[PlayByPlayEvent]` | Get shots filtered by situational attributes |
+| `get_situational_stats` | `(game_ids: list[UUID], player_id: UUID, filter?: SituationalFilter) -> dict` | Aggregate shooting stats for situational filter |
+| `get_games_vs_opponent` | `(team_id: UUID, opponent_id: UUID, season_id?: UUID) -> list[Game]` | Get games between two teams |
+| `get_player_stats_vs_opponent` | `(player_id: UUID, opponent_id: UUID, season_id?: UUID) -> list[PlayerGameStats]` | Player stats against specific opponent |
+| `get_player_home_away_split` | `(player_id: UUID, season_id: UUID) -> dict` | Home vs away performance split |
+| `get_player_on_off_stats` | `(player_id: UUID, game_id: UUID) -> dict` | On/off court stats for single game |
+| `get_player_on_off_for_season` | `(player_id: UUID, season_id: UUID) -> dict` | On/off stats aggregated for season |
+| `get_lineup_stats` | `(player_ids: list[UUID], game_id: UUID) -> dict` | Stats when all players on court together |
+| `get_lineup_stats_for_season` | `(player_ids: list[UUID], season_id: UUID) -> dict` | Lineup stats aggregated for season |
+| `get_best_lineups` | `(team_id: UUID, game_id: UUID, lineup_size?: int, min_minutes?: float) -> list[dict]` | Best performing lineups by plus/minus |
+| `get_events_by_time` | `(game_id: UUID, time_filter: TimeFilter, event_type?: EventType) -> list[PlayByPlayEvent]` | Events filtered by time/period criteria |
+| `get_player_stats_by_quarter` | `(player_id: UUID, game_id: UUID) -> dict` | Player stats broken down by quarter |
+
+**Internal/Helper Methods:**
+
+| Method | Description |
+|--------|-------------|
+| `_is_clutch_moment` | Check if a specific game moment qualifies as clutch |
+| `_get_game_score_at_time` | Calculate running score at a specific point in game |
+| `_parse_clock_to_seconds` | Convert clock string (MM:SS) to seconds |
+| `_event_matches_situational_filter` | Check if event matches situational criteria |
+| `_get_starters_for_game` | Get starting lineup player IDs |
+| `_build_on_court_timeline` | Build timeline of on/off court stints |
+| `_is_player_on_at_time` | Check if player was on court at specific time |
+| `_get_lineup_on_court_intervals` | Get time intervals when all players on court together |
 
 ## Filter Parameters
 
@@ -529,6 +563,91 @@ if running:
 last_sync = sync_service.get_latest_successful("winner", "games")
 if last_sync:
     print(f"Last sync: {last_sync.completed_at}")
+```
+
+### Advanced Analytics with AnalyticsService
+
+```python
+from src.services import AnalyticsService
+from src.schemas import ClutchFilter, SituationalFilter, TimeFilter
+
+analytics = AnalyticsService(db)
+
+# Clutch Analysis - NBA standard (last 5 min Q4/OT, within 5 pts)
+clutch_events = analytics.get_clutch_events(game_id)
+
+# "Super clutch" (last 2 min, within 3 pts)
+filter = ClutchFilter(time_remaining_seconds=120, score_margin=3)
+super_clutch = analytics.get_clutch_events(game_id, filter)
+
+# Situational Filtering - fast break shots
+filter = SituationalFilter(fast_break=True)
+fast_break_shots = analytics.get_situational_shots(
+    game_id, player_id=lebron_id, filter=filter
+)
+
+# Aggregate fast break stats across multiple games
+stats = analytics.get_situational_stats(
+    game_ids=[game1.id, game2.id],
+    player_id=lebron_id,
+    filter=SituationalFilter(fast_break=True)
+)
+print(f"Fast break FG%: {stats['pct']:.1%}")
+
+# Opponent Splits - games vs specific opponent
+games = analytics.get_games_vs_opponent(
+    team_id=lakers_id, opponent_id=celtics_id, season_id=season_id
+)
+
+# Player stats vs specific opponent
+stats = analytics.get_player_stats_vs_opponent(
+    player_id=lebron_id, opponent_id=celtics_id
+)
+avg_pts = sum(s.points for s in stats) / len(stats) if stats else 0
+
+# Home/Away Split
+split = analytics.get_player_home_away_split(lebron_id, season_id)
+print(f"Home PPG: {split['home']['avg_points']:.1f}")
+print(f"Away PPG: {split['away']['avg_points']:.1f}")
+
+# On/Off Court Analysis - single game
+on_off = analytics.get_player_on_off_stats(lebron_id, game_id)
+print(f"On court: +{on_off['on']['plus_minus']} in {on_off['on']['minutes']} min")
+print(f"Off court: +{on_off['off']['plus_minus']} in {on_off['off']['minutes']} min")
+
+# On/Off for entire season
+season_on_off = analytics.get_player_on_off_for_season(lebron_id, season_id)
+print(f"Season on: +{season_on_off['on']['plus_minus']} in {season_on_off['on']['games']} games")
+
+# Lineup Analysis - 2-man combo
+stats = analytics.get_lineup_stats([lebron_id, ad_id], game_id)
+print(f"LeBron+AD: +{stats['plus_minus']} in {stats['minutes']} min")
+
+# Best 5-man lineups in a game
+lineups = analytics.get_best_lineups(
+    team_id=lakers_id, game_id=game_id, lineup_size=5, min_minutes=2.0
+)
+for i, lineup in enumerate(lineups[:3]):
+    print(f"#{i+1}: +{lineup['plus_minus']} in {lineup['minutes']} min")
+
+# Lineup stats for season
+season_lineup = analytics.get_lineup_stats_for_season(
+    [lebron_id, ad_id], season_id
+)
+print(f"Season: +{season_lineup['plus_minus']} in {season_lineup['games']} games")
+
+# Time-Based Filtering - 4th quarter only
+time_filter = TimeFilter(period=4)
+q4_events = analytics.get_events_by_time(game_id, time_filter)
+
+# Exclude garbage time (margin > 20)
+time_filter = TimeFilter(exclude_garbage_time=True)
+competitive_events = analytics.get_events_by_time(game_id, time_filter)
+
+# Player stats by quarter
+quarter_stats = analytics.get_player_stats_by_quarter(lebron_id, game_id)
+for q, stats in quarter_stats.items():
+    print(f"Q{q}: {stats['points']} pts, {stats['fgm']}/{stats['fga']} FG")
 ```
 
 ## Design Principles
