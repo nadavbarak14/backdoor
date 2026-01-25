@@ -14,9 +14,11 @@ These tests verify:
 from datetime import date
 
 import pytest
+from sqlalchemy import func, select
 
 from src.models.league import League, Season
 from src.models.player import Player, PlayerTeamHistory
+from src.models.team import Team, TeamSeason
 from src.sync.deduplication import (
     PlayerDeduplicator,
     TeamMatcher,
@@ -233,6 +235,156 @@ class TestTeamDeduplication:
         # All should be unique teams
         team_ids = [t.id for t in created_teams]
         assert len(set(team_ids)) == 4
+
+
+class TestTeamSeasonDeduplication:
+    """Integration tests for TeamSeason with competition-specific external IDs."""
+
+    def test_maccabi_two_competitions_two_team_seasons(self, test_db, setup_leagues):
+        """
+        Test that Maccabi Tel Aviv has one Team but two TeamSeason records.
+
+        Verifies the core use case: same team participating in multiple
+        competitions (Winner League AND Euroleague), each with its own
+        competition-specific external_id in TeamSeason.
+        """
+        matcher = TeamMatcher(test_db)
+        winner_season = setup_leagues["winner"]["season"]
+        euroleague_season = setup_leagues["euroleague"]["season"]
+
+        # Import from Winner League
+        winner_team, winner_ts = matcher.find_or_create_team_season(
+            source="winner",
+            external_id="w-maccabi-ta",
+            team_data=RawTeam(
+                external_id="w-maccabi-ta",
+                name="Maccabi Tel Aviv",
+                short_name="MTA",
+            ),
+            season_id=winner_season.id,
+        )
+
+        # Import from Euroleague
+        euroleague_team, euroleague_ts = matcher.find_or_create_team_season(
+            source="euroleague",
+            external_id="EL-MTA",
+            team_data=RawTeam(
+                external_id="EL-MTA",
+                name="Maccabi Playtika Tel Aviv",
+                short_name="MTA",
+            ),
+            season_id=euroleague_season.id,
+        )
+
+        # Should be ONE deduplicated Team
+        assert winner_team.id == euroleague_team.id
+        assert euroleague_team.external_ids == {
+            "winner": "w-maccabi-ta",
+            "euroleague": "EL-MTA",
+        }
+
+        # But TWO TeamSeason records with different external_ids
+        assert winner_ts.external_id == "w-maccabi-ta"
+        assert euroleague_ts.external_id == "EL-MTA"
+        assert winner_ts.season_id != euroleague_ts.season_id
+        assert winner_ts.team_id == euroleague_ts.team_id
+
+    def test_lookup_team_season_by_external_id(self, test_db, setup_leagues):
+        """Test that TeamSeason can be looked up by external_id."""
+        matcher = TeamMatcher(test_db)
+        winner_season = setup_leagues["winner"]["season"]
+
+        # Create team with TeamSeason
+        team, team_season = matcher.find_or_create_team_season(
+            source="winner",
+            external_id="w-hapoel-jlm",
+            team_data=RawTeam(
+                external_id="w-hapoel-jlm",
+                name="Hapoel Jerusalem",
+                short_name="HJM",
+            ),
+            season_id=winner_season.id,
+        )
+
+        # Look up by external_id
+        found = matcher.get_team_season_by_external_id(
+            season_id=winner_season.id,
+            external_id="w-hapoel-jlm",
+        )
+
+        assert found is not None
+        assert found.team_id == team.id
+        assert found.external_id == "w-hapoel-jlm"
+
+    def test_multiple_teams_same_season_different_external_ids(
+        self, test_db, setup_leagues
+    ):
+        """Test multiple teams in same season each have correct external_ids."""
+        matcher = TeamMatcher(test_db)
+        winner_season = setup_leagues["winner"]["season"]
+
+        teams_data = [
+            ("w-maccabi-ta", "Maccabi Tel Aviv", "MTA"),
+            ("w-hapoel-jlm", "Hapoel Jerusalem", "HJM"),
+            ("w-hapoel-ta", "Hapoel Tel Aviv", "HTA"),
+        ]
+
+        created = []
+        for ext_id, name, short in teams_data:
+            team, ts = matcher.find_or_create_team_season(
+                source="winner",
+                external_id=ext_id,
+                team_data=RawTeam(external_id=ext_id, name=name, short_name=short),
+                season_id=winner_season.id,
+            )
+            created.append((team, ts))
+
+        # Verify all TeamSeason records have correct external_ids
+        for (team, ts), (ext_id, name, _) in zip(created, teams_data, strict=True):
+            assert ts.external_id == ext_id
+            assert team.name == name
+
+        # Verify we can look up each by external_id
+        for ext_id, _, _ in teams_data:
+            found = matcher.get_team_season_by_external_id(winner_season.id, ext_id)
+            assert found is not None
+            assert found.external_id == ext_id
+
+    def test_team_season_count_verification(self, test_db, setup_leagues):
+        """Verify the Maccabi example creates correct number of records."""
+        matcher = TeamMatcher(test_db)
+        winner_season = setup_leagues["winner"]["season"]
+        euroleague_season = setup_leagues["euroleague"]["season"]
+
+        # Create Maccabi in both competitions
+        matcher.find_or_create_team_season(
+            source="winner",
+            external_id="w-maccabi-ta",
+            team_data=RawTeam(
+                external_id="w-maccabi-ta",
+                name="Maccabi Tel Aviv",
+                short_name="MTA",
+            ),
+            season_id=winner_season.id,
+        )
+        matcher.find_or_create_team_season(
+            source="euroleague",
+            external_id="EL-MTA",
+            team_data=RawTeam(
+                external_id="EL-MTA",
+                name="Maccabi Tel Aviv",
+                short_name="MTA",
+            ),
+            season_id=euroleague_season.id,
+        )
+
+        # Count records
+        team_count = test_db.scalar(select(func.count()).select_from(Team))
+        team_season_count = test_db.scalar(select(func.count()).select_from(TeamSeason))
+
+        # One Team, two TeamSeason records
+        assert team_count == 1
+        assert team_season_count == 2
 
 
 class TestPlayerDeduplication:

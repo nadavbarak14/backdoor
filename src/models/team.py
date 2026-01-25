@@ -19,7 +19,9 @@ Usage:
         external_ids={"winner": "123", "euroleague": "ABC"}
     )
 
-    team_season = TeamSeason(team_id=team.id, season_id=season.id)
+    team_season = TeamSeason(
+        team_id=team.id, season_id=season.id, external_id="w-123"
+    )
 """
 
 import uuid
@@ -133,14 +135,20 @@ class Team(UUIDMixin, TimestampMixin, Base):
 
 class TeamSeason(TimestampMixin, Base):
     """
-    Association model linking teams to seasons.
+    Association model linking teams to seasons with competition-specific data.
 
-    This model represents a team's participation in a specific season.
+    This model represents a team's participation in a specific season/competition.
     Uses a composite primary key of (team_id, season_id) rather than UUID.
+
+    The external_id field stores the competition-specific identifier for the team.
+    For example, Maccabi Tel Aviv might have external_id="w-123" in a Winner League
+    season but external_id="MAT" in a Euroleague season, while both records point
+    to the same deduplicated Team entity.
 
     Attributes:
         team_id: UUID foreign key to Team (part of composite PK)
         season_id: UUID foreign key to Season (part of composite PK)
+        external_id: Competition-specific external identifier (nullable for legacy)
         created_at: Creation timestamp (from TimestampMixin)
         updated_at: Last update timestamp (from TimestampMixin)
 
@@ -149,7 +157,11 @@ class TeamSeason(TimestampMixin, Base):
         season: The Season the team is participating in
 
     Example:
-        >>> team_season = TeamSeason(team_id=team.id, season_id=season.id)
+        >>> team_season = TeamSeason(
+        ...     team_id=team.id,
+        ...     season_id=season.id,
+        ...     external_id="w-123"
+        ... )
         >>> session.add(team_season)
         >>> session.commit()
     """
@@ -166,6 +178,7 @@ class TeamSeason(TimestampMixin, Base):
         primary_key=True,
         nullable=False,
     )
+    external_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     # Relationships
     team: Mapped["Team"] = relationship("Team", back_populates="team_seasons")

@@ -9,6 +9,11 @@ When a team is found in multiple sources, their external_ids are merged into
 a single team record. This allows tracking the same team across different
 data providers.
 
+Additionally supports competition-specific TeamSeason records, where each team's
+participation in a season stores its own external_id. This allows the same team
+(e.g., Maccabi Tel Aviv) to have different external_ids in different competitions
+while remaining a single deduplicated entity.
+
 Usage:
     from src.sync.deduplication.team_matcher import TeamMatcher
     from src.sync.types import RawTeam
@@ -22,15 +27,25 @@ Usage:
         team_data=RawTeam(external_id="team-123", name="Maccabi Tel Aviv")
     )
 
+    # Find or create team with competition-specific TeamSeason
+    team, team_season = matcher.find_or_create_team_season(
+        source="winner",
+        external_id="w-123",
+        team_data=RawTeam(external_id="w-123", name="Maccabi Tel Aviv"),
+        season_id=winner_season.id
+    )
+
     # Merge an external ID into an existing team
     matcher.merge_external_id(team, "euroleague", "MAT")
 """
+
+from uuid import UUID
 
 from sqlalchemy import cast, func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.types import String
 
-from src.models.team import Team
+from src.models.team import Team, TeamSeason
 from src.sync.deduplication.normalizer import normalize_name, team_names_match
 from src.sync.types import RawTeam
 
@@ -121,6 +136,141 @@ class TeamMatcher:
 
         # Step 3b: Create new team
         return self._create_team(source, external_id, team_data)
+
+    def find_or_create_team_season(
+        self,
+        source: str,
+        external_id: str,
+        team_data: RawTeam,
+        season_id: UUID,
+    ) -> tuple[Team, TeamSeason]:
+        """
+        Find or create both Team and TeamSeason records.
+
+        Creates a deduplicated Team record (or finds an existing one by external_id
+        or name match), then creates or finds a TeamSeason record for the specific
+        season with the competition-specific external_id.
+
+        This supports scenarios where the same team participates in multiple
+        competitions (e.g., Maccabi Tel Aviv in Winner League AND Euroleague),
+        each with its own TeamSeason record containing the competition-specific
+        external_id.
+
+        Args:
+            source: The data source name (e.g., "winner", "euroleague").
+            external_id: The external ID from the data source.
+            team_data: Raw team data containing name and other attributes.
+            season_id: The UUID of the season this team is participating in.
+
+        Returns:
+            Tuple of (Team, TeamSeason) where:
+            - Team is the deduplicated team entity
+            - TeamSeason is the competition-specific season record
+
+        Example:
+            >>> team, team_season = matcher.find_or_create_team_season(
+            ...     source="winner",
+            ...     external_id="w-123",
+            ...     team_data=RawTeam(
+            ...         external_id="w-123",
+            ...         name="Maccabi Tel Aviv",
+            ...         short_name="MTA"
+            ...     ),
+            ...     season_id=winner_season.id
+            ... )
+            >>> print(team_season.external_id)
+            'w-123'
+        """
+        # Step 1: Find or create the deduplicated Team
+        team = self.find_or_create_team(source, external_id, team_data)
+
+        # Step 2: Find or create TeamSeason with external_id
+        team_season = self._find_or_create_team_season(
+            team_id=team.id,
+            season_id=season_id,
+            external_id=external_id,
+        )
+
+        return team, team_season
+
+    def get_team_season_by_external_id(
+        self,
+        season_id: UUID,
+        external_id: str,
+    ) -> TeamSeason | None:
+        """
+        Find a TeamSeason by its external_id within a specific season.
+
+        Useful for looking up a team's season record when you only have
+        the competition-specific external_id.
+
+        Args:
+            season_id: The UUID of the season to search within.
+            external_id: The external ID to search for.
+
+        Returns:
+            The TeamSeason if found, None otherwise.
+
+        Example:
+            >>> team_season = matcher.get_team_season_by_external_id(
+            ...     season_id=winner_season.id,
+            ...     external_id="w-123"
+            ... )
+            >>> if team_season:
+            ...     print(team_season.team.name)
+        """
+        stmt = select(TeamSeason).where(
+            TeamSeason.season_id == season_id,
+            TeamSeason.external_id == external_id,
+        )
+        return self.db.scalars(stmt).first()
+
+    def _find_or_create_team_season(
+        self,
+        team_id: UUID,
+        season_id: UUID,
+        external_id: str,
+    ) -> TeamSeason:
+        """
+        Find an existing TeamSeason or create a new one.
+
+        If a TeamSeason already exists for this team-season combination,
+        updates the external_id if it was not set. Otherwise, creates a new
+        TeamSeason record.
+
+        Args:
+            team_id: The UUID of the team.
+            season_id: The UUID of the season.
+            external_id: The competition-specific external ID.
+
+        Returns:
+            The found or created TeamSeason entity.
+        """
+        # Try to find existing TeamSeason
+        stmt = select(TeamSeason).where(
+            TeamSeason.team_id == team_id,
+            TeamSeason.season_id == season_id,
+        )
+        team_season = self.db.scalars(stmt).first()
+
+        if team_season:
+            # Update external_id if not set
+            if team_season.external_id is None:
+                team_season.external_id = external_id
+                self.db.commit()
+                self.db.refresh(team_season)
+            return team_season
+
+        # Create new TeamSeason
+        team_season = TeamSeason(
+            team_id=team_id,
+            season_id=season_id,
+            external_id=external_id,
+        )
+        self.db.add(team_season)
+        self.db.commit()
+        self.db.refresh(team_season)
+        return team_season
 
     def get_by_external_id(self, source: str, external_id: str) -> Team | None:
         """
