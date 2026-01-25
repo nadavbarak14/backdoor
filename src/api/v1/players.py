@@ -3,12 +3,14 @@ Players Router Module
 
 FastAPI router for player-related endpoints.
 Provides endpoints for searching players, retrieving player details
-with team history, and accessing player game logs.
+with team history, accessing player game logs, and player statistics.
 
 Endpoints:
     GET /players - Search players with filters
     GET /players/{player_id} - Get player with team history
     GET /players/{player_id}/games - Get player game log
+    GET /players/{player_id}/stats - Get player career stats
+    GET /players/{player_id}/stats/{season_id} - Get player season stats
 
 Usage:
     from src.api.v1.players import router
@@ -23,15 +25,17 @@ from sqlalchemy.orm import Session
 
 from src.core import get_db
 from src.schemas import (
+    PlayerCareerStatsResponse,
     PlayerFilter,
     PlayerGameLogResponse,
     PlayerGameStatsWithGameResponse,
     PlayerListResponse,
     PlayerResponse,
+    PlayerSeasonStatsResponse,
     PlayerTeamHistoryResponse,
     PlayerWithHistoryResponse,
 )
-from src.services import PlayerGameStatsService, PlayerService
+from src.services import PlayerGameStatsService, PlayerSeasonStatsService, PlayerService
 
 router = APIRouter(prefix="/players", tags=["Players"])
 
@@ -309,3 +313,251 @@ def get_player_games(
         )
 
     return PlayerGameLogResponse(items=items, total=total)
+
+
+@router.get(
+    "/{player_id}/stats",
+    response_model=PlayerCareerStatsResponse,
+    summary="Get Player Career Stats",
+    description="Retrieve a player's career statistics including all season stats.",
+    responses={
+        404: {"description": "Player not found"},
+    },
+)
+def get_player_career_stats(
+    player_id: UUID,
+    db: Session = Depends(get_db),
+) -> PlayerCareerStatsResponse:
+    """
+    Get a player's career statistics.
+
+    Returns aggregated career totals and a list of individual season stats.
+    If a player was traded mid-season, they will have multiple entries for
+    that season (one per team).
+
+    Args:
+        player_id: UUID of the player.
+        db: Database session (injected).
+
+    Returns:
+        PlayerCareerStatsResponse with career totals and season breakdown.
+
+    Raises:
+        HTTPException: 404 if player not found.
+
+    Example:
+        >>> response = client.get(f"/api/v1/players/{player_id}/stats")
+        >>> data = response.json()
+        >>> print(f"Career PPG: {data['career_avg_points']}")
+        >>> for season in data["seasons"]:
+        ...     print(f"{season['season_name']}: {season['avg_points']} PPG")
+    """
+    # Check player exists
+    player_service = PlayerService(db)
+    player = player_service.get_by_id(player_id)
+
+    if player is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Player with id {player_id} not found",
+        )
+
+    stats_service = PlayerSeasonStatsService(db)
+    season_stats = stats_service.get_player_career(player_id)
+
+    # Calculate career totals
+    career_games_played = sum(s.games_played for s in season_stats)
+    career_games_started = sum(s.games_started for s in season_stats)
+    career_points = sum(s.total_points for s in season_stats)
+    career_rebounds = sum(s.total_rebounds for s in season_stats)
+    career_assists = sum(s.total_assists for s in season_stats)
+    career_steals = sum(s.total_steals for s in season_stats)
+    career_blocks = sum(s.total_blocks for s in season_stats)
+    career_turnovers = sum(s.total_turnovers for s in season_stats)
+
+    # Calculate career averages
+    if career_games_played > 0:
+        career_avg_points = round(career_points / career_games_played, 1)
+        career_avg_rebounds = round(career_rebounds / career_games_played, 1)
+        career_avg_assists = round(career_assists / career_games_played, 1)
+    else:
+        career_avg_points = 0.0
+        career_avg_rebounds = 0.0
+        career_avg_assists = 0.0
+
+    # Convert season stats to response models
+    seasons = [
+        PlayerSeasonStatsResponse(
+            id=s.id,
+            player_id=s.player_id,
+            player_name=s.player.full_name,
+            team_id=s.team_id,
+            team_name=s.team.name,
+            season_id=s.season_id,
+            season_name=s.season.name,
+            games_played=s.games_played,
+            games_started=s.games_started,
+            total_minutes=s.total_minutes,
+            total_points=s.total_points,
+            total_field_goals_made=s.total_field_goals_made,
+            total_field_goals_attempted=s.total_field_goals_attempted,
+            total_two_pointers_made=s.total_two_pointers_made,
+            total_two_pointers_attempted=s.total_two_pointers_attempted,
+            total_three_pointers_made=s.total_three_pointers_made,
+            total_three_pointers_attempted=s.total_three_pointers_attempted,
+            total_free_throws_made=s.total_free_throws_made,
+            total_free_throws_attempted=s.total_free_throws_attempted,
+            total_offensive_rebounds=s.total_offensive_rebounds,
+            total_defensive_rebounds=s.total_defensive_rebounds,
+            total_rebounds=s.total_rebounds,
+            total_assists=s.total_assists,
+            total_turnovers=s.total_turnovers,
+            total_steals=s.total_steals,
+            total_blocks=s.total_blocks,
+            total_personal_fouls=s.total_personal_fouls,
+            total_plus_minus=s.total_plus_minus,
+            avg_minutes=s.avg_minutes,
+            avg_points=s.avg_points,
+            avg_rebounds=s.avg_rebounds,
+            avg_assists=s.avg_assists,
+            avg_turnovers=s.avg_turnovers,
+            avg_steals=s.avg_steals,
+            avg_blocks=s.avg_blocks,
+            field_goal_pct=s.field_goal_pct * 100 if s.field_goal_pct else None,
+            two_point_pct=s.two_point_pct * 100 if s.two_point_pct else None,
+            three_point_pct=s.three_point_pct * 100 if s.three_point_pct else None,
+            free_throw_pct=s.free_throw_pct * 100 if s.free_throw_pct else None,
+            true_shooting_pct=s.true_shooting_pct * 100 if s.true_shooting_pct else None,
+            effective_field_goal_pct=(
+                s.effective_field_goal_pct * 100 if s.effective_field_goal_pct else None
+            ),
+            assist_turnover_ratio=s.assist_turnover_ratio,
+            last_calculated=s.last_calculated,
+        )
+        for s in season_stats
+    ]
+
+    return PlayerCareerStatsResponse(
+        player_id=player.id,
+        player_name=player.full_name,
+        career_games_played=career_games_played,
+        career_games_started=career_games_started,
+        career_points=career_points,
+        career_rebounds=career_rebounds,
+        career_assists=career_assists,
+        career_steals=career_steals,
+        career_blocks=career_blocks,
+        career_turnovers=career_turnovers,
+        career_avg_points=career_avg_points,
+        career_avg_rebounds=career_avg_rebounds,
+        career_avg_assists=career_avg_assists,
+        seasons=seasons,
+    )
+
+
+@router.get(
+    "/{player_id}/stats/{season_id}",
+    response_model=list[PlayerSeasonStatsResponse],
+    summary="Get Player Season Stats",
+    description="Retrieve a player's statistics for a specific season.",
+    responses={
+        404: {"description": "Player or season not found"},
+    },
+)
+def get_player_season_stats(
+    player_id: UUID,
+    season_id: UUID,
+    db: Session = Depends(get_db),
+) -> list[PlayerSeasonStatsResponse]:
+    """
+    Get a player's statistics for a specific season.
+
+    If a player was traded mid-season, this returns multiple entries
+    (one per team they played for during the season).
+
+    Args:
+        player_id: UUID of the player.
+        season_id: UUID of the season.
+        db: Database session (injected).
+
+    Returns:
+        List of PlayerSeasonStatsResponse (one per team if traded).
+
+    Raises:
+        HTTPException: 404 if player not found or no stats for season.
+
+    Example:
+        >>> response = client.get(f"/api/v1/players/{player_id}/stats/{season_id}")
+        >>> data = response.json()
+        >>> for team_stats in data:
+        ...     print(f"{team_stats['team_name']}: {team_stats['avg_points']} PPG")
+    """
+    # Check player exists
+    player_service = PlayerService(db)
+    player = player_service.get_by_id(player_id)
+
+    if player is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Player with id {player_id} not found",
+        )
+
+    stats_service = PlayerSeasonStatsService(db)
+    season_stats = stats_service.get_player_season(player_id, season_id)
+
+    if not season_stats:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No stats found for player {player_id} in season {season_id}",
+        )
+
+    return [
+        PlayerSeasonStatsResponse(
+            id=s.id,
+            player_id=s.player_id,
+            player_name=s.player.full_name,
+            team_id=s.team_id,
+            team_name=s.team.name,
+            season_id=s.season_id,
+            season_name=s.season.name,
+            games_played=s.games_played,
+            games_started=s.games_started,
+            total_minutes=s.total_minutes,
+            total_points=s.total_points,
+            total_field_goals_made=s.total_field_goals_made,
+            total_field_goals_attempted=s.total_field_goals_attempted,
+            total_two_pointers_made=s.total_two_pointers_made,
+            total_two_pointers_attempted=s.total_two_pointers_attempted,
+            total_three_pointers_made=s.total_three_pointers_made,
+            total_three_pointers_attempted=s.total_three_pointers_attempted,
+            total_free_throws_made=s.total_free_throws_made,
+            total_free_throws_attempted=s.total_free_throws_attempted,
+            total_offensive_rebounds=s.total_offensive_rebounds,
+            total_defensive_rebounds=s.total_defensive_rebounds,
+            total_rebounds=s.total_rebounds,
+            total_assists=s.total_assists,
+            total_turnovers=s.total_turnovers,
+            total_steals=s.total_steals,
+            total_blocks=s.total_blocks,
+            total_personal_fouls=s.total_personal_fouls,
+            total_plus_minus=s.total_plus_minus,
+            avg_minutes=s.avg_minutes,
+            avg_points=s.avg_points,
+            avg_rebounds=s.avg_rebounds,
+            avg_assists=s.avg_assists,
+            avg_turnovers=s.avg_turnovers,
+            avg_steals=s.avg_steals,
+            avg_blocks=s.avg_blocks,
+            field_goal_pct=s.field_goal_pct * 100 if s.field_goal_pct else None,
+            two_point_pct=s.two_point_pct * 100 if s.two_point_pct else None,
+            three_point_pct=s.three_point_pct * 100 if s.three_point_pct else None,
+            free_throw_pct=s.free_throw_pct * 100 if s.free_throw_pct else None,
+            true_shooting_pct=s.true_shooting_pct * 100 if s.true_shooting_pct else None,
+            effective_field_goal_pct=(
+                s.effective_field_goal_pct * 100 if s.effective_field_goal_pct else None
+            ),
+            assist_turnover_ratio=s.assist_turnover_ratio,
+            last_calculated=s.last_calculated,
+        )
+        for s in season_stats
+    ]

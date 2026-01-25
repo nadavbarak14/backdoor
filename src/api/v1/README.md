@@ -12,8 +12,10 @@ Version 1 of the Basketball Analytics API. Contains all REST endpoints under `/a
 | `router.py` | Main router aggregating all v1 endpoints |
 | `leagues.py` | League and season endpoints |
 | `teams.py` | Team, roster, and game history endpoints |
-| `players.py` | Player search, detail, and game log endpoints |
+| `players.py` | Player search, detail, game log, and stats endpoints |
 | `games.py` | Game, box score, and play-by-play endpoints |
+| `stats.py` | League leaders endpoints |
+| `sync.py` | Sync operation tracking endpoints |
 
 ## Endpoint Summary
 
@@ -41,6 +43,8 @@ Version 1 of the Basketball Analytics API. Contains all REST endpoints under `/a
 | GET | `/players` | Search players with filters |
 | GET | `/players/{player_id}` | Get player with team history |
 | GET | `/players/{player_id}/games` | Get player game log |
+| GET | `/players/{player_id}/stats` | Get player career stats |
+| GET | `/players/{player_id}/stats/{season_id}` | Get player season stats |
 
 ### Games (`/api/v1/games`)
 
@@ -49,6 +53,18 @@ Version 1 of the Basketball Analytics API. Contains all REST endpoints under `/a
 | GET | `/games` | List games with filters |
 | GET | `/games/{game_id}` | Get game with box score |
 | GET | `/games/{game_id}/pbp` | Get play-by-play events |
+
+### Stats (`/api/v1/stats`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/stats/leaders` | Get league leaders by category |
+
+### Sync (`/api/v1/sync`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/sync/logs` | Get sync operation history |
 
 ## Query Parameters
 
@@ -214,7 +230,10 @@ When running the server, access:
 - [Teams API Reference](../../../docs/api/teams.md)
 - [Players API Reference](../../../docs/api/players.md)
 - [Games API Reference](../../../docs/api/games.md)
+- [Stats API Reference](../../../docs/api/stats.md)
+- [Sync API Reference](../../../docs/api/sync.md)
 - [Game Statistics Reference](../../../docs/models/game-stats.md)
+- [Aggregated Stats Reference](../../../docs/models/aggregated-stats.md)
 - [Play-by-Play Reference](../../../docs/models/play-by-play.md)
 - [API Overview](../../../docs/api/README.md)
 - [Schemas](../../schemas/README.md)
