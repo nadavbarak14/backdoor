@@ -12,6 +12,8 @@ This package provides:
 - Game schemas
 - Stats schemas (PlayerGameStats, TeamGameStats)
 - Play-by-Play schemas
+- Player Stats schemas (PlayerSeasonStats, LeagueLeaders)
+- Sync schemas (SyncLog, SyncStatus)
 
 Usage:
     from src.schemas import PlayerCreate, PlayerResponse, LeagueResponse
@@ -56,6 +58,14 @@ from src.schemas.player import (
     PlayerUpdate,
     PlayerWithHistoryResponse,
 )
+from src.schemas.player_stats import (
+    LeagueLeaderEntry,
+    LeagueLeadersFilter,
+    LeagueLeadersResponse,
+    PlayerCareerStatsResponse,
+    PlayerSeasonStatsResponse,
+    StatsCategory,
+)
 from src.schemas.stats import (
     PlayerGameLogResponse,
     PlayerGameStatsResponse,
@@ -63,6 +73,12 @@ from src.schemas.stats import (
     TeamGameHistoryResponse,
     TeamGameStatsResponse,
     TeamGameSummaryResponse,
+)
+from src.schemas.sync import (
+    SyncLogFilter,
+    SyncLogListResponse,
+    SyncLogResponse,
+    SyncStatus,
 )
 from src.schemas.team import (
     TeamCreate,
@@ -126,4 +142,16 @@ __all__ = [
     "PlayByPlayEventResponse",
     "PlayByPlayResponse",
     "PlayByPlayFilter",
+    # Player stats schemas
+    "StatsCategory",
+    "PlayerSeasonStatsResponse",
+    "PlayerCareerStatsResponse",
+    "LeagueLeaderEntry",
+    "LeagueLeadersResponse",
+    "LeagueLeadersFilter",
+    # Sync schemas
+    "SyncStatus",
+    "SyncLogResponse",
+    "SyncLogListResponse",
+    "SyncLogFilter",
 ]
