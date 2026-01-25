@@ -1,0 +1,47 @@
+[
+  {
+    "id": 123456,
+    "date": "2024-01-15T19:30:00",
+    "date_gmt": "2024-01-15T17:30:00",
+    "status": "publish",
+    "link": "https://ibasketball.co.il/event/team-a-vs-team-b/",
+    "slug": "team-a-vs-team-b",
+    "title": {
+      "rendered": "Team A vs Team B"
+    },
+    "teams": [100, 101],
+    "team_names": {
+      "100": "Team A",
+      "101": "Team B"
+    },
+    "results": {
+      "100": {
+        "pts": 85,
+        "outcome": "win"
+      },
+      "101": {
+        "pts": 78,
+        "outcome": "loss"
+      }
+    },
+    "leagues": [119474]
+  },
+  {
+    "id": 123457,
+    "date": "2024-01-20T19:30:00",
+    "date_gmt": "2024-01-20T17:30:00",
+    "status": "future",
+    "link": "https://ibasketball.co.il/event/team-c-vs-team-d/",
+    "slug": "team-c-vs-team-d",
+    "title": {
+      "rendered": "Team C vs Team D"
+    },
+    "teams": [102, 103],
+    "team_names": {
+      "102": "Team C",
+      "103": "Team D"
+    },
+    "results": null,
+    "leagues": [119474]
+  }
+]
