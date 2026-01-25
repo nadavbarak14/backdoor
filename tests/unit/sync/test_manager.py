@@ -9,7 +9,7 @@ Tests cover:
 """
 
 from datetime import UTC, date, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -21,7 +21,7 @@ from src.models.team import Team
 from src.sync.adapters.base import BaseLeagueAdapter
 from src.sync.config import SyncConfig, SyncSourceConfig
 from src.sync.manager import SyncManager
-from src.sync.types import RawBoxScore, RawGame, RawPlayerStats, RawSeason, RawTeam
+from src.sync.types import RawBoxScore, RawGame, RawPlayerStats, RawTeam
 
 
 @pytest.fixture
