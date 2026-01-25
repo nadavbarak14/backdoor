@@ -152,6 +152,38 @@ def position_filter(
     return selected
 
 
+def nationality_filter(
+    nationalities: list[str],
+    key: str = "nationality_filter",
+    label: str = "Nationality",
+    include_all: bool = True,
+) -> str | None:
+    """
+    Display a nationality dropdown filter.
+
+    Args:
+        nationalities: List of nationality strings to populate the dropdown.
+        key: Unique key for the widget.
+        label: Label to display above the dropdown.
+        include_all: Whether to include an "All Nationalities" option.
+
+    Returns:
+        Selected nationality or None if "All" is selected.
+
+    Example:
+        >>> nationalities = ["USA", "Spain", "France", ...]
+        >>> selected = nationality_filter(nationalities)
+    """
+    options = ["All Nationalities"] if include_all else []
+    options.extend(nationalities)
+
+    selected = st.selectbox(label, options, key=key)
+
+    if selected == "All Nationalities" or selected is None:
+        return None
+    return selected
+
+
 def search_box(
     placeholder: str = "Search...",
     key: str = "search_box",
@@ -261,6 +293,7 @@ __all__ = [
     "league_filter",
     "team_filter",
     "position_filter",
+    "nationality_filter",
     "search_box",
     "date_range_filter",
     "status_filter",
