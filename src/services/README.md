@@ -16,6 +16,9 @@ Business logic layer for the Basketball Analytics Platform. Services encapsulate
 | `game.py` | GameService with box score loading and filtering |
 | `stats.py` | PlayerGameStatsService and TeamGameStatsService |
 | `play_by_play.py` | PlayByPlayService with event linking and shot charts |
+| `stats_calculation.py` | StatsCalculationService for aggregated season stats |
+| `player_stats.py` | PlayerSeasonStatsService for season stats queries |
+| `sync_service.py` | SyncLogService for tracking sync operations |
 
 ## Architecture Overview
 
@@ -186,6 +189,54 @@ Extends BaseService with play-by-play event operations.
 | `get_events_by_type` | `(game_id: UUID, event_type: str, event_subtype?: str) -> list[PlayByPlayEvent]` | Events of specific type |
 | `count_by_game` | `(game_id: UUID) -> int` | Total events in game |
 | `delete_by_game` | `(game_id: UUID) -> int` | Delete all events for game |
+
+### StatsCalculationService
+
+Calculates aggregated statistics from game-level data.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `calculate_player_season_stats` | `(player_id, team_id, season_id) -> PlayerSeasonStats \| None` | Calculate season stats for player/team |
+| `recalculate_all_for_season` | `(season_id: UUID) -> int` | Recalculate stats for all players in season |
+| `recalculate_for_player` | `(player_id: UUID) -> int` | Recalculate all season stats for player |
+| `calculate_percentage` | `(made: int, attempted: int) -> float` | Static: shooting percentage |
+| `calculate_true_shooting_pct` | `(points, fga, fta) -> float` | Static: TS% formula |
+| `calculate_effective_fg_pct` | `(fgm, three_pm, fga) -> float` | Static: eFG% formula |
+| `calculate_assist_turnover_ratio` | `(assists, turnovers) -> float` | Static: AST/TO ratio |
+| `calculate_average` | `(total: int, games: int) -> float` | Static: per-game average |
+
+**Formulas:**
+- **TS%**: `PTS / (2 * (FGA + 0.44 * FTA)) * 100`
+- **eFG%**: `(FGM + 0.5 * 3PM) / FGA * 100`
+- **AST/TO**: `AST / TO` (returns assists if 0 turnovers)
+
+### PlayerSeasonStatsService
+
+Extends BaseService with player season statistics operations.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `get_player_season` | `(player_id, season_id) -> list[PlayerSeasonStats]` | Stats for player in season (multi-team) |
+| `get_player_career` | `(player_id: UUID) -> list[PlayerSeasonStats]` | All career season stats |
+| `get_league_leaders` | `(season_id, category, limit=10, min_games=1) -> list[PlayerSeasonStats]` | League leaders by category |
+| `get_team_season_stats` | `(team_id, season_id) -> list[PlayerSeasonStats]` | All player stats for team |
+
+**Leader Categories:** `points`, `rebounds`, `assists`, `steals`, `blocks`, `field_goal_pct`, `three_point_pct`, `free_throw_pct`, `true_shooting_pct`, `efficiency`, `effective_field_goal_pct`
+
+### SyncLogService
+
+Extends BaseService with sync operation tracking.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `start_sync` | `(source, entity_type, season_id?, game_id?) -> SyncLog` | Start sync with STARTED status |
+| `complete_sync` | `(sync_id, processed, created, updated, skipped=0) -> SyncLog \| None` | Mark as COMPLETED |
+| `partial_sync` | `(sync_id, processed, created, updated, skipped, error_msg?) -> SyncLog \| None` | Mark as PARTIAL |
+| `fail_sync` | `(sync_id, error_message, error_details?) -> SyncLog \| None` | Mark as FAILED |
+| `get_latest_by_source` | `(source, entity_type) -> SyncLog \| None` | Most recent sync |
+| `get_latest_successful` | `(source, entity_type, season_id?) -> SyncLog \| None` | Most recent successful sync |
+| `get_filtered` | `(filter_params: SyncLogFilter) -> tuple[list[SyncLog], int]` | Filter sync logs |
+| `get_running_syncs` | `(source?: str) -> list[SyncLog]` | Currently running syncs |
 
 ## Filter Parameters
 
@@ -394,6 +445,90 @@ for entry in roster:
 history = player_service.get_team_history(lebron.id)
 for entry in history:
     print(f"{entry.season.name}: {entry.team.name}")
+```
+
+### Calculating Aggregated Stats
+
+```python
+from src.services import StatsCalculationService, PlayerSeasonStatsService
+
+calc_service = StatsCalculationService(db)
+stats_service = PlayerSeasonStatsService(db)
+
+# Calculate season stats for a player
+stats = calc_service.calculate_player_season_stats(
+    player_id=lebron.id,
+    team_id=lakers.id,
+    season_id=current_season.id
+)
+if stats:
+    print(f"PPG: {stats.avg_points}, TS%: {stats.true_shooting_pct}")
+
+# Recalculate all stats for a season (e.g., after sync)
+count = calc_service.recalculate_all_for_season(current_season.id)
+print(f"Recalculated {count} player-team stats")
+
+# Get league leaders
+leaders = stats_service.get_league_leaders(
+    season_id=current_season.id,
+    category="points",
+    limit=10,
+    min_games=20
+)
+for i, leader in enumerate(leaders, 1):
+    print(f"{i}. {leader.player.first_name}: {leader.avg_points} PPG")
+
+# Use static calculation methods directly
+ts_pct = StatsCalculationService.calculate_true_shooting_pct(
+    points=30, fga=18, fta=8
+)
+print(f"True Shooting: {ts_pct}%")
+```
+
+### Tracking Sync Operations
+
+```python
+from src.services import SyncLogService
+
+sync_service = SyncLogService(db)
+
+# Start a sync operation
+sync = sync_service.start_sync(
+    source="winner",
+    entity_type="games",
+    season_id=current_season.id
+)
+
+try:
+    # ... perform sync operations ...
+    records_created = 50
+    records_updated = 10
+
+    # Mark as completed
+    sync_service.complete_sync(
+        sync_id=sync.id,
+        records_processed=60,
+        records_created=records_created,
+        records_updated=records_updated,
+        records_skipped=0
+    )
+except Exception as e:
+    # Mark as failed
+    sync_service.fail_sync(
+        sync_id=sync.id,
+        error_message=str(e),
+        error_details={"traceback": "..."}
+    )
+
+# Check for running syncs before starting new one
+running = sync_service.get_running_syncs(source="winner")
+if running:
+    print(f"Warning: {len(running)} syncs already in progress")
+
+# Get last successful sync for incremental updates
+last_sync = sync_service.get_latest_successful("winner", "games")
+if last_sync:
+    print(f"Last sync: {last_sync.completed_at}")
 ```
 
 ## Design Principles

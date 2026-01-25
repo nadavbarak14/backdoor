@@ -14,6 +14,9 @@ This package exports:
     - PlayerGameStatsService: Player game statistics business logic
     - TeamGameStatsService: Team game statistics business logic
     - PlayByPlayService: Play-by-play event business logic
+    - StatsCalculationService: Calculate aggregated season statistics
+    - PlayerSeasonStatsService: Player season statistics business logic
+    - SyncLogService: Sync operation tracking business logic
 
 Usage:
     from src.services import LeagueService, PlayerService, GameService
@@ -31,6 +34,16 @@ Usage:
     # Get game with box score
     game = game_service.get_with_box_score(game_id)
 
+    # Calculate season stats
+    from src.services import StatsCalculationService
+    calc_service = StatsCalculationService(db_session)
+    stats = calc_service.calculate_player_season_stats(player_id, team_id, season_id)
+
+    # Track sync operations
+    from src.services import SyncLogService
+    sync_service = SyncLogService(db_session)
+    sync = sync_service.start_sync("winner", "games", season_id=season_id)
+
 Services handle all business logic and sit between the API layer and the
 data models, providing a clean separation of concerns.
 """
@@ -40,7 +53,10 @@ from src.services.game import GameService
 from src.services.league import LeagueService, SeasonService
 from src.services.play_by_play import PlayByPlayService
 from src.services.player import PlayerService
+from src.services.player_stats import PlayerSeasonStatsService
 from src.services.stats import PlayerGameStatsService, TeamGameStatsService
+from src.services.stats_calculation import StatsCalculationService
+from src.services.sync_service import SyncLogService
 from src.services.team import TeamService
 
 __all__ = [
@@ -53,4 +69,7 @@ __all__ = [
     "PlayerGameStatsService",
     "TeamGameStatsService",
     "PlayByPlayService",
+    "StatsCalculationService",
+    "PlayerSeasonStatsService",
+    "SyncLogService",
 ]
