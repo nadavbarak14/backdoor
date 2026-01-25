@@ -268,7 +268,9 @@ class TestIBasketballScraper:
             assert pbp.home_team == "Team A"
 
         @patch.object(IBasketballScraper, "_fetch_html")
-        def test_fetch_game_pbp_force_refresh(self, mock_fetch, scraper, mock_db, game_page_html):
+        def test_fetch_game_pbp_force_refresh(
+            self, mock_fetch, scraper, mock_db, game_page_html
+        ):
             """Test force refresh bypasses cache."""
             mock_fetch.return_value = game_page_html
             mock_db.query.return_value.filter.return_value.first.return_value = None
@@ -296,7 +298,9 @@ class TestIBasketballScraper:
             assert profile.team_name == "Maccabi Tel Aviv"
 
         @patch.object(IBasketballScraper, "_fetch_html")
-        def test_fetch_player_force_refresh(self, mock_fetch, scraper, mock_db, player_page_html):
+        def test_fetch_player_force_refresh(
+            self, mock_fetch, scraper, mock_db, player_page_html
+        ):
             """Test force refresh bypasses cache."""
             mock_fetch.return_value = player_page_html
             mock_db.query.return_value.filter.return_value.first.return_value = None
@@ -341,7 +345,7 @@ class TestIBasketballScraper:
             """Test parsing rebound row."""
             from bs4 import BeautifulSoup
 
-            html = '<tr><td>09:28</td><td>Player</td><td>ריבאונד</td></tr>'
+            html = "<tr><td>09:28</td><td>Player</td><td>ריבאונד</td></tr>"
             soup = BeautifulSoup(html, "html.parser")
             row = soup.find("tr")
 

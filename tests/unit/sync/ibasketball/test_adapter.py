@@ -205,7 +205,9 @@ class TestIBasketballAdapter:
             assert events == []
 
         @pytest.mark.asyncio
-        async def test_get_game_pbp_with_scraper(self, adapter, mock_client, mock_scraper):
+        async def test_get_game_pbp_with_scraper(
+            self, adapter, mock_client, mock_scraper
+        ):
             """Test getting PBP with scraper."""
             mock_client.fetch_event.return_value = CacheResult(
                 data={"id": 123, "slug": "team-a-vs-team-b"},
@@ -290,7 +292,9 @@ class TestIBasketballAdapter:
             info = await adapter.get_player_info("john-smith")
 
             assert info.external_id == "john-smith"
-            assert "John Smith" in info.last_name or "john smith" in info.last_name.lower()
+            assert (
+                "John Smith" in info.last_name or "john smith" in info.last_name.lower()
+            )
 
         @pytest.mark.asyncio
         async def test_get_player_info_with_scraper(self, adapter, mock_scraper):

@@ -89,8 +89,7 @@ class TestIBasketballConfig:
 
         url = config.get_standings_url("119474")
         assert url == (
-            "https://ibasketball.co.il/wp-json/sportspress/v2/tables"
-            "?leagues=119474"
+            "https://ibasketball.co.il/wp-json/sportspress/v2/tables" "?leagues=119474"
         )
 
     def test_get_teams_url(self):

@@ -244,9 +244,7 @@ class TestIBasketballMapper:
                 "min": "32:15",
             }
 
-            player_stats = mapper.map_player_stats(
-                "1001", "John Smith", "100", stats
-            )
+            player_stats = mapper.map_player_stats("1001", "John Smith", "100", stats)
 
             assert player_stats.player_external_id == "1001"
             assert player_stats.player_name == "John Smith"
@@ -266,9 +264,7 @@ class TestIBasketballMapper:
                 "pts": 10,
             }
 
-            player_stats = mapper.map_player_stats(
-                "1002", "Jane Doe", "101", stats
-            )
+            player_stats = mapper.map_player_stats("1002", "Jane Doe", "101", stats)
 
             assert player_stats.points == 10
             assert player_stats.field_goals_made == 0
