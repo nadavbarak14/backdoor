@@ -939,3 +939,318 @@ class AnalyticsService:
             totals[key]["minutes"] = round(totals[key]["minutes"], 1)
 
         return totals
+
+    def _get_lineup_on_court_intervals(
+        self,
+        player_ids: list[UUID],
+        game_id: UUID,
+        team_id: UUID,
+        events: list[PlayByPlayEvent],
+    ) -> list[tuple[int, int, int]]:
+        """
+        Get time intervals when ALL specified players are on court together.
+
+        Computes the intersection of on-court timelines for all players in the lineup.
+
+        Args:
+            player_ids: List of player UUIDs that must all be on court.
+            game_id: UUID of the game.
+            team_id: UUID of the team these players belong to.
+            events: List of play-by-play events for the game.
+
+        Returns:
+            List of (period, start_seconds, end_seconds) tuples representing
+            intervals when all players were on court together.
+
+        Example:
+            >>> intervals = service._get_lineup_on_court_intervals(
+            ...     [lebron_id, ad_id], game_id, lakers_id, events
+            ... )
+            >>> print(intervals)
+            [(1, 720, 360), (1, 180, 0)]  # Q1: 12:00-6:00, 3:00-0:00
+        """
+        if not player_ids:
+            return []
+
+        # Build timeline for each player
+        all_timelines: list[list[tuple[int, int, int, int, bool]]] = []
+        for pid in player_ids:
+            timeline = self._build_on_court_timeline(game_id, pid, team_id, events)
+            all_timelines.append(timeline)
+
+        # Extract "on" intervals for each player
+        player_on_intervals: list[list[tuple[int, int, int]]] = []
+        for timeline in all_timelines:
+            on_intervals = [
+                (period, start, end)
+                for period, start, end, _, is_on in timeline
+                if is_on
+            ]
+            player_on_intervals.append(on_intervals)
+
+        if not player_on_intervals:
+            return []
+
+        # Intersect all player intervals
+        # Start with first player's intervals
+        result = player_on_intervals[0]
+
+        for player_intervals in player_on_intervals[1:]:
+            new_result: list[tuple[int, int, int]] = []
+            for p1, s1, e1 in result:
+                for p2, s2, e2 in player_intervals:
+                    # Must be same period
+                    if p1 != p2:
+                        continue
+                    # Compute intersection (time goes from high to low)
+                    start = min(s1, s2)
+                    end = max(e1, e2)
+                    if start > end:
+                        new_result.append((p1, start, end))
+            result = new_result
+
+        return result
+
+    def get_lineup_stats(
+        self,
+        player_ids: list[UUID],
+        game_id: UUID,
+    ) -> dict:
+        """
+        Calculate stats when ALL specified players are on court together.
+
+        Tracks scoring plays that occur during intervals when the entire
+        specified lineup (2-man, 3-man, etc.) is on the court together.
+
+        Args:
+            player_ids: List of player UUIDs (2-5 players typically).
+            game_id: UUID of the game.
+
+        Returns:
+            Dictionary containing:
+            - team_pts: Points scored by the lineup's team
+            - opp_pts: Points scored by opponent
+            - plus_minus: team_pts - opp_pts
+            - minutes: Total minutes the lineup played together
+
+        Raises:
+            None - returns empty stats if game/players not found.
+
+        Example:
+            >>> stats = service.get_lineup_stats(
+            ...     [lebron_id, ad_id], game_id
+            ... )
+            >>> print(f"LeBron+AD: +{stats['plus_minus']} in {stats['minutes']} min")
+        """
+        empty = {"team_pts": 0, "opp_pts": 0, "plus_minus": 0, "minutes": 0.0}
+
+        if not player_ids:
+            return empty
+
+        game = self.game_service.get_by_id(game_id)
+        if not game:
+            return empty
+
+        # Get team_id from first player's stats
+        first_player_stats = self.player_stats_service.get_by_player_and_game(
+            player_id=player_ids[0], game_id=game_id
+        )
+        if not first_player_stats:
+            return empty
+
+        team_id = first_player_stats.team_id
+        opp_id = (
+            game.away_team_id if team_id == game.home_team_id else game.home_team_id
+        )
+
+        # Verify all players are on the same team
+        for pid in player_ids[1:]:
+            pstats = self.player_stats_service.get_by_player_and_game(
+                player_id=pid, game_id=game_id
+            )
+            if not pstats or pstats.team_id != team_id:
+                return empty
+
+        events = self.pbp_service.get_by_game(game_id)
+        intervals = self._get_lineup_on_court_intervals(
+            player_ids, game_id, team_id, events
+        )
+
+        # Calculate total minutes
+        total_seconds = sum(start - end for _, start, end in intervals)
+
+        # Count scoring during lineup intervals
+        team_pts = 0
+        opp_pts = 0
+
+        for event in events:
+            if event.event_type not in ("SHOT", "FREE_THROW") or not event.success:
+                continue
+
+            pts = self._get_points_for_event(event)
+            if pts == 0:
+                continue
+
+            try:
+                event_secs = self._parse_clock_to_seconds(event.clock)
+            except ValueError:
+                continue
+
+            # Check if event occurred during a lineup interval
+            for period, start, end in intervals:
+                if event.period == period and (
+                    start >= event_secs > end or event_secs == start
+                ):
+                    if event.team_id == team_id:
+                        team_pts += pts
+                    elif event.team_id == opp_id:
+                        opp_pts += pts
+                    break
+
+        return {
+            "team_pts": team_pts,
+            "opp_pts": opp_pts,
+            "plus_minus": team_pts - opp_pts,
+            "minutes": round(total_seconds / 60, 1),
+        }
+
+    def get_lineup_stats_for_season(
+        self,
+        player_ids: list[UUID],
+        season_id: UUID,
+    ) -> dict:
+        """
+        Aggregate lineup stats across all games in a season.
+
+        Sums stats for all games where all specified players participated
+        for the same team.
+
+        Args:
+            player_ids: List of player UUIDs (2-5 players typically).
+            season_id: UUID of the season.
+
+        Returns:
+            Dictionary containing:
+            - team_pts: Total points scored by the lineup's team
+            - opp_pts: Total points scored by opponent
+            - plus_minus: team_pts - opp_pts
+            - minutes: Total minutes the lineup played together
+            - games: Number of games where lineup appeared together
+
+        Example:
+            >>> stats = service.get_lineup_stats_for_season(
+            ...     [lebron_id, ad_id], season_id
+            ... )
+            >>> print(f"Season: +{stats['plus_minus']} in {stats['games']} games")
+        """
+        from sqlalchemy import select
+
+        totals = {
+            "team_pts": 0,
+            "opp_pts": 0,
+            "plus_minus": 0,
+            "minutes": 0.0,
+            "games": 0,
+        }
+
+        if not player_ids:
+            return totals
+
+        # Get all games for first player in the season
+        stmt = (
+            select(PlayerGameStats)
+            .join(Game)
+            .where(PlayerGameStats.player_id == player_ids[0])
+            .where(Game.season_id == season_id)
+        )
+        first_player_games = list(self.db.scalars(stmt).all())
+
+        seen_games: set[UUID] = set()
+
+        for pgs in first_player_games:
+            if pgs.game_id in seen_games:
+                continue
+            seen_games.add(pgs.game_id)
+
+            game_stats = self.get_lineup_stats(player_ids, pgs.game_id)
+            if game_stats["minutes"] > 0:
+                totals["team_pts"] += game_stats["team_pts"]
+                totals["opp_pts"] += game_stats["opp_pts"]
+                totals["minutes"] += game_stats["minutes"]
+                totals["games"] += 1
+
+        totals["plus_minus"] = totals["team_pts"] - totals["opp_pts"]
+        totals["minutes"] = round(totals["minutes"], 1)
+
+        return totals
+
+    def get_best_lineups(
+        self,
+        team_id: UUID,
+        game_id: UUID,
+        lineup_size: int = 5,
+        min_minutes: float = 2.0,
+    ) -> list[dict]:
+        """
+        Get best performing lineups for a team in a game, sorted by plus_minus.
+
+        Discovers all unique lineup combinations of the specified size that
+        played together, then ranks them by plus/minus differential.
+
+        Args:
+            team_id: UUID of the team.
+            game_id: UUID of the game.
+            lineup_size: Number of players in lineup (2-5). Defaults to 5.
+            min_minutes: Minimum minutes threshold to include lineup.
+                Defaults to 2.0 minutes.
+
+        Returns:
+            List of dicts sorted by plus_minus (descending), each containing:
+            - player_ids: List of player UUIDs in the lineup
+            - team_pts: Points scored by team
+            - opp_pts: Points scored by opponent
+            - plus_minus: team_pts - opp_pts
+            - minutes: Minutes played together
+
+        Example:
+            >>> lineups = service.get_best_lineups(
+            ...     team_id=lakers_id, game_id=game_id, lineup_size=5, min_minutes=2.0
+            ... )
+            >>> best = lineups[0]
+            >>> print(f"Best 5-man: +{best['plus_minus']} in {best['minutes']} min")
+        """
+        from itertools import combinations
+
+        game = self.game_service.get_by_id(game_id)
+        if not game:
+            return []
+
+        # Get all players who played for this team in the game
+        player_stats_list = self.player_stats_service.get_by_game_and_team(
+            game_id=game_id, team_id=team_id
+        )
+        player_ids = [ps.player_id for ps in player_stats_list]
+
+        if len(player_ids) < lineup_size:
+            return []
+
+        lineups: list[dict] = []
+
+        # Generate all combinations of the specified size
+        for combo in combinations(player_ids, lineup_size):
+            stats = self.get_lineup_stats(list(combo), game_id)
+            if stats["minutes"] >= min_minutes:
+                lineups.append(
+                    {
+                        "player_ids": list(combo),
+                        "team_pts": stats["team_pts"],
+                        "opp_pts": stats["opp_pts"],
+                        "plus_minus": stats["plus_minus"],
+                        "minutes": stats["minutes"],
+                    }
+                )
+
+        # Sort by plus_minus descending
+        lineups.sort(key=lambda x: x["plus_minus"], reverse=True)
+
+        return lineups
