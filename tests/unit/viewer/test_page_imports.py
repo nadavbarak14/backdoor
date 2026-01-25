@@ -73,6 +73,14 @@ print("Import structure OK")
 class TestViewerComponentImports:
     """Test that viewer components can be imported."""
 
+    @pytest.fixture(autouse=True)
+    def setup_path(self):
+        """Add project root to path for viewer imports."""
+        import sys
+
+        if str(PROJECT_ROOT) not in sys.path:
+            sys.path.insert(0, str(PROJECT_ROOT))
+
     def test_navigation_imports(self):
         """Test navigation component imports."""
         from viewer.components.navigation import (
