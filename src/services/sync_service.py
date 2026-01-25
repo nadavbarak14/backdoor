@@ -313,13 +313,10 @@ class SyncLogService(BaseService[SyncLog]):
             >>> if last_success:
             ...     print(f"Last successful sync: {last_success.completed_at}")
         """
-        stmt = (
-            select(SyncLog)
-            .where(
-                SyncLog.source == source,
-                SyncLog.entity_type == entity_type,
-                SyncLog.status == "COMPLETED",
-            )
+        stmt = select(SyncLog).where(
+            SyncLog.source == source,
+            SyncLog.entity_type == entity_type,
+            SyncLog.status == "COMPLETED",
         )
 
         if season_id:

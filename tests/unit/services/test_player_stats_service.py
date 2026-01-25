@@ -334,9 +334,7 @@ class TestPlayerSeasonStatsService:
         test_db.commit()
 
         # Query with min_games=20
-        result = service.get_league_leaders(
-            season.id, "points", limit=10, min_games=20
-        )
+        result = service.get_league_leaders(season.id, "points", limit=10, min_games=20)
 
         # Only player1 qualifies
         assert len(result) == 1

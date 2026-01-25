@@ -6,7 +6,6 @@ These tests verify the mathematical correctness of the stats calculation
 methods independently of any database operations.
 """
 
-
 from src.services.stats_calculation import StatsCalculationService
 
 
@@ -277,7 +276,9 @@ class TestIntegrationScenarios:
         assert ast_to == 5.0
 
         # Season totals: 600 assists, 200 turnovers in 75 games
-        season_ast_to = StatsCalculationService.calculate_assist_turnover_ratio(600, 200)
+        season_ast_to = StatsCalculationService.calculate_assist_turnover_ratio(
+            600, 200
+        )
         apg = StatsCalculationService.calculate_average(600, 75)
 
         assert season_ast_to == 3.0

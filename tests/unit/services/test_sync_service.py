@@ -224,9 +224,7 @@ class TestSyncLogService:
         assert latest.id == sync1.id
         assert latest.status == "COMPLETED"
 
-    def test_get_latest_successful_with_season(
-        self, test_db: Session, season: Season
-    ):
+    def test_get_latest_successful_with_season(self, test_db: Session, season: Season):
         """Test getting latest successful sync filtered by season."""
         service = SyncLogService(test_db)
 

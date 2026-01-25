@@ -150,7 +150,9 @@ class StatsCalculationService:
         ft_pct = self.calculate_percentage(total_ftm, total_fta) / 100
 
         # Calculate advanced stats (stored as decimals 0.0-1.0)
-        ts_pct = self.calculate_true_shooting_pct(total_points, total_fga, total_fta) / 100
+        ts_pct = (
+            self.calculate_true_shooting_pct(total_points, total_fga, total_fta) / 100
+        )
         efg_pct = self.calculate_effective_fg_pct(total_fgm, total_3pm, total_fga) / 100
         ast_tov = self.calculate_assist_turnover_ratio(total_ast, total_tov)
 
