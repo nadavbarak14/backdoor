@@ -17,6 +17,7 @@ This package exports:
     - StatsCalculationService: Calculate aggregated season statistics
     - PlayerSeasonStatsService: Player season statistics business logic
     - SyncLogService: Sync operation tracking business logic
+    - AnalyticsService: Advanced analytics and clutch time analysis
 
 Usage:
     from src.services import LeagueService, PlayerService, GameService
@@ -48,6 +49,7 @@ Services handle all business logic and sit between the API layer and the
 data models, providing a clean separation of concerns.
 """
 
+from src.services.analytics import AnalyticsService
 from src.services.base import BaseService
 from src.services.game import GameService
 from src.services.league import LeagueService, SeasonService
@@ -60,6 +62,7 @@ from src.services.sync_service import SyncLogService
 from src.services.team import TeamService
 
 __all__ = [
+    "AnalyticsService",
     "BaseService",
     "LeagueService",
     "SeasonService",
