@@ -165,7 +165,7 @@ export default function GameDetail() {
                 to={`/teams/${game.home_team_id}`}
                 className="text-xl font-bold text-gray-900 hover:text-blue-600"
               >
-                {boxScore?.home_team.name ?? 'Home Team'}
+                {game.home_team_name ?? boxScore?.home_team.name ?? 'Home Team'}
               </Link>
               <p className="text-sm text-gray-500">Home</p>
               <p
@@ -185,7 +185,7 @@ export default function GameDetail() {
                 to={`/teams/${game.away_team_id}`}
                 className="text-xl font-bold text-gray-900 hover:text-blue-600"
               >
-                {boxScore?.away_team.name ?? 'Away Team'}
+                {game.away_team_name ?? boxScore?.away_team.name ?? 'Away Team'}
               </Link>
               <p className="text-sm text-gray-500">Away</p>
               <p
