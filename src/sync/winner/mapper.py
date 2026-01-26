@@ -369,10 +369,7 @@ class WinnerMapper:
                 and away_score is not None
                 and (home_score > 0 or away_score > 0)
             )
-            if has_scores:
-                status = "final"
-            else:
-                status = "scheduled"
+            status = "final" if has_scores else "scheduled"
 
         return RawGame(
             external_id=str(game_id),
