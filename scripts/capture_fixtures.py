@@ -43,10 +43,7 @@ def capture_winner() -> None:
 
     # Schedule - all games
     print("Fetching schedule...")
-    resp = httpx.get(
-        "https://basket.co.il/pbp/json/games_all.json",
-        timeout=30.0
-    )
+    resp = httpx.get("https://basket.co.il/pbp/json/games_all.json", timeout=30.0)
     resp.raise_for_status()
     schedule_data = resp.json()
 
@@ -62,7 +59,9 @@ def capture_winner() -> None:
     save_fixture("winner", "schedule", all_games[:5])
 
     # Find a completed game (has scores)
-    completed_games = [g for g in all_games if g.get("score_team1") and g.get("score_team2")]
+    completed_games = [
+        g for g in all_games if g.get("score_team1") and g.get("score_team2")
+    ]
     if completed_games:
         game = completed_games[0]
         game_id = game.get("ExternalID") or game.get("id")
@@ -73,7 +72,7 @@ def capture_winner() -> None:
             try:
                 box_resp = httpx.get(
                     f"https://stats.segevstats.com/realtimestat_heb/get_team_score.php?game_id={game_id}",
-                    timeout=30.0
+                    timeout=30.0,
                 )
                 box_resp.raise_for_status()
                 save_fixture("winner", "boxscore", box_resp.json())
@@ -85,7 +84,7 @@ def capture_winner() -> None:
             try:
                 pbp_resp = httpx.get(
                     f"https://stats.segevstats.com/realtimestat_heb/get_team_action.php?game_id={game_id}",
-                    timeout=30.0
+                    timeout=30.0,
                 )
                 pbp_resp.raise_for_status()
                 pbp_data = pbp_resp.json()
@@ -120,7 +119,7 @@ def capture_euroleague() -> None:
     try:
         resp = httpx.get(
             f"https://api-live.euroleague.net/v1/schedules?seasonCode={competition}{season}",
-            timeout=30.0
+            timeout=30.0,
         )
         resp.raise_for_status()
 
@@ -140,6 +139,7 @@ def capture_euroleague() -> None:
     except Exception as e:
         print(f"  Warning: Could not fetch schedule: {e}")
         import traceback
+
         traceback.print_exc()
 
     # Find a played game for boxscore/PBP
@@ -148,7 +148,11 @@ def capture_euroleague() -> None:
         # gamecode format is like "E2024_1" - extract the number
         gamecode_str = game.get("gamecode", "")
         try:
-            game_code = int(gamecode_str.split("_")[-1]) if "_" in gamecode_str else int(game.get("game", 0))
+            game_code = (
+                int(gamecode_str.split("_")[-1])
+                if "_" in gamecode_str
+                else int(game.get("game", 0))
+            )
         except ValueError:
             game_code = 1
 
@@ -157,11 +161,11 @@ def capture_euroleague() -> None:
             print(f"Fetching boxscore for game {game_code}...")
             try:
                 boxscore = BoxScoreData(competition)
-                box_df = boxscore.get_player_boxscore_stats_data(
-                    season, game_code
-                )
+                box_df = boxscore.get_player_boxscore_stats_data(season, game_code)
                 if box_df is not None and not box_df.empty:
-                    save_fixture("euroleague", "boxscore", box_df.to_dict(orient="records"))
+                    save_fixture(
+                        "euroleague", "boxscore", box_df.to_dict(orient="records")
+                    )
             except Exception as e:
                 print(f"  Warning: Could not fetch boxscore: {e}")
 
@@ -172,7 +176,9 @@ def capture_euroleague() -> None:
                 pbp_df = pbp.get_game_play_by_play_data(season, game_code)
                 if pbp_df is not None and not pbp_df.empty:
                     # Save first 50 events
-                    save_fixture("euroleague", "pbp", pbp_df.head(50).to_dict(orient="records"))
+                    save_fixture(
+                        "euroleague", "pbp", pbp_df.head(50).to_dict(orient="records")
+                    )
             except Exception as e:
                 print(f"  Warning: Could not fetch PBP: {e}")
 
@@ -198,7 +204,7 @@ def capture_nba() -> None:
     finder = LeagueGameFinder(
         season_nullable=season,
         league_id_nullable="00",
-        season_type_nullable="Regular Season"
+        season_type_nullable="Regular Season",
     )
     games_df = finder.get_data_frames()[0]
 
@@ -251,7 +257,7 @@ def capture_ibasketball() -> None:
         resp = httpx.get(
             f"{base_url}/events",
             params={"leagues": league_id, "per_page": 10},
-            timeout=30.0
+            timeout=30.0,
         )
         resp.raise_for_status()
         events = resp.json()
@@ -265,7 +271,7 @@ def capture_ibasketball() -> None:
         resp = httpx.get(
             f"{base_url}/events",
             params={"leagues": league_id, "per_page": 20, "status": "publish"},
-            timeout=30.0
+            timeout=30.0,
         )
         resp.raise_for_status()
         completed = resp.json()
@@ -276,10 +282,7 @@ def capture_ibasketball() -> None:
                 event_id = event["id"]
                 print(f"Fetching boxscore for event {event_id}...")
                 try:
-                    box_resp = httpx.get(
-                        f"{base_url}/events/{event_id}",
-                        timeout=30.0
-                    )
+                    box_resp = httpx.get(f"{base_url}/events/{event_id}", timeout=30.0)
                     box_resp.raise_for_status()
                     save_fixture("ibasketball", "boxscore", box_resp.json())
                     break
@@ -298,7 +301,11 @@ def capture_ibasketball() -> None:
 
 def main() -> None:
     """Main entry point."""
-    sources = sys.argv[1:] if len(sys.argv) > 1 else ["winner", "euroleague", "nba", "ibasketball"]
+    sources = (
+        sys.argv[1:]
+        if len(sys.argv) > 1
+        else ["winner", "euroleague", "nba", "ibasketball"]
+    )
 
     print(f"Capturing fixtures for: {', '.join(sources)}")
     print(f"Output directory: {FIXTURES_DIR}")
@@ -318,6 +325,7 @@ def main() -> None:
         except Exception as e:
             print(f"Error capturing {source}: {e}")
             import traceback
+
             traceback.print_exc()
 
     print("\nDone!")

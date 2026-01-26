@@ -81,9 +81,7 @@ class TestEuroleagueFixtureStructure:
             # Should have player identifier
             assert "Player" in player or "player" in player or "Player_ID" in player
 
-    def test_pbp_fixture_has_events(
-        self, pbp_fixture: list[dict]
-    ) -> None:
+    def test_pbp_fixture_has_events(self, pbp_fixture: list[dict]) -> None:
         """Test PBP fixture has events."""
         assert len(pbp_fixture) > 0
 
