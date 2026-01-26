@@ -355,8 +355,8 @@ class TestPlayerNameFromPbp:
         # Without PBP enrichment, names are empty
         for player in all_players:
             assert player.player_name == "", (
-                f"Boxscore alone should not have names - "
-                f"use enrich_boxscore_with_names() to add them"
+                "Boxscore alone should not have names - "
+                "use enrich_boxscore_with_names() to add them"
             )
 
 
