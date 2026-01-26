@@ -851,3 +851,56 @@ class WinnerScraper:
         self._save_cache(resource_type, resource_id, html, http_status=200)
 
         return self._parse_historical_results(html, year)
+
+    def fetch_segevstats_game_id(
+        self,
+        basket_game_id: str,
+        force: bool = False,
+    ) -> str | None:
+        """
+        Fetch the segevstats game ID for a basket.co.il game ID.
+
+        The game-zone.asp page contains a link to segevstats with the
+        correct game_id that can be used for boxscore and PBP fetching.
+
+        Args:
+            basket_game_id: The basket.co.il game ID (e.g., "24904").
+            force: If True, bypass cache and fetch from source.
+
+        Returns:
+            The segevstats game ID (e.g., "56135"), or None if not found.
+
+        Example:
+            >>> segev_id = scraper.fetch_segevstats_game_id("24904")
+            >>> print(f"Segevstats ID: {segev_id}")  # "56135"
+        """
+        import re
+
+        resource_type = "game_zone_page"
+        resource_id = basket_game_id
+
+        # Check cache
+        if not force:
+            cache = self._get_cache(resource_type, resource_id)
+            if cache:
+                html = cache.raw_data.get("html", "")
+                return self._extract_segevstats_id(html)
+
+        # Fetch game-zone page
+        url = f"https://basket.co.il/game-zone.asp?GameId={basket_game_id}"
+        try:
+            html = self._fetch_html(url, resource_type, resource_id)
+            self._save_cache(resource_type, resource_id, html, http_status=200)
+            return self._extract_segevstats_id(html)
+        except Exception:
+            return None
+
+    def _extract_segevstats_id(self, html: str) -> str | None:
+        """Extract segevstats game_id from HTML content."""
+        import re
+
+        # Look for game_id parameter in segevstats URLs
+        match = re.search(r'game_id=(\d+)', html)
+        if match:
+            return match.group(1)
+        return None
