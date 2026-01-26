@@ -381,9 +381,42 @@ class WinnerMapper:
             away_score=away_score,
         )
 
+    def _parse_int(self, value: str | int | None, default: int = 0) -> int:
+        """
+        Parse a value to integer, handling strings and None.
+
+        Args:
+            value: Value to parse (string, int, or None).
+            default: Default value if parsing fails.
+
+        Returns:
+            Parsed integer value.
+
+        Example:
+            >>> mapper = WinnerMapper()
+            >>> mapper._parse_int("22")
+            22
+            >>> mapper._parse_int(15)
+            15
+            >>> mapper._parse_int(None)
+            0
+        """
+        if value is None:
+            return default
+        if isinstance(value, int):
+            return value
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            return default
+
     def map_player_stats(self, data: dict, team_id: str) -> RawPlayerStats:
         """
         Map player statistics from boxscore to RawPlayerStats.
+
+        Handles both legacy format and segevstats JSON-RPC format:
+        - Legacy: PlayerId, Name, Minutes, Points, FGM, FGA, etc.
+        - Segevstats: playerId, minutes, points, fg_2m, fg_2mis, fg_3m, etc.
 
         Args:
             data: Player stats dictionary from boxscore.
@@ -394,6 +427,7 @@ class WinnerMapper:
 
         Example:
             >>> mapper = WinnerMapper()
+            >>> # Legacy format
             >>> stats = mapper.map_player_stats({
             ...     "PlayerId": "1001",
             ...     "Name": "John Smith",
@@ -402,8 +436,22 @@ class WinnerMapper:
             ... }, "100")
             >>> stats.minutes_played
             1935
+            >>> # Segevstats format
+            >>> stats = mapper.map_player_stats({
+            ...     "playerId": "1001",
+            ...     "minutes": "32:15",
+            ...     "points": "22",
+            ...     "fg_2m": "5",
+            ...     "fg_2mis": "3"
+            ... }, "100")
+            >>> stats.points
+            22
         """
-        # Calculate 2-point field goals from totals and 3-pointers
+        # Check if this is segevstats format (has lowercase playerId)
+        if "playerId" in data:
+            return self._map_segevstats_player_stats(data, team_id)
+
+        # Legacy format handling
         fgm = data.get("FGM", 0) or 0
         fga = data.get("FGA", 0) or 0
         three_pm = data.get("ThreePM", 0) or 0
@@ -439,18 +487,114 @@ class WinnerMapper:
             efficiency=data.get("Efficiency", 0) or 0,
         )
 
+    def _map_segevstats_player_stats(self, data: dict, team_id: str) -> RawPlayerStats:
+        """
+        Map player stats from segevstats JSON-RPC format.
+
+        Segevstats uses different field names and stores values as strings:
+        - playerId: Player ID
+        - minutes: Playing time in "MM:SS" format
+        - starter: Boolean for starter status
+        - points: Total points (string)
+        - fg_2m/fg_2mis: 2-point makes/misses
+        - fg_3m/fg_3mis: 3-point makes/misses
+        - ft_m/ft_mis: Free throw makes/misses
+        - reb_d/reb_o: Defensive/offensive rebounds
+        - ast: Assists
+        - to: Turnovers
+        - stl: Steals
+        - blk: Blocks
+        - f: Personal fouls
+        - plusMinus: Plus/minus (string)
+
+        Note: Player names are NOT available in segevstats boxscore.
+        Names must be fetched separately via scraper.
+
+        Args:
+            data: Player stats dictionary in segevstats format.
+            team_id: External team ID for this player.
+
+        Returns:
+            RawPlayerStats with mapped data (player_name will be empty).
+
+        Example:
+            >>> mapper = WinnerMapper()
+            >>> stats = mapper._map_segevstats_player_stats({
+            ...     "playerId": "1019",
+            ...     "minutes": "27:06",
+            ...     "starter": True,
+            ...     "points": "22",
+            ...     "fg_2m": "6",
+            ...     "fg_2mis": "2",
+            ...     "fg_3m": "1",
+            ...     "fg_3mis": "3"
+            ... }, "100")
+            >>> stats.points
+            22
+            >>> stats.two_pointers_made
+            6
+        """
+        # Parse all numeric fields (segevstats returns strings)
+        fg_2m = self._parse_int(data.get("fg_2m"))
+        fg_2mis = self._parse_int(data.get("fg_2mis"))
+        fg_3m = self._parse_int(data.get("fg_3m"))
+        fg_3mis = self._parse_int(data.get("fg_3mis"))
+        ft_m = self._parse_int(data.get("ft_m"))
+        ft_mis = self._parse_int(data.get("ft_mis"))
+        reb_d = self._parse_int(data.get("reb_d"))
+        reb_o = self._parse_int(data.get("reb_o"))
+
+        # Calculate totals and attempts
+        two_pa = fg_2m + fg_2mis
+        three_pa = fg_3m + fg_3mis
+        fta = ft_m + ft_mis
+        fgm = fg_2m + fg_3m
+        fga = two_pa + three_pa
+
+        return RawPlayerStats(
+            player_external_id=str(data.get("playerId", "")),
+            player_name="",  # Not available in segevstats boxscore
+            team_external_id=team_id,
+            minutes_played=self.parse_minutes_to_seconds(data.get("minutes", "")),
+            is_starter=bool(data.get("starter", False)),
+            points=self._parse_int(data.get("points")),
+            field_goals_made=fgm,
+            field_goals_attempted=fga,
+            two_pointers_made=fg_2m,
+            two_pointers_attempted=two_pa,
+            three_pointers_made=fg_3m,
+            three_pointers_attempted=three_pa,
+            free_throws_made=ft_m,
+            free_throws_attempted=fta,
+            offensive_rebounds=reb_o,
+            defensive_rebounds=reb_d,
+            total_rebounds=reb_o + reb_d,
+            assists=self._parse_int(data.get("ast")),
+            turnovers=self._parse_int(data.get("to")),
+            steals=self._parse_int(data.get("stl")),
+            blocks=self._parse_int(data.get("blk")),
+            personal_fouls=self._parse_int(data.get("f")),
+            plus_minus=self._parse_int(data.get("plusMinus")),
+            efficiency=self._parse_int(data.get("rate")),
+        )
+
     def map_boxscore(self, data: dict) -> RawBoxScore:
         """
         Map boxscore JSON to RawBoxScore.
 
+        Handles both legacy format and segevstats JSON-RPC format:
+        - Legacy: {HomeTeam: {TeamId, Players}, AwayTeam: {...}}
+        - JSON-RPC: {result: {boxscore: {gameInfo: {...}, homeTeam: {players}, awayTeam: {...}}}}
+
         Args:
-            data: Boxscore dictionary with HomeTeam and AwayTeam.
+            data: Boxscore dictionary in either format.
 
         Returns:
             RawBoxScore with game and player stats.
 
         Example:
             >>> mapper = WinnerMapper()
+            >>> # Legacy format
             >>> boxscore = mapper.map_boxscore({
             ...     "GameId": "12345",
             ...     "HomeTeam": {"TeamId": "100", "Players": [...]},
@@ -458,7 +602,16 @@ class WinnerMapper:
             ... })
             >>> len(boxscore.home_players)
             3
+            >>> # JSON-RPC format
+            >>> boxscore = mapper.map_boxscore({
+            ...     "result": {"boxscore": {"gameInfo": {...}, "homeTeam": {...}}}
+            ... })
         """
+        # Check for JSON-RPC format (segevstats)
+        if "result" in data and isinstance(data.get("result"), dict):
+            return self._map_segevstats_boxscore(data)
+
+        # Legacy format handling
         home_team = data.get("HomeTeam", {})
         away_team = data.get("AwayTeam", {})
 
@@ -489,6 +642,89 @@ class WinnerMapper:
         ]
         away_players = [
             self.map_player_stats(p, away_team_id) for p in away_team.get("Players", [])
+        ]
+
+        return RawBoxScore(
+            game=game,
+            home_players=home_players,
+            away_players=away_players,
+        )
+
+    def _map_segevstats_boxscore(self, data: dict) -> RawBoxScore:
+        """
+        Map boxscore from segevstats JSON-RPC format.
+
+        Segevstats returns boxscores in JSON-RPC format:
+        {
+            "jsonrpc": "2.0",
+            "result": {
+                "boxscore": {
+                    "gameInfo": {
+                        "gameId": "24",
+                        "homeTeamId": "2",
+                        "awayTeamId": "4",
+                        "homeScore": "79",
+                        "awayScore": "84",
+                        "gameFinished": true
+                    },
+                    "homeTeam": {"players": [...]},
+                    "awayTeam": {"players": [...]}
+                }
+            }
+        }
+
+        Note: Player names are NOT available in this format.
+        Names must be fetched separately via scraper.
+
+        Args:
+            data: Full JSON-RPC response from segevstats.
+
+        Returns:
+            RawBoxScore with game and player stats.
+
+        Example:
+            >>> mapper = WinnerMapper()
+            >>> boxscore = mapper._map_segevstats_boxscore(jsonrpc_data)
+            >>> boxscore.game.external_id
+            '24'
+        """
+        result = data.get("result", {})
+        boxscore_data = result.get("boxscore", {})
+        game_info = boxscore_data.get("gameInfo", {})
+        home_team_data = boxscore_data.get("homeTeam", {})
+        away_team_data = boxscore_data.get("awayTeam", {})
+
+        # Extract team IDs from gameInfo
+        home_team_id = str(game_info.get("homeTeamId", ""))
+        away_team_id = str(game_info.get("awayTeamId", ""))
+
+        # Extract scores (stored as strings in segevstats)
+        home_score = self._parse_int(game_info.get("homeScore"))
+        away_score = self._parse_int(game_info.get("awayScore"))
+
+        # Determine game status
+        game_finished = game_info.get("gameFinished", False)
+        status = "final" if game_finished else "live"
+
+        # Create game object
+        game = RawGame(
+            external_id=str(game_info.get("gameId", "")),
+            home_team_external_id=home_team_id,
+            away_team_external_id=away_team_id,
+            game_date=datetime.now(),  # Not available in boxscore response
+            status=status,
+            home_score=home_score,
+            away_score=away_score,
+        )
+
+        # Map player stats
+        home_players = [
+            self.map_player_stats(p, home_team_id)
+            for p in home_team_data.get("players", [])
+        ]
+        away_players = [
+            self.map_player_stats(p, away_team_id)
+            for p in away_team_data.get("players", [])
         ]
 
         return RawBoxScore(
