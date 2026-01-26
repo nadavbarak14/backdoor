@@ -51,9 +51,7 @@ class TestNBAFixtureStructure:
             assert "GAME_ID" in game
             assert "TEAM_ID" in game
 
-    def test_schedule_fixture_has_game_info(
-        self, schedule_fixture: list[dict]
-    ) -> None:
+    def test_schedule_fixture_has_game_info(self, schedule_fixture: list[dict]) -> None:
         """Test schedule has game info."""
         for game in schedule_fixture:
             # Should have team and game identifiers
@@ -62,9 +60,7 @@ class TestNBAFixtureStructure:
             # Should have points if game was played
             assert "PTS" in game
 
-    def test_boxscore_fixture_has_v3_structure(
-        self, boxscore_fixture: dict
-    ) -> None:
+    def test_boxscore_fixture_has_v3_structure(self, boxscore_fixture: dict) -> None:
         """Test boxscore fixture has V3 nested structure."""
         # V3 format has boxScoreTraditional
         assert "boxScoreTraditional" in boxscore_fixture
@@ -75,9 +71,7 @@ class TestNBAFixtureStructure:
         assert "homeTeam" in box
         assert "awayTeam" in box
 
-    def test_boxscore_fixture_has_player_stats(
-        self, boxscore_fixture: dict
-    ) -> None:
+    def test_boxscore_fixture_has_player_stats(self, boxscore_fixture: dict) -> None:
         """Test boxscore has player statistics."""
         box = boxscore_fixture["boxScoreTraditional"]
 
@@ -92,9 +86,7 @@ class TestNBAFixtureStructure:
             assert "personId" in player
             assert "statistics" in player
 
-    def test_pbp_fixture_has_v3_structure(
-        self, pbp_fixture: dict
-    ) -> None:
+    def test_pbp_fixture_has_v3_structure(self, pbp_fixture: dict) -> None:
         """Test PBP fixture has V3 structure."""
         # V3 format has game.actions
         assert "game" in pbp_fixture
@@ -102,9 +94,7 @@ class TestNBAFixtureStructure:
         game = pbp_fixture["game"]
         assert "actions" in game
 
-    def test_pbp_fixture_has_events(
-        self, pbp_fixture: dict
-    ) -> None:
+    def test_pbp_fixture_has_events(self, pbp_fixture: dict) -> None:
         """Test PBP fixture has events."""
         actions = pbp_fixture["game"]["actions"]
 

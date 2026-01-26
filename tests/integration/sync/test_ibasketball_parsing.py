@@ -46,9 +46,7 @@ class TestIBasketballFixtureStructure:
             assert "id" in event
             assert "teams" in event or "home" in event
 
-    def test_schedule_fixture_has_team_info(
-        self, schedule_fixture: list[dict]
-    ) -> None:
+    def test_schedule_fixture_has_team_info(self, schedule_fixture: list[dict]) -> None:
         """Test schedule has team info."""
         for event in schedule_fixture:
             # Should have home/away team info
@@ -57,17 +55,13 @@ class TestIBasketballFixtureStructure:
             else:
                 assert "teams" in event
 
-    def test_schedule_fixture_has_date(
-        self, schedule_fixture: list[dict]
-    ) -> None:
+    def test_schedule_fixture_has_date(self, schedule_fixture: list[dict]) -> None:
         """Test schedule has date info."""
         for event in schedule_fixture:
             # Should have date
             assert "date" in event
 
-    def test_schedule_fixture_has_status(
-        self, schedule_fixture: list[dict]
-    ) -> None:
+    def test_schedule_fixture_has_status(self, schedule_fixture: list[dict]) -> None:
         """Test schedule has status."""
         for event in schedule_fixture:
             # Should have status (future, publish, etc.)

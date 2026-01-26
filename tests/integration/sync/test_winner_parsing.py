@@ -152,19 +152,18 @@ class TestWinnerFixtureStructure:
             assert "ExternalID" in game or "id" in game
             assert "team1" in game or "team_name_1" in game
 
-    def test_boxscore_fixture_has_required_fields(
-        self, boxscore_fixture: dict
-    ) -> None:
+    def test_boxscore_fixture_has_required_fields(self, boxscore_fixture: dict) -> None:
         """Test boxscore fixture has expected structure."""
         # Check for team data
         assert "result" in boxscore_fixture or "HomeTeam" in boxscore_fixture
 
-    def test_pbp_fixture_has_required_fields(
-        self, pbp_fixture: dict
-    ) -> None:
+    def test_pbp_fixture_has_required_fields(self, pbp_fixture: dict) -> None:
         """Test PBP fixture has expected structure."""
         # Check for result/actions structure
         if "result" in pbp_fixture:
-            assert "actions" in pbp_fixture["result"] or "gameInfo" in pbp_fixture["result"]
+            assert (
+                "actions" in pbp_fixture["result"]
+                or "gameInfo" in pbp_fixture["result"]
+            )
         elif "Events" in pbp_fixture:
             assert isinstance(pbp_fixture["Events"], list)
