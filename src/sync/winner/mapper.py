@@ -26,7 +26,7 @@ from src.sync.types import (
     RawSeason,
     RawTeam,
 )
-from src.sync.winner.scraper import PlayerProfile
+from src.sync.winner.scraper import PlayerProfile, RosterPlayer
 
 
 class WinnerMapper:
@@ -743,4 +743,49 @@ class WinnerMapper:
             birth_date=birth_date,
             height_cm=profile.height_cm,
             position=profile.position,
+        )
+
+    def map_roster_player_info(self, roster_player: RosterPlayer) -> RawPlayerInfo:
+        """
+        Map RosterPlayer from team page to RawPlayerInfo.
+
+        This is more efficient than fetching individual player profiles since
+        position is available directly from the roster page.
+
+        Args:
+            roster_player: RosterPlayer from team roster scrape.
+
+        Returns:
+            RawPlayerInfo with available data (position from roster).
+
+        Example:
+            >>> mapper = WinnerMapper()
+            >>> player = RosterPlayer(
+            ...     player_id="1001",
+            ...     name="John Smith",
+            ...     jersey_number="23",
+            ...     position="G"
+            ... )
+            >>> info = mapper.map_roster_player_info(player)
+            >>> info.position
+            'G'
+        """
+        # Split name into first and last
+        first_name = ""
+        last_name = ""
+        if roster_player.name:
+            parts = roster_player.name.strip().split()
+            if len(parts) >= 2:
+                first_name = parts[0]
+                last_name = " ".join(parts[1:])
+            elif len(parts) == 1:
+                last_name = parts[0]
+
+        return RawPlayerInfo(
+            external_id=roster_player.player_id,
+            first_name=first_name,
+            last_name=last_name,
+            birth_date=None,  # Not available from roster page
+            height_cm=None,  # Not available from roster page without profile fetch
+            position=roster_player.position,
         )

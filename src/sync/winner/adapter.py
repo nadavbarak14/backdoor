@@ -354,10 +354,11 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         self, team_external_id: str
     ) -> list[tuple[str, str, RawPlayerInfo | None]]:
         """
-        Fetch team roster with player IDs and optionally bio data.
+        Fetch team roster with player IDs and bio data from roster page.
 
         Returns list of tuples: (player_id, player_name, RawPlayerInfo or None).
-        The RawPlayerInfo may be None if fetching the profile fails.
+        Bio data (position) is extracted from the roster page directly for
+        efficiency - no individual player profile fetches are needed.
 
         Args:
             team_external_id: External team identifier.
@@ -375,13 +376,8 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         try:
             roster = self.scraper.fetch_team_roster(team_external_id)
             for player in roster.players:
-                player_info: RawPlayerInfo | None = None
-                try:
-                    profile = self.scraper.fetch_player(player.player_id)
-                    player_info = self.mapper.map_player_info(profile)
-                except Exception:
-                    # Profile fetch failed, still include player with name
-                    pass
+                # Create RawPlayerInfo from roster data (no profile fetch needed)
+                player_info = self.mapper.map_roster_player_info(player)
                 results.append((player.player_id, player.name, player_info))
         except Exception:
             # Roster fetch failed
