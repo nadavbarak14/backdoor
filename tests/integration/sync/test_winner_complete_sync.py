@@ -562,15 +562,17 @@ class TestBoxscoreDataIntegrity:
 class TestPlayerNameFromBoxscore:
     """Tests documenting player name handling in boxscore."""
 
-    def test_player_names_empty_in_boxscore(
+    def test_boxscore_alone_has_no_names(
         self, mapper: WinnerMapper, boxscore_fixture: dict
     ) -> None:
-        """Player names are NOT in segevstats boxscore API.
+        """Boxscore API alone doesn't have names - need PBP enrichment.
 
-        This is expected - names must come from scraper.
+        Names come from PBP response via extract_player_roster() and
+        enrich_boxscore_with_names(). See test_winner_real_player_names.py.
         """
         boxscore = mapper.map_boxscore(boxscore_fixture)
 
+        # Without PBP enrichment, names are empty
         for player in boxscore.home_players + boxscore.away_players:
             assert player.player_name == ""
 

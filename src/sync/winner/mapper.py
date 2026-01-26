@@ -15,6 +15,7 @@ Usage:
     raw_boxscore = mapper.map_boxscore(boxscore_data)
 """
 
+from dataclasses import dataclass
 from datetime import date, datetime
 
 from src.sync.types import (
@@ -27,6 +28,32 @@ from src.sync.types import (
     RawTeam,
 )
 from src.sync.winner.scraper import PlayerProfile, RosterPlayer
+
+
+@dataclass
+class PlayerRoster:
+    """
+    Player roster extracted from PBP response.
+
+    Contains player ID to name mapping for enriching boxscore data.
+
+    Attributes:
+        players: Dict mapping player_id to (first_name, last_name) tuple.
+
+    Example:
+        >>> roster = mapper.extract_player_roster(pbp_data)
+        >>> roster.players["1019"]
+        ('ROMAN', 'SORKIN')
+    """
+
+    players: dict[str, tuple[str, str]]
+
+    def get_full_name(self, player_id: str) -> str:
+        """Get full name for a player ID, or empty string if not found."""
+        if player_id in self.players:
+            first, last = self.players[player_id]
+            return f"{first} {last}".strip()
+        return ""
 
 
 class WinnerMapper:
@@ -816,6 +843,148 @@ class WinnerMapper:
 
         # Infer links between related events
         return self.infer_pbp_links(events)
+
+    def extract_player_roster(self, pbp_data: dict) -> PlayerRoster:
+        """
+        Extract player roster with names from PBP response.
+
+        The PBP response contains full player rosters in:
+        result.gameInfo.homeTeam.players and result.gameInfo.awayTeam.players
+
+        Each player has: id, firstName, lastName, jerseyNumber
+
+        Args:
+            pbp_data: Full PBP JSON-RPC response.
+
+        Returns:
+            PlayerRoster with player_id -> (first_name, last_name) mapping.
+
+        Example:
+            >>> mapper = WinnerMapper()
+            >>> roster = mapper.extract_player_roster(pbp_data)
+            >>> roster.get_full_name("1019")
+            'ROMAN SORKIN'
+        """
+        players: dict[str, tuple[str, str]] = {}
+
+        # Handle JSON-RPC format
+        result = pbp_data.get("result", {})
+        game_info = result.get("gameInfo", {})
+
+        # Extract home team players
+        home_team = game_info.get("homeTeam", {})
+        for player in home_team.get("players", []):
+            player_id = str(player.get("id", ""))
+            first_name = player.get("firstName", "")
+            last_name = player.get("lastName", "")
+            if player_id:
+                players[player_id] = (first_name, last_name)
+
+        # Extract away team players
+        away_team = game_info.get("awayTeam", {})
+        for player in away_team.get("players", []):
+            player_id = str(player.get("id", ""))
+            first_name = player.get("firstName", "")
+            last_name = player.get("lastName", "")
+            if player_id:
+                players[player_id] = (first_name, last_name)
+
+        return PlayerRoster(players=players)
+
+    def enrich_boxscore_with_names(
+        self, boxscore: RawBoxScore, roster: PlayerRoster
+    ) -> RawBoxScore:
+        """
+        Enrich boxscore player stats with names from roster.
+
+        Since the boxscore API doesn't include player names, we need to
+        get them from the PBP response which has full roster info.
+
+        Args:
+            boxscore: RawBoxScore with empty player names.
+            roster: PlayerRoster extracted from PBP response.
+
+        Returns:
+            RawBoxScore with player names filled in.
+
+        Example:
+            >>> boxscore = mapper.map_boxscore(boxscore_data)
+            >>> roster = mapper.extract_player_roster(pbp_data)
+            >>> enriched = mapper.enrich_boxscore_with_names(boxscore, roster)
+            >>> enriched.home_players[0].player_name
+            'ROMAN SORKIN'
+        """
+        # Create new player stats with names
+        home_players = []
+        for player in boxscore.home_players:
+            name = roster.get_full_name(player.player_external_id)
+            # Create new RawPlayerStats with updated name
+            home_players.append(
+                RawPlayerStats(
+                    player_external_id=player.player_external_id,
+                    player_name=name,
+                    team_external_id=player.team_external_id,
+                    minutes_played=player.minutes_played,
+                    is_starter=player.is_starter,
+                    points=player.points,
+                    field_goals_made=player.field_goals_made,
+                    field_goals_attempted=player.field_goals_attempted,
+                    two_pointers_made=player.two_pointers_made,
+                    two_pointers_attempted=player.two_pointers_attempted,
+                    three_pointers_made=player.three_pointers_made,
+                    three_pointers_attempted=player.three_pointers_attempted,
+                    free_throws_made=player.free_throws_made,
+                    free_throws_attempted=player.free_throws_attempted,
+                    offensive_rebounds=player.offensive_rebounds,
+                    defensive_rebounds=player.defensive_rebounds,
+                    total_rebounds=player.total_rebounds,
+                    assists=player.assists,
+                    turnovers=player.turnovers,
+                    steals=player.steals,
+                    blocks=player.blocks,
+                    personal_fouls=player.personal_fouls,
+                    plus_minus=player.plus_minus,
+                    efficiency=player.efficiency,
+                )
+            )
+
+        away_players = []
+        for player in boxscore.away_players:
+            name = roster.get_full_name(player.player_external_id)
+            away_players.append(
+                RawPlayerStats(
+                    player_external_id=player.player_external_id,
+                    player_name=name,
+                    team_external_id=player.team_external_id,
+                    minutes_played=player.minutes_played,
+                    is_starter=player.is_starter,
+                    points=player.points,
+                    field_goals_made=player.field_goals_made,
+                    field_goals_attempted=player.field_goals_attempted,
+                    two_pointers_made=player.two_pointers_made,
+                    two_pointers_attempted=player.two_pointers_attempted,
+                    three_pointers_made=player.three_pointers_made,
+                    three_pointers_attempted=player.three_pointers_attempted,
+                    free_throws_made=player.free_throws_made,
+                    free_throws_attempted=player.free_throws_attempted,
+                    offensive_rebounds=player.offensive_rebounds,
+                    defensive_rebounds=player.defensive_rebounds,
+                    total_rebounds=player.total_rebounds,
+                    assists=player.assists,
+                    turnovers=player.turnovers,
+                    steals=player.steals,
+                    blocks=player.blocks,
+                    personal_fouls=player.personal_fouls,
+                    plus_minus=player.plus_minus,
+                    efficiency=player.efficiency,
+                )
+            )
+
+        return RawBoxScore(
+            game=boxscore.game,
+            home_players=home_players,
+            away_players=away_players,
+        )
 
     def _parse_clock_to_seconds(self, clock: str) -> float:
         """
