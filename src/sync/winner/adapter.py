@@ -88,6 +88,74 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
 
         # Cache for games_all data to avoid repeated fetches
         self._games_cache: dict | None = None
+        self._current_season_id: str | None = None
+        # Cache for historical schedule (keyed by season_id)
+        self._historical_schedule_cache: dict[str, list[RawGame]] = {}
+        # Cache for historical team info (keyed by segevstats team_id)
+        self._historical_teams_cache: dict[str, RawTeam] = {}
+
+    def _get_current_season_id(self) -> str:
+        """
+        Get the current season ID from the API.
+
+        Returns:
+            Season ID string (e.g., "2025-26").
+        """
+        if self._current_season_id is None:
+            games_data = self._get_games_data()
+            games = games_data.get("games", [])
+            if games:
+                first_game = games[0]
+                game_year = first_game.get("game_year")
+                if game_year:
+                    start_year = game_year - 1
+                    self._current_season_id = f"{start_year}-{str(game_year)[-2:]}"
+                else:
+                    # Fallback to date inference
+                    game_date = self.mapper.parse_datetime(
+                        first_game.get("GameDate", first_game.get("game_date_txt", ""))
+                    )
+                    year = game_date.year
+                    month = game_date.month
+                    if month >= 9:
+                        self._current_season_id = f"{year}-{str(year + 1)[-2:]}"
+                    else:
+                        self._current_season_id = f"{year - 1}-{str(year)[-2:]}"
+            else:
+                # Default to current year
+                from datetime import date
+                year = date.today().year
+                self._current_season_id = f"{year}-{str(year + 1)[-2:]}"
+        return self._current_season_id
+
+    def _is_current_season(self, season_id: str) -> bool:
+        """Check if the requested season is the current season."""
+        current = self._get_current_season_id()
+        return season_id == current
+
+    def _parse_season_year(self, season_id: str) -> int:
+        """
+        Parse season ID to get the ending year.
+
+        Args:
+            season_id: Season ID like "2024-25".
+
+        Returns:
+            Ending year (e.g., 2025 for "2024-25").
+        """
+        try:
+            parts = season_id.split("-")
+            start_year = int(parts[0])
+            if len(parts) > 1:
+                end_suffix = int(parts[1])
+                if end_suffix < 100:
+                    century = (start_year // 100) * 100
+                    return century + end_suffix
+                return end_suffix
+            return start_year + 1
+        except (ValueError, IndexError):
+            from datetime import date
+            return date.today().year
 
     def _get_games_data(self, force: bool = False) -> dict:
         """
@@ -157,11 +225,12 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         season = self.mapper.map_season(season_str, games_data)
         return [season]
 
-    async def get_teams(self, season_id: str) -> list[RawTeam]:  # noqa: ARG002
+    async def get_teams(self, season_id: str) -> list[RawTeam]:
         """
         Fetch all teams participating in a season.
 
-        Extracts unique teams from the games_all response.
+        For current season, extracts teams from games_all response.
+        For historical seasons, extracts teams from scraped results.
 
         Args:
             season_id: External season identifier (e.g., "2023-24").
@@ -177,17 +246,26 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
             >>> for team in teams:
             ...     print(f"{team.name} ({team.external_id})")
         """
-        games_data = self._get_games_data()
-        return self.mapper.extract_teams_from_games(games_data)
+        if self._is_current_season(season_id):
+            games_data = self._get_games_data()
+            return self.mapper.extract_teams_from_games(games_data)
+        else:
+            # For historical seasons, get_schedule populates the team cache
+            await self.get_schedule(season_id)
 
-    async def get_schedule(self, season_id: str) -> list[RawGame]:  # noqa: ARG002
+            # Return teams from cache (populated during schedule fetch)
+            return list(self._historical_teams_cache.values())
+
+    async def get_schedule(self, season_id: str) -> list[RawGame]:
         """
         Fetch the game schedule for a season.
 
-        Returns all games from the games_all endpoint.
+        For current season, returns games from the games_all JSON endpoint.
+        For historical seasons, scrapes game IDs from results page and
+        constructs RawGame objects from boxscore data.
 
         Args:
-            season_id: External season identifier.
+            season_id: External season identifier (e.g., "2024-25").
 
         Returns:
             List of RawGame objects for the season.
@@ -196,14 +274,101 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
             WinnerAPIError: If the request fails.
 
         Example:
-            >>> games = await adapter.get_schedule("2023-24")
+            >>> games = await adapter.get_schedule("2024-25")
             >>> final_games = [g for g in games if g.status == "final"]
             >>> print(f"Completed games: {len(final_games)}")
         """
-        games_data = self._get_games_data()
+        if self._is_current_season(season_id):
+            # Current season: use JSON API
+            games_data = self._get_games_data()
+            games = []
+            for game_data in games_data.get("games", []):
+                games.append(self.mapper.map_game(game_data))
+            return games
+        else:
+            # Historical season: scrape results page for game IDs
+            return await self._get_historical_schedule(season_id)
+
+    async def _get_historical_schedule(self, season_id: str) -> list[RawGame]:
+        """
+        Fetch historical game schedule by scraping results page.
+
+        For each game, fetches the segevstats game ID from the game-zone page
+        and team IDs from the boxscore so that sync can work correctly.
+
+        Results are cached to avoid duplicate fetches when called from
+        both get_teams and get_schedule.
+
+        Args:
+            season_id: External season identifier (e.g., "2024-25").
+
+        Returns:
+            List of RawGame objects for the historical season.
+        """
+        # Check cache first
+        if season_id in self._historical_schedule_cache:
+            return self._historical_schedule_cache[season_id]
+
+        year = self._parse_season_year(season_id)
+        results = self.scraper.fetch_historical_results(year)
+
         games = []
-        for game_data in games_data.get("games", []):
-            games.append(self.mapper.map_game(game_data))
+        for game_result in results.games:
+            if game_result.game_id:
+                # Clean basket.co.il game ID (remove any trailing junk)
+                basket_game_id = game_result.game_id.split("#")[0].strip()
+                if not basket_game_id:
+                    continue
+
+                # Get the segevstats game ID from game-zone page
+                segevstats_id = self.scraper.fetch_segevstats_game_id(basket_game_id)
+                if not segevstats_id:
+                    # Skip games without segevstats mapping
+                    continue
+
+                # Fetch boxscore to get team IDs and PBP to get team names
+                try:
+                    boxscore_result = self.client.fetch_boxscore(segevstats_id)
+                    boxscore = self.mapper.map_boxscore(boxscore_result.data)
+                    home_team_id = boxscore.game.home_team_external_id
+                    away_team_id = boxscore.game.away_team_external_id
+
+                    # Fetch PBP to get team names
+                    pbp_result = self.client.fetch_pbp(segevstats_id)
+                    pbp_data = pbp_result.data
+                    game_info = pbp_data.get("result", {}).get("gameInfo", {})
+                    home_team_info = game_info.get("homeTeam", {})
+                    away_team_info = game_info.get("awayTeam", {})
+
+                    # Cache team info for later use in get_teams
+                    if home_team_id and home_team_id not in self._historical_teams_cache:
+                        self._historical_teams_cache[home_team_id] = RawTeam(
+                            external_id=home_team_id,
+                            name=home_team_info.get("name", f"Team {home_team_id}"),
+                        )
+                    if away_team_id and away_team_id not in self._historical_teams_cache:
+                        self._historical_teams_cache[away_team_id] = RawTeam(
+                            external_id=away_team_id,
+                            name=away_team_info.get("name", f"Team {away_team_id}"),
+                        )
+                except Exception:
+                    # Skip games without valid boxscore
+                    continue
+
+                # Create RawGame with all IDs filled
+                game = RawGame(
+                    external_id=segevstats_id,
+                    game_date=boxscore.game.game_date,
+                    home_team_external_id=home_team_id,
+                    away_team_external_id=away_team_id,
+                    home_score=boxscore.game.home_score,
+                    away_score=boxscore.game.away_score,
+                    status="final" if boxscore.game.home_score else "scheduled",
+                )
+                games.append(game)
+
+        # Cache the results
+        self._historical_schedule_cache[season_id] = games
         return games
 
     async def get_game_boxscore(self, game_id: str) -> RawBoxScore:

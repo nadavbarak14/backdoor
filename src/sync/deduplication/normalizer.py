@@ -88,6 +88,9 @@ def normalize_name(name: str) -> str:
     # Convert to lowercase
     name = name.lower()
 
+    # Replace hyphens and underscores with spaces (e.g., "Tel-Aviv" -> "Tel Aviv")
+    name = name.replace("-", " ").replace("_", " ")
+
     # Normalize internal whitespace
     name = re.sub(r"\s+", " ", name)
 
