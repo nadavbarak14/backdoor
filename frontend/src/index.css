@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+/* Custom base styles */
+body {
+  @apply bg-gray-50 text-gray-900 min-h-screen;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  @apply w-2;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400;
+}

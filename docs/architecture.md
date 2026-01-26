@@ -60,8 +60,10 @@ A unified basketball analytics platform aggregating data from multiple leagues (
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         CONSUMERS                                    │
 │    ┌─────────────┐    ┌──────────────┐    ┌─────────────────┐       │
-│    │  Frontend   │    │   AI/ML      │    │  Coaching Tools │       │
-│    └─────────────┘    └──────────────┘    └─────────────────┘       │
+│    │   React     │    │   AI/ML      │    │  Coaching Tools │       │
+│    │  Frontend   │    │   Services   │    │                 │       │
+│    │ (TypeScript)│    └──────────────┘    └─────────────────┘       │
+│    └─────────────┘                                                   │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -69,6 +71,7 @@ A unified basketball analytics platform aggregating data from multiple leagues (
 
 ## Technology Stack
 
+### Backend
 | Layer | Technology |
 |-------|------------|
 | Language | Python 3.11+ |
@@ -79,6 +82,17 @@ A unified basketball analytics platform aggregating data from multiple leagues (
 | Validation | Pydantic v2 |
 | Testing | pytest |
 | HTTP Client | httpx |
+
+### Frontend
+| Layer | Technology |
+|-------|------------|
+| Framework | React 18 |
+| Language | TypeScript |
+| Build Tool | Vite |
+| Data Fetching | TanStack Query |
+| Routing | React Router |
+| Styling | Tailwind CSS |
+| Icons | Lucide React |
 
 > **Note:** Starting with SQLite for simplicity. Schema designed to be compatible with PostgreSQL migration later. JSONB fields will use JSON type in SQLite.
 

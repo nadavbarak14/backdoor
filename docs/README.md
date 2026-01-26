@@ -9,6 +9,7 @@ This directory contains all project documentation for the Basketball Analytics P
 | File/Directory | Description |
 |----------------|-------------|
 | `architecture.md` | System architecture and design decisions |
+| `frontend.md` | Frontend application documentation |
 | `api/` | API reference documentation |
 | `models/` | Data model documentation and ERD |
 
