@@ -204,6 +204,12 @@ class SyncConfig:
                     auto_sync_enabled=False,
                     sync_interval_minutes=60,
                 ),
+                "nba": SyncSourceConfig(
+                    source_name="nba",
+                    enabled=True,
+                    auto_sync_enabled=False,
+                    sync_interval_minutes=30,
+                ),
             }
         )
 

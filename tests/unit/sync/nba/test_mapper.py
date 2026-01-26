@@ -1,7 +1,7 @@
 """
 Unit tests for NBA Mapper.
 
-Tests the NBAMapper class which transforms NBA API data to Raw types.
+Tests the NBAMapper class which transforms NBA API V3 data to Raw types.
 """
 
 from datetime import date, datetime
@@ -28,9 +28,9 @@ class TestNBAMapperMinutesParser:
         assert mapper.parse_minutes_to_seconds("PT35.00S") == 35
 
     def test_parse_mm_ss_format(self):
-        """Test parsing MM:SS format."""
+        """Test parsing MM:SS format (boxscore V3)."""
         mapper = NBAMapper()
-        assert mapper.parse_minutes_to_seconds("24:35") == 1475
+        assert mapper.parse_minutes_to_seconds("35:56") == 2156
 
     def test_parse_empty_string(self):
         """Test parsing empty string returns 0."""
@@ -131,11 +131,13 @@ class TestNBAMapperTeam:
     def test_map_team(self):
         """Test mapping team data."""
         mapper = NBAMapper()
-        team = mapper.map_team({
-            "id": 1610612737,
-            "full_name": "Atlanta Hawks",
-            "abbreviation": "ATL",
-        })
+        team = mapper.map_team(
+            {
+                "id": 1610612737,
+                "full_name": "Atlanta Hawks",
+                "abbreviation": "ATL",
+            }
+        )
 
         assert team.external_id == "1610612737"
         assert team.name == "Atlanta Hawks"
@@ -144,10 +146,12 @@ class TestNBAMapperTeam:
     def test_map_team_missing_fields(self):
         """Test mapping team with missing optional fields."""
         mapper = NBAMapper()
-        team = mapper.map_team({
-            "id": 1610612737,
-            "full_name": "Atlanta Hawks",
-        })
+        team = mapper.map_team(
+            {
+                "id": 1610612737,
+                "full_name": "Atlanta Hawks",
+            }
+        )
 
         assert team.external_id == "1610612737"
         assert team.name == "Atlanta Hawks"
@@ -155,23 +159,25 @@ class TestNBAMapperTeam:
 
 
 class TestNBAMapperGame:
-    """Tests for game mapping."""
+    """Tests for game mapping from schedule."""
 
     def test_map_game_from_schedule_home(self):
         """Test mapping a home game from schedule."""
         mapper = NBAMapper()
-        game = mapper.map_game_from_schedule({
-            "GAME_ID": "0022300001",
-            "TEAM_ID": 1610612737,
-            "MATCHUP": "ATL vs. CHI",
-            "GAME_DATE": "2023-10-24",
-            "WL": "W",
-            "PTS": 112,
-        })
+        game = mapper.map_game_from_schedule(
+            {
+                "GAME_ID": "0022300001",
+                "TEAM_ID": 1610612737,
+                "MATCHUP": "ATL vs. CHI",
+                "GAME_DATE": "2023-10-24",
+                "WL": "W",
+                "PTS": 112,
+            }
+        )
 
         assert game.external_id == "0022300001"
         assert game.home_team_external_id == "1610612737"
-        assert game.away_team_external_id == ""  # Not available from single row
+        assert game.away_team_external_id == ""
         assert game.status == "final"
         assert game.home_score == 112
         assert game.away_score is None
@@ -179,14 +185,16 @@ class TestNBAMapperGame:
     def test_map_game_from_schedule_away(self):
         """Test mapping an away game from schedule."""
         mapper = NBAMapper()
-        game = mapper.map_game_from_schedule({
-            "GAME_ID": "0022300001",
-            "TEAM_ID": 1610612747,
-            "MATCHUP": "LAL @ GSW",
-            "GAME_DATE": "2023-10-24",
-            "WL": "L",
-            "PTS": 108,
-        })
+        game = mapper.map_game_from_schedule(
+            {
+                "GAME_ID": "0022300001",
+                "TEAM_ID": 1610612747,
+                "MATCHUP": "LAL @ GSW",
+                "GAME_DATE": "2023-10-24",
+                "WL": "L",
+                "PTS": 108,
+            }
+        )
 
         assert game.external_id == "0022300001"
         assert game.home_team_external_id == ""
@@ -198,14 +206,16 @@ class TestNBAMapperGame:
     def test_map_game_scheduled(self):
         """Test mapping a scheduled game."""
         mapper = NBAMapper()
-        game = mapper.map_game_from_schedule({
-            "GAME_ID": "0022300100",
-            "TEAM_ID": 1610612737,
-            "MATCHUP": "ATL vs. BOS",
-            "GAME_DATE": "2024-01-15",
-            "WL": None,
-            "PTS": None,
-        })
+        game = mapper.map_game_from_schedule(
+            {
+                "GAME_ID": "0022300100",
+                "TEAM_ID": 1610612737,
+                "MATCHUP": "ATL vs. BOS",
+                "GAME_DATE": "2024-01-15",
+                "WL": None,
+                "PTS": None,
+            }
+        )
 
         assert game.external_id == "0022300100"
         assert game.status == "scheduled"
@@ -213,176 +223,254 @@ class TestNBAMapperGame:
         assert game.away_score is None
 
 
-class TestNBAMapperPlayerStats:
-    """Tests for player stats mapping."""
+class TestNBAMapperPlayerStatsV3:
+    """Tests for V3 player stats mapping."""
 
-    def test_map_player_stats(self):
-        """Test mapping player statistics."""
+    def test_map_player_stats_v3(self):
+        """Test mapping V3 player statistics with nested structure."""
         mapper = NBAMapper()
-        stats = mapper.map_player_stats({
-            "playerId": 203507,
-            "playerName": "Giannis Antetokounmpo",
-            "teamId": 1610612749,
-            "minutes": "PT34M12.00S",
-            "points": 32,
-            "fieldGoalsMade": 12,
-            "fieldGoalsAttempted": 20,
-            "threePointersMade": 2,
-            "threePointersAttempted": 5,
-            "freeThrowsMade": 6,
-            "freeThrowsAttempted": 8,
-            "reboundsOffensive": 2,
-            "reboundsDefensive": 10,
-            "reboundsTotal": 12,
-            "assists": 5,
-            "turnovers": 3,
-            "steals": 1,
-            "blocks": 2,
-            "foulsPersonal": 3,
-            "plusMinusPoints": 15,
-            "starter": "1",
-        })
+        stats = mapper.map_player_stats_v3(
+            {
+                "personId": 1627759,
+                "firstName": "Jaylen",
+                "familyName": "Brown",
+                "position": "F",
+                "statistics": {
+                    "minutes": "35:56",
+                    "points": 37,
+                    "fieldGoalsMade": 14,
+                    "fieldGoalsAttempted": 22,
+                    "threePointersMade": 3,
+                    "threePointersAttempted": 6,
+                    "freeThrowsMade": 6,
+                    "freeThrowsAttempted": 10,
+                    "reboundsOffensive": 2,
+                    "reboundsDefensive": 3,
+                    "reboundsTotal": 5,
+                    "assists": 2,
+                    "turnovers": 6,
+                    "steals": 1,
+                    "blocks": 0,
+                    "foulsPersonal": 3,
+                    "plusMinusPoints": 0.0,
+                },
+            },
+            "1610612738",
+        )
 
-        assert stats.player_external_id == "203507"
-        assert stats.player_name == "Giannis Antetokounmpo"
-        assert stats.team_external_id == "1610612749"
-        assert stats.minutes_played == 2052  # 34:12 in seconds
-        assert stats.points == 32
-        assert stats.field_goals_made == 12
-        assert stats.field_goals_attempted == 20
-        assert stats.two_pointers_made == 10  # 12 - 2
-        assert stats.two_pointers_attempted == 15  # 20 - 5
-        assert stats.three_pointers_made == 2
-        assert stats.three_pointers_attempted == 5
+        assert stats.player_external_id == "1627759"
+        assert stats.player_name == "Jaylen Brown"
+        assert stats.team_external_id == "1610612738"
+        assert stats.minutes_played == 2156  # 35:56 in seconds
+        assert stats.points == 37
+        assert stats.field_goals_made == 14
+        assert stats.field_goals_attempted == 22
+        assert stats.two_pointers_made == 11  # 14 - 3
+        assert stats.two_pointers_attempted == 16  # 22 - 6
+        assert stats.three_pointers_made == 3
+        assert stats.three_pointers_attempted == 6
         assert stats.free_throws_made == 6
-        assert stats.free_throws_attempted == 8
+        assert stats.free_throws_attempted == 10
         assert stats.offensive_rebounds == 2
-        assert stats.defensive_rebounds == 10
-        assert stats.total_rebounds == 12
-        assert stats.assists == 5
-        assert stats.turnovers == 3
+        assert stats.defensive_rebounds == 3
+        assert stats.total_rebounds == 5
+        assert stats.assists == 2
+        assert stats.turnovers == 6
         assert stats.steals == 1
-        assert stats.blocks == 2
+        assert stats.blocks == 0
         assert stats.personal_fouls == 3
-        assert stats.plus_minus == 15
-        assert stats.is_starter is True
+        assert stats.plus_minus == 0
+        assert stats.is_starter is True  # Has position
 
-    def test_map_player_stats_non_starter(self):
-        """Test mapping non-starter player stats."""
+    def test_map_player_stats_v3_bench(self):
+        """Test mapping V3 bench player stats."""
         mapper = NBAMapper()
-        stats = mapper.map_player_stats({
-            "playerId": 12345,
-            "playerName": "Bench Player",
-            "teamId": 1610612749,
-            "minutes": "PT10M00.00S",
-            "points": 5,
-            "starter": "",
-        })
+        stats = mapper.map_player_stats_v3(
+            {
+                "personId": 12345,
+                "firstName": "Bench",
+                "familyName": "Player",
+                "position": "",  # Empty position = bench
+                "statistics": {
+                    "minutes": "10:00",
+                    "points": 5,
+                },
+            },
+            "1610612738",
+        )
 
         assert stats.is_starter is False
 
 
-class TestNBAMapperBoxscore:
-    """Tests for boxscore mapping."""
+class TestNBAMapperBoxscoreV3:
+    """Tests for V3 boxscore mapping."""
 
-    def test_map_boxscore(self):
-        """Test mapping a complete boxscore."""
+    def test_map_boxscore_v3(self):
+        """Test mapping V3 boxscore with nested structure."""
         mapper = NBAMapper()
         boxscore_data = {
-            "TeamStats": [
-                {"teamId": 1610612737, "points": 112, "gameDateEst": "2023-10-24"},
-                {"teamId": 1610612741, "points": 108},
-            ],
-            "PlayerStats": [
-                {
-                    "playerId": 1,
-                    "playerName": "Player 1",
+            "boxScoreTraditional": {
+                "gameId": "0022400001",
+                "homeTeamId": 1610612738,
+                "awayTeamId": 1610612737,
+                "homeTeam": {
+                    "teamId": 1610612738,
+                    "teamCity": "Boston",
+                    "teamName": "Celtics",
+                    "players": [
+                        {
+                            "personId": 1627759,
+                            "firstName": "Jaylen",
+                            "familyName": "Brown",
+                            "position": "F",
+                            "statistics": {"points": 37, "minutes": "35:00"},
+                        }
+                    ],
+                    "statistics": {"points": 132},
+                },
+                "awayTeam": {
                     "teamId": 1610612737,
-                    "points": 20,
+                    "teamCity": "Atlanta",
+                    "teamName": "Hawks",
+                    "players": [
+                        {
+                            "personId": 1629027,
+                            "firstName": "Trae",
+                            "familyName": "Young",
+                            "position": "G",
+                            "statistics": {"points": 22, "minutes": "32:00"},
+                        }
+                    ],
+                    "statistics": {"points": 109},
                 },
-                {
-                    "playerId": 2,
-                    "playerName": "Player 2",
-                    "teamId": 1610612741,
-                    "points": 15,
-                },
-            ],
+            }
         }
 
-        boxscore = mapper.map_boxscore(boxscore_data, "0022300001")
+        boxscore = mapper.map_boxscore(boxscore_data, "0022400001")
 
-        assert boxscore.game.external_id == "0022300001"
-        assert boxscore.game.home_team_external_id == "1610612737"
-        assert boxscore.game.away_team_external_id == "1610612741"
-        assert boxscore.game.home_score == 112
-        assert boxscore.game.away_score == 108
+        assert boxscore.game.external_id == "0022400001"
+        assert boxscore.game.home_team_external_id == "1610612738"
+        assert boxscore.game.away_team_external_id == "1610612737"
+        assert boxscore.game.home_score == 132
+        assert boxscore.game.away_score == 109
         assert len(boxscore.home_players) == 1
         assert len(boxscore.away_players) == 1
-        assert boxscore.home_players[0].player_name == "Player 1"
-        assert boxscore.away_players[0].player_name == "Player 2"
+        assert boxscore.home_players[0].player_name == "Jaylen Brown"
+        assert boxscore.home_players[0].points == 37
+        assert boxscore.away_players[0].player_name == "Trae Young"
+        assert boxscore.away_players[0].points == 22
 
 
-class TestNBAMapperPBP:
-    """Tests for play-by-play mapping."""
+class TestNBAMapperPBPV3:
+    """Tests for V3 play-by-play mapping."""
 
-    def test_map_pbp_event(self):
-        """Test mapping a single PBP event."""
+    def test_map_pbp_event_jump_ball(self):
+        """Test mapping a Jump Ball event."""
         mapper = NBAMapper()
-        event = mapper.map_pbp_event({
-            "actionNumber": 1,
-            "period": 1,
-            "clock": "PT12M00.00S",
-            "actionType": "jump ball",
-            "teamId": 1610612737,
-            "playerNameI": "Trae Young",
-        }, 1)
+        event = mapper.map_pbp_event(
+            {
+                "actionNumber": 4,
+                "period": 1,
+                "clock": "PT12M00.00S",
+                "actionType": "Jump Ball",
+                "teamId": 1610612738,
+                "playerNameI": "A. Horford",
+            }
+        )
 
-        assert event.event_number == 1
+        assert event.event_number == 4
         assert event.period == 1
         assert event.clock == "12:00"
         assert event.event_type == "jump_ball"
-        assert event.team_external_id == "1610612737"
-        assert event.player_name == "Trae Young"
+        assert event.team_external_id == "1610612738"
+        assert event.player_name == "A. Horford"
 
-    def test_map_pbp_event_shot_made(self):
-        """Test mapping a made shot event."""
+    def test_map_pbp_event_made_shot(self):
+        """Test mapping a Made Shot event."""
         mapper = NBAMapper()
-        event = mapper.map_pbp_event({
-            "actionNumber": 10,
-            "period": 1,
-            "clock": "PT10M30.00S",
-            "actionType": "3pt shot",
-            "shotResult": "MADE",
-            "teamId": 1610612737,
-            "xLegacy": 25.5,
-            "yLegacy": 8.0,
-        }, 10)
+        event = mapper.map_pbp_event(
+            {
+                "actionNumber": 10,
+                "period": 1,
+                "clock": "PT10M30.00S",
+                "actionType": "Made Shot",
+                "shotResult": "Made",
+                "teamId": 1610612737,
+                "xLegacy": -168,
+                "yLegacy": 205,
+            }
+        )
 
         assert event.event_type == "shot"
         assert event.success is True
-        assert event.coord_x == 25.5
-        assert event.coord_y == 8.0
+        assert event.coord_x == -168
+        assert event.coord_y == 205
 
-    def test_map_pbp_event_shot_missed(self):
-        """Test mapping a missed shot event."""
+    def test_map_pbp_event_missed_shot(self):
+        """Test mapping a Missed Shot event."""
         mapper = NBAMapper()
-        event = mapper.map_pbp_event({
-            "actionNumber": 11,
-            "period": 1,
-            "clock": "PT10M25.00S",
-            "actionType": "2pt shot",
-            "shotResult": "MISSED",
-        }, 11)
+        event = mapper.map_pbp_event(
+            {
+                "actionNumber": 11,
+                "period": 1,
+                "clock": "PT10M25.00S",
+                "actionType": "Missed Shot",
+                "shotResult": "Missed",
+            }
+        )
 
         assert event.event_type == "shot"
         assert event.success is False
+
+    def test_map_pbp_event_rebound(self):
+        """Test mapping a Rebound event."""
+        mapper = NBAMapper()
+        event = mapper.map_pbp_event(
+            {
+                "actionNumber": 9,
+                "period": 1,
+                "clock": "PT11M42.00S",
+                "actionType": "Rebound",
+                "teamId": 1610612737,
+                "playerNameI": "Z. Risacher",
+            }
+        )
+
+        assert event.event_type == "rebound"
+        assert event.player_name == "Z. Risacher"
+
+    def test_map_pbp_event_no_team(self):
+        """Test mapping event with no team (period start)."""
+        mapper = NBAMapper()
+        event = mapper.map_pbp_event(
+            {
+                "actionNumber": 2,
+                "period": 1,
+                "clock": "PT12M00.00S",
+                "actionType": "period",
+                "teamId": 0,
+            }
+        )
+
+        assert event.event_type == "period_event"
+        assert event.team_external_id is None
 
     def test_map_pbp_events(self):
         """Test mapping multiple PBP events."""
         mapper = NBAMapper()
         pbp_data = [
-            {"actionNumber": 1, "period": 1, "clock": "PT12M00.00S", "actionType": "jumpball"},
-            {"actionNumber": 2, "period": 1, "clock": "PT11M45.00S", "actionType": "2pt shot"},
+            {
+                "actionNumber": 1,
+                "period": 1,
+                "clock": "PT12M00.00S",
+                "actionType": "period",
+            },
+            {
+                "actionNumber": 2,
+                "period": 1,
+                "clock": "PT11M45.00S",
+                "actionType": "Made Shot",
+            },
         ]
 
         events = mapper.map_pbp_events(pbp_data)
