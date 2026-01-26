@@ -80,6 +80,14 @@ from src.sync.ibasketball import (
     IBasketballScraper,
 )
 
+# NBA
+from src.sync.nba import (
+    NBAAdapter,
+    NBAClient,
+    NBAConfig,
+    NBAMapper,
+)
+
 # Sync manager
 from src.sync.manager import SyncManager
 
@@ -177,4 +185,9 @@ __all__ = [
     "IBasketballMapper",
     "IBasketballConfig",
     "IBasketballError",
+    # NBA
+    "NBAAdapter",
+    "NBAClient",
+    "NBAConfig",
+    "NBAMapper",
 ]

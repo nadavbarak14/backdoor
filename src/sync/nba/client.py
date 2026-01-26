@@ -253,24 +253,28 @@ class NBAClient:
         """
         Get boxscore for a specific game.
 
+        Uses BoxScoreTraditionalV3 which returns nested structure with
+        homeTeam/awayTeam containing players and statistics.
+
         Args:
-            game_id: NBA game ID (e.g., "0022300001").
+            game_id: NBA game ID (e.g., "0022400001").
 
         Returns:
-            Dictionary with boxscore data including player stats.
+            Dictionary with boxScoreTraditional containing homeTeam and awayTeam.
 
         Raises:
             NBANotFoundError: If game not found.
             NBAAPIError: If request fails.
 
         Example:
-            >>> boxscore = client.get_boxscore("0022300001")
-            >>> "PlayerStats" in boxscore
+            >>> boxscore = client.get_boxscore("0022400001")
+            >>> "boxScoreTraditional" in boxscore
             True
         """
         try:
             endpoint = self._make_request(BoxScoreTraditionalV3, game_id=game_id)
-            return endpoint.get_normalized_dict()
+            # V3 uses get_dict() for the nested structure
+            return endpoint.get_dict()
         except Exception as e:
             if "404" in str(e) or "not found" in str(e).lower():
                 raise NBANotFoundError("game", game_id) from e
@@ -280,57 +284,32 @@ class NBAClient:
         """
         Get play-by-play data for a specific game.
 
+        Uses PlayByPlayV3 which returns actions in game.actions array.
+
         Args:
-            game_id: NBA game ID (e.g., "0022300001").
+            game_id: NBA game ID (e.g., "0022400001").
 
         Returns:
-            List of play-by-play event dictionaries.
+            List of play-by-play action dictionaries.
 
         Raises:
             NBANotFoundError: If game not found.
             NBAAPIError: If request fails.
 
         Example:
-            >>> events = client.get_pbp("0022300001")
+            >>> events = client.get_pbp("0022400001")
             >>> len(events) > 0
             True
-            >>> events[0]["EVENTNUM"]
+            >>> events[0]["actionNumber"]
             1
         """
         try:
             endpoint = self._make_request(PlayByPlayV3, game_id=game_id)
-            data = endpoint.get_normalized_dict()
-            return data.get("PlayByPlay", [])
+            # V3 uses get_dict() for the nested structure
+            data = endpoint.get_dict()
+            game = data.get("game", {})
+            return game.get("actions", [])
         except Exception as e:
             if "404" in str(e) or "not found" in str(e).lower():
                 raise NBANotFoundError("game", game_id) from e
             raise
-
-    def get_game_info(self, game_id: str) -> dict | None:
-        """
-        Get game metadata from boxscore.
-
-        Args:
-            game_id: NBA game ID.
-
-        Returns:
-            Game info dictionary or None if not found.
-
-        Example:
-            >>> info = client.get_game_info("0022300001")
-            >>> info["GAME_DATE"]
-            '2023-10-24'
-        """
-        try:
-            boxscore = self.get_boxscore(game_id)
-            # Game info is typically in TeamStats or as part of the response
-            team_stats = boxscore.get("TeamStats", [])
-            if team_stats:
-                # Extract game-level info from team stats
-                return {
-                    "GAME_ID": game_id,
-                    "GAME_DATE_EST": team_stats[0].get("GAME_DATE_EST"),
-                }
-            return None
-        except NBANotFoundError:
-            return None

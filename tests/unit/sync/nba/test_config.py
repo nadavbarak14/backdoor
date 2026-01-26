@@ -4,7 +4,6 @@ Unit tests for NBA Configuration.
 Tests the NBAConfig class for configuration settings.
 """
 
-
 from src.sync.nba.config import NBAConfig
 
 
