@@ -242,6 +242,13 @@ class EuroleagueMapper:
         """
         Map game data from season_games response to RawGame.
 
+        The API returns two gamecode fields:
+        - gameCode (int): Raw game number (e.g., 1)
+        - gamecode (str): Already formatted ID (e.g., "E2025_1")
+
+        We prefer gameCode (int) to construct the ID ourselves, avoiding
+        duplication like "E2025_E2025_1".
+
         Args:
             data: Game dictionary from euroleague-api.
             season: Season year.
@@ -253,7 +260,8 @@ class EuroleagueMapper:
         Example:
             >>> mapper = EuroleagueMapper()
             >>> game = mapper.map_game({
-            ...     "gamecode": 1,
+            ...     "gameCode": 1,
+            ...     "gamecode": "E2024_1",
             ...     "hometeam": "BER",
             ...     "awayteam": "PAN",
             ...     "date": "Oct 03, 2024",
@@ -264,10 +272,20 @@ class EuroleagueMapper:
             'E2024_1'
         """
         # Create unique game ID combining season and gamecode
-        gamecode = (
-            data.get("gamecode") or data.get("Gamecode") or data.get("gamenumber")
-        )
-        external_id = f"{competition}{season}_{gamecode}"
+        # Prefer gameCode (int) over gamecode (str) to avoid duplication
+        # The API returns gamecode as "E2025_1" which would become "E2025_E2025_1"
+        gamecode = data.get("gameCode") or data.get("gamenumber")
+
+        if gamecode is None:
+            # Fall back to gamecode string field
+            gamecode_str = data.get("gamecode") or data.get("Gamecode") or ""
+            # If it already has the competition prefix, use it directly
+            if isinstance(gamecode_str, str) and gamecode_str.startswith(competition):
+                external_id = gamecode_str
+            else:
+                external_id = f"{competition}{season}_{gamecode_str}"
+        else:
+            external_id = f"{competition}{season}_{gamecode}"
 
         # Parse date
         date_str = data.get("date") or data.get("Date") or ""
