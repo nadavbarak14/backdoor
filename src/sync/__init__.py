@@ -80,6 +80,9 @@ from src.sync.ibasketball import (
     IBasketballScraper,
 )
 
+# Sync manager
+from src.sync.manager import SyncManager
+
 # NBA
 from src.sync.nba import (
     NBAAdapter,
@@ -87,9 +90,6 @@ from src.sync.nba import (
     NBAConfig,
     NBAMapper,
 )
-
-# Sync manager
-from src.sync.manager import SyncManager
 
 # Player Info Service
 from src.sync.player_info import MergedPlayerInfo, PlayerInfoService, merge_player_info

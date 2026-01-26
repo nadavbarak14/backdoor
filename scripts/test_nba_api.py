@@ -5,7 +5,6 @@ Test script to verify NBA API field mappings against real API responses.
 Run with: uv run python scripts/test_nba_api.py
 """
 
-import json
 from pprint import pprint
 
 from nba_api.stats.endpoints import (
