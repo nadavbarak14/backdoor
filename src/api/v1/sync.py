@@ -593,3 +593,79 @@ async def sync_teams(
         started_at=sync_log.started_at,
         completed_at=sync_log.completed_at,
     )
+
+
+@router.post(
+    "/{source}/rosters/{season_id}",
+    response_model=SyncLogResponse,
+    summary="Sync Rosters",
+    description="Sync player roster data (positions) for all teams in a season.",
+)
+async def sync_rosters(
+    source: str,
+    season_id: str,
+    db: Session = Depends(get_db),
+) -> SyncLogResponse:
+    """
+    Sync player roster data for all teams in a season.
+
+    Fetches team rosters from the source and updates player positions
+    in PlayerTeamHistory records. Only updates players that don't have
+    position data yet.
+
+    Args:
+        source: Data source name (e.g., "winner").
+        season_id: External season identifier (e.g., "2025-26").
+        db: Database session (injected).
+
+    Returns:
+        SyncLogResponse with sync operation results.
+
+    Raises:
+        HTTPException: If source is not found or not enabled.
+
+    Example:
+        >>> response = client.post("/api/v1/sync/winner/rosters/2025-26")
+        >>> data = response.json()
+        >>> print(f"Updated {data['records_updated']} player positions")
+    """
+    from src.models.league import Season
+
+    manager = _get_sync_manager(db)
+
+    # Find internal season by name
+    from sqlalchemy import select
+
+    stmt = select(Season).where(Season.name == season_id)
+    season = db.scalars(stmt).first()
+
+    if not season:
+        raise HTTPException(status_code=404, detail=f"Season {season_id} not found")
+
+    try:
+        sync_log = await manager.sync_all_player_bios(
+            source=source,
+            season_id=season.id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Sync failed: {e}")
+
+    return SyncLogResponse(
+        id=sync_log.id,
+        source=sync_log.source,
+        entity_type=sync_log.entity_type,
+        status=SyncStatus(sync_log.status),
+        season_id=sync_log.season_id,
+        season_name=sync_log.season.name if sync_log.season else None,
+        game_id=sync_log.game_id,
+        records_processed=sync_log.records_processed,
+        records_created=sync_log.records_created,
+        records_updated=sync_log.records_updated,
+        records_skipped=sync_log.records_skipped,
+        error_message=sync_log.error_message,
+        error_details=sync_log.error_details,
+        started_at=sync_log.started_at,
+        completed_at=sync_log.completed_at,
+    )

@@ -714,18 +714,18 @@ class SyncManager:
         try:
             from src.models.player import Player, PlayerTeamHistory
 
-            # Get players on team roster from database
+            # Get players with their team history for this team/season
             stmt = (
-                select(Player)
+                select(Player, PlayerTeamHistory)
                 .join(PlayerTeamHistory)
                 .where(
                     PlayerTeamHistory.team_id == team_id,
                     PlayerTeamHistory.season_id == season_id,
                 )
             )
-            db_players = list(self.db.scalars(stmt).all())
+            results = list(self.db.execute(stmt).all())
 
-            if not db_players:
+            if not results:
                 return self.sync_log_service.complete_sync(
                     sync_id=sync_log.id,
                     records_processed=0,
@@ -734,7 +734,7 @@ class SyncManager:
                     records_skipped=0,
                 )
 
-            records_processed = len(db_players)
+            records_processed = len(results)
 
             # Fetch team roster from source
             roster = await adapter.get_team_roster(team_external_id)
@@ -756,7 +756,7 @@ class SyncManager:
                 roster_by_name[normalized] = (player_id, info)
 
             # Match and update each player
-            for player in db_players:
+            for player, history in results:
                 normalized_name = self._normalize_name(player.full_name)
                 match = roster_by_name.get(normalized_name)
 
@@ -767,7 +767,7 @@ class SyncManager:
                 if match:
                     roster_player_id, player_info = match
                     updated = self._update_player_bio(
-                        player, roster_player_id, player_info, source
+                        player, history, roster_player_id, player_info, source
                     )
                     if updated:
                         records_updated += 1
@@ -828,12 +828,15 @@ class SyncManager:
     def _update_player_bio(
         self,
         player: Any,
+        history: Any,
         external_id: str,
         player_info: Any | None,
         source: str,
     ) -> bool:
         """
-        Update a player's bio data and external_id.
+        Update a player's bio data, team history, and external_id.
+
+        Updates both Player fields and PlayerTeamHistory.position.
 
         Returns True if any field was updated.
         """
@@ -848,9 +851,16 @@ class SyncManager:
 
         # Update bio fields if we have player_info
         if player_info:
+            # Update Player.position
             if player_info.position and not player.position:
                 player.position = player_info.position
                 updated = True
+
+            # Update PlayerTeamHistory.position (always update if different)
+            if player_info.position and history.position != player_info.position:
+                history.position = player_info.position
+                updated = True
+
             if player_info.height_cm and not player.height_cm:
                 player.height_cm = player_info.height_cm
                 updated = True
