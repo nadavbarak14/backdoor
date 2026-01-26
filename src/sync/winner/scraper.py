@@ -511,6 +511,10 @@ class WinnerScraper:
         """
         Parse team roster from HTML.
 
+        Handles two HTML structures:
+        1. Card-based layout (real basket.co.il): div.box_role with role_name, role_num
+        2. Table-based layout (legacy/test fixtures): table rows with player links
+
         Args:
             html: HTML content.
             team_id: Team identifier.
@@ -538,42 +542,82 @@ class WinnerScraper:
                 raw_html=html,
             )
 
-            # Look for player links with PlayerId parameter
-            player_links = soup.find_all("a", href=lambda x: x and "PlayerId" in str(x))
-            for link in player_links:
+            # Try card-based layout first (real basket.co.il structure)
+            player_boxes = soup.find_all("div", class_="box_role")
+            for box in player_boxes:
+                link = box.find("a", href=lambda x: x and "PlayerId" in str(x))
+                if not link:
+                    continue  # Skip non-player boxes (coaches, etc.)
+
                 href = link.get("href", "")
-                player_name = link.get_text(strip=True)
+                player_id = href.split("PlayerId=")[-1].split("&")[0]
 
-                # Extract player ID from URL
-                player_id_match = None
-                if "PlayerId=" in href:
-                    player_id_match = href.split("PlayerId=")[-1].split("&")[0]
+                # Extract name from role_name div
+                name_div = box.find("div", class_="role_name")
+                if name_div:
+                    # Name has <br> between first/last - use separator to join
+                    player_name = " ".join(name_div.get_text(separator=" ").split())
+                else:
+                    player_name = f"Player {player_id}"
 
-                if player_id_match and player_name:
-                    # Try to find jersey number in nearby cells
-                    parent_row = link.find_parent("tr")
-                    jersey_number = None
-                    position = None
+                # Extract jersey number from role_num div
+                num_div = box.find("div", class_="role_num")
+                jersey_number = num_div.get_text(strip=True) if num_div else None
 
-                    if parent_row:
-                        cells = parent_row.find_all("td")
-                        for cell in cells:
-                            text = cell.get_text(strip=True)
-                            # First numeric cell is likely jersey number
-                            if text.isdigit() and not jersey_number:
-                                jersey_number = text
-                            # Common position abbreviations
-                            elif text in ["G", "F", "C", "PG", "SG", "SF", "PF"]:
-                                position = text
+                # Extract position from role_desc div
+                position = None
+                desc_div = box.find("div", class_="role_desc")
+                if desc_div:
+                    strong = desc_div.find("strong")
+                    if strong:
+                        pos_height = strong.get_text(strip=True)
+                        if "|" in pos_height:
+                            position = pos_height.split("|")[0].strip()
 
-                    roster.players.append(
-                        RosterPlayer(
-                            player_id=player_id_match,
-                            name=player_name,
-                            jersey_number=jersey_number,
-                            position=position,
-                        )
+                roster.players.append(
+                    RosterPlayer(
+                        player_id=player_id,
+                        name=player_name,
+                        jersey_number=jersey_number,
+                        position=position,
                     )
+                )
+
+            # If no players found with card layout, try table-based layout
+            if not roster.players:
+                player_links = soup.find_all(
+                    "a", href=lambda x: x and "PlayerId" in str(x)
+                )
+                for link in player_links:
+                    href = link.get("href", "")
+                    player_name = link.get_text(strip=True)
+
+                    player_id_match = None
+                    if "PlayerId=" in href:
+                        player_id_match = href.split("PlayerId=")[-1].split("&")[0]
+
+                    if player_id_match and player_name:
+                        parent_row = link.find_parent("tr")
+                        jersey_number = None
+                        position = None
+
+                        if parent_row:
+                            cells = parent_row.find_all("td")
+                            for cell in cells:
+                                text = cell.get_text(strip=True)
+                                if text.isdigit() and not jersey_number:
+                                    jersey_number = text
+                                elif text in ["G", "F", "C", "PG", "SG", "SF", "PF"]:
+                                    position = text
+
+                        roster.players.append(
+                            RosterPlayer(
+                                player_id=player_id_match,
+                                name=player_name,
+                                jersey_number=jersey_number,
+                                position=position,
+                            )
+                        )
 
             return roster
 

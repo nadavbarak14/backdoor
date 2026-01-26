@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="windows-1255">
+    <meta charset="utf-8">
     <title>Maccabi Tel Aviv - Basket.co.il</title>
 </head>
 <body>
@@ -10,40 +10,108 @@
         <p>Arena: Menora Mivtachim Arena</p>
         <p>Founded: 1932</p>
     </div>
-    <div class="roster">
-        <h2>Team Roster</h2>
-        <table>
-            <tr>
-                <th>#</th>
-                <th>Name</th>
-                <th>Position</th>
-            </tr>
-            <tr>
-                <td>5</td>
-                <td><a href="player.asp?PlayerId=1001">John Smith</a></td>
-                <td>G</td>
-            </tr>
-            <tr>
-                <td>10</td>
-                <td><a href="player.asp?PlayerId=1002">David Cohen</a></td>
-                <td>PG</td>
-            </tr>
-            <tr>
-                <td>23</td>
-                <td><a href="player.asp?PlayerId=1003">Michael Brown</a></td>
-                <td>C</td>
-            </tr>
-            <tr>
-                <td>7</td>
-                <td><a href="player.asp?PlayerId=1004">James Wilson</a></td>
-                <td>SF</td>
-            </tr>
-            <tr>
-                <td>15</td>
-                <td><a href="player.asp?PlayerId=1005">Robert Taylor</a></td>
-                <td>PF</td>
-            </tr>
-        </table>
+
+    <!-- Coach section (should be skipped) -->
+    <div class="box_role">
+        <a href="all-time-coaches.asp?CoachId=195">
+            <div class="box_role_data">
+                <img alt="Head Coach" src="/pics/coach.jpg"/>
+            </div>
+            <div class="box_role_data role_name">
+                Head Coach
+            </div>
+        </a>
+    </div>
+
+    <!-- Player cards (real basket.co.il structure) -->
+    <div class="box_role">
+        <a href="player.asp?PlayerId=1001&amp;lang=en">
+            <div class="box_role_data">
+                <img alt="John Smith" src="/pics/player1.jpg"/>
+            </div>
+            <div class="box_role_data">
+                <div class="box_role_data role_num en">5</div>
+                <div class="box_role_data role_name reduce en">
+                    John<br/>Smith
+                </div>
+                <div class="clear_fix"></div>
+                <div class="box_role_data role_desc en">
+                    <strong>G | 1.95</strong><br/>15/05/1995
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="box_role">
+        <a href="player.asp?PlayerId=1002&amp;lang=en">
+            <div class="box_role_data">
+                <img alt="David Cohen" src="/pics/player2.jpg"/>
+            </div>
+            <div class="box_role_data">
+                <div class="box_role_data role_num en">10</div>
+                <div class="box_role_data role_name reduce en">
+                    David<br/>Cohen
+                </div>
+                <div class="clear_fix"></div>
+                <div class="box_role_data role_desc en">
+                    <strong>PG | 1.83</strong><br/>20/03/1998
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="box_role">
+        <a href="player.asp?PlayerId=1003&amp;lang=en">
+            <div class="box_role_data">
+                <img alt="Michael Brown" src="/pics/player3.jpg"/>
+            </div>
+            <div class="box_role_data">
+                <div class="box_role_data role_num en">23</div>
+                <div class="box_role_data role_name reduce en">
+                    Michael<br/>Brown
+                </div>
+                <div class="clear_fix"></div>
+                <div class="box_role_data role_desc en">
+                    <strong>C | 2.11</strong><br/>10/08/1993
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="box_role">
+        <a href="player.asp?PlayerId=1004&amp;lang=en">
+            <div class="box_role_data">
+                <img alt="James Wilson" src="/pics/player4.jpg"/>
+            </div>
+            <div class="box_role_data">
+                <div class="box_role_data role_num en">7</div>
+                <div class="box_role_data role_name reduce en">
+                    James<br/>Wilson
+                </div>
+                <div class="clear_fix"></div>
+                <div class="box_role_data role_desc en">
+                    <strong>SF | 2.01</strong><br/>25/12/1996
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="box_role">
+        <a href="player.asp?PlayerId=1005&amp;lang=en">
+            <div class="box_role_data">
+                <img alt="Robert Taylor" src="/pics/player5.jpg"/>
+            </div>
+            <div class="box_role_data">
+                <div class="box_role_data role_num en">15</div>
+                <div class="box_role_data role_name reduce en">
+                    Robert<br/>Taylor
+                </div>
+                <div class="clear_fix"></div>
+                <div class="box_role_data role_desc en">
+                    <strong>PF | 2.06</strong><br/>01/01/1994
+                </div>
+            </div>
+        </a>
     </div>
 </body>
 </html>
