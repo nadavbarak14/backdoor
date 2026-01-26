@@ -1,0 +1,837 @@
+[
+  {
+    "id": 1212466,
+    "date": "2026-04-17T13:00:00",
+    "date_gmt": "2026-04-17T19:00:00",
+    "guid": {
+      "rendered": "https://ibasketball.co.il/match/741839/"
+    },
+    "modified": "2026-01-05T00:04:11",
+    "modified_gmt": "2026-01-04T22:04:11",
+    "slug": "741839",
+    "status": "future",
+    "type": "sp_event",
+    "link": "https://ibasketball.co.il/match/741839/",
+    "title": {
+      "rendered": "עירוני נהריה — א.ס. אשקלון/קרית גת"
+    },
+    "content": {
+      "rendered": "",
+      "protected": false
+    },
+    "excerpt": {
+      "rendered": "",
+      "protected": false
+    },
+    "author": 15,
+    "featured_media": 0,
+    "template": "",
+    "format": "league",
+    "stream": [],
+    "leagues": [
+      119474
+    ],
+    "seasons": [
+      119472
+    ],
+    "venues": [
+      6241
+    ],
+    "class_list": {
+      "0": "post-1212466",
+      "1": "sp_event",
+      "2": "type-sp_event",
+      "3": "status-future",
+      "4": "hentry",
+      "5": "sp_league-2025-2",
+      "6": "sp_season-119472",
+      "7": "sp_venue-1528-------11-",
+      "8": "",
+      "9": "no-featured-image-padding",
+      "10": "current-season",
+      "11": "future",
+      "13": "male"
+    },
+    "teams": [
+      166345,
+      168288
+    ],
+    "main_results": [],
+    "outcome": [],
+    "winner": null,
+    "mode": "team",
+    "day": "5",
+    "minutes": "90",
+    "players": [],
+    "offense": [],
+    "defense": [],
+    "staff": [],
+    "results": {
+      "166345": {
+        "points": 0
+      },
+      "168288": {
+        "points": 0
+      },
+      "0": {
+        "one": "רבע 1",
+        "two": "רבע 2",
+        "three": "רבע 3",
+        "four": "רבע 4",
+        "ot": "הארכה",
+        "points": "תוצאה",
+        "outcome": "תוֹצָאָה"
+      }
+    },
+    "performance": "",
+    "home": {
+      "team": "עירוני נהריה",
+      "points": null,
+      "link": "https://ibasketball.co.il/team/26-%d7%94%d7%a4%d7%95%d7%a2%d7%9c-%d7%a0%d7%94%d7%a8%d7%99%d7%94/",
+      "abbr": ""
+    },
+    "away": {
+      "team": "א.ס. אשקלון/קרית גת",
+      "points": null,
+      "link": "https://ibasketball.co.il/team/3043-%d7%90-%d7%a1-%d7%90%d7%a9%d7%a7%d7%9c%d7%95%d7%9f-%d7%a7%d7%a8%d7%99%d7%aa-%d7%92%d7%aa/",
+      "abbr": ""
+    },
+    "league": {
+      "name": "לאומית",
+      "link": "https://ibasketball.co.il/league/2025-2/",
+      "gender": "M"
+    },
+    "quarter_current": "",
+    "stage_id": 30,
+    "quarter_current_time": "",
+    "state": "",
+    "minors": false,
+    "sp_players": "",
+    "sp_teams": "",
+    "_links": {
+      "self": [
+        {
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/events/1212466"
+        }
+      ],
+      "collection": [
+        {
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/events"
+        }
+      ],
+      "about": [
+        {
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/types/sp_event"
+        }
+      ],
+      "author": [
+        {
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/users/15"
+        }
+      ],
+      "wp:attachment": [
+        {
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/media?parent=1212466"
+        }
+      ],
+      "wp:term": [
+        {
+          "taxonomy": "stream",
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/stream?post=1212466"
+        },
+        {
+          "taxonomy": "sp_league",
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/sportspress/v2/leagues?post=1212466"
+        },
+        {
+          "taxonomy": "sp_season",
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/sportspress/v2/seasons?post=1212466"
+        },
+        {
+          "taxonomy": "sp_venue",
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/sportspress/v2/venues?post=1212466"
+        }
+      ],
+      "curies": [
+        {
+          "name": "wp",
+          "href": "https://api.w.org/{rel}",
+          "templated": true
+        }
+      ]
+    }
+  },
+  {
+    "id": 1212467,
+    "date": "2026-04-17T13:00:00",
+    "date_gmt": "2026-04-17T19:00:00",
+    "guid": {
+      "rendered": "https://ibasketball.co.il/match/741834/"
+    },
+    "modified": "2026-01-05T00:04:12",
+    "modified_gmt": "2026-01-04T22:04:12",
+    "slug": "741834",
+    "status": "future",
+    "type": "sp_event",
+    "link": "https://ibasketball.co.il/match/741834/",
+    "title": {
+      "rendered": "אליצור יבנה — א.ס. עירוני אשקלון"
+    },
+    "content": {
+      "rendered": "",
+      "protected": false
+    },
+    "excerpt": {
+      "rendered": "",
+      "protected": false
+    },
+    "author": 15,
+    "featured_media": 0,
+    "template": "",
+    "format": "league",
+    "stream": [],
+    "leagues": [
+      119474
+    ],
+    "seasons": [
+      119472
+    ],
+    "venues": [
+      6411
+    ],
+    "class_list": {
+      "0": "post-1212467",
+      "1": "sp_event",
+      "2": "type-sp_event",
+      "3": "status-future",
+      "4": "hentry",
+      "5": "sp_league-2025-2",
+      "6": "sp_season-119472",
+      "7": "sp_venue-6411",
+      "8": "",
+      "9": "no-featured-image-padding",
+      "10": "current-season",
+      "11": "future",
+      "13": "male"
+    },
+    "teams": [
+      166511,
+      167225
+    ],
+    "main_results": [],
+    "outcome": [],
+    "winner": null,
+    "mode": "team",
+    "day": "5",
+    "minutes": "90",
+    "players": [],
+    "offense": [],
+    "defense": [],
+    "staff": [],
+    "results": {
+      "166511": {
+        "points": 0
+      },
+      "167225": {
+        "points": 0
+      },
+      "0": {
+        "one": "רבע 1",
+        "two": "רבע 2",
+        "three": "רבע 3",
+        "four": "רבע 4",
+        "ot": "הארכה",
+        "points": "תוצאה",
+        "outcome": "תוֹצָאָה"
+      }
+    },
+    "performance": "",
+    "home": {
+      "team": "אליצור יבנה",
+      "points": null,
+      "link": "https://ibasketball.co.il/team/168-%d7%90%d7%9c%d7%99%d7%a6%d7%95%d7%a8-%d7%99%d7%91%d7%a0%d7%94/",
+      "abbr": ""
+    },
+    "away": {
+      "team": "א.ס. עירוני אשקלון",
+      "points": null,
+      "link": "https://ibasketball.co.il/team/920-%d7%90-%d7%a1-%d7%a2%d7%99%d7%a8%d7%95%d7%a0%d7%99-%d7%90%d7%a9%d7%a7%d7%9c%d7%95%d7%9f/",
+      "abbr": ""
+    },
+    "league": {
+      "name": "לאומית",
+      "link": "https://ibasketball.co.il/league/2025-2/",
+      "gender": "M"
+    },
+    "quarter_current": "",
+    "stage_id": 30,
+    "quarter_current_time": "",
+    "state": "",
+    "minors": false,
+    "sp_players": "",
+    "sp_teams": "",
+    "_links": {
+      "self": [
+        {
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/events/1212467"
+        }
+      ],
+      "collection": [
+        {
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/events"
+        }
+      ],
+      "about": [
+        {
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/types/sp_event"
+        }
+      ],
+      "author": [
+        {
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/users/15"
+        }
+      ],
+      "wp:attachment": [
+        {
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/media?parent=1212467"
+        }
+      ],
+      "wp:term": [
+        {
+          "taxonomy": "stream",
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/stream?post=1212467"
+        },
+        {
+          "taxonomy": "sp_league",
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/sportspress/v2/leagues?post=1212467"
+        },
+        {
+          "taxonomy": "sp_season",
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/sportspress/v2/seasons?post=1212467"
+        },
+        {
+          "taxonomy": "sp_venue",
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/sportspress/v2/venues?post=1212467"
+        }
+      ],
+      "curies": [
+        {
+          "name": "wp",
+          "href": "https://api.w.org/{rel}",
+          "templated": true
+        }
+      ]
+    }
+  },
+  {
+    "id": 1212468,
+    "date": "2026-04-17T13:00:00",
+    "date_gmt": "2026-04-17T19:00:00",
+    "guid": {
+      "rendered": "https://ibasketball.co.il/match/741832/"
+    },
+    "modified": "2026-01-05T00:04:12",
+    "modified_gmt": "2026-01-04T22:04:12",
+    "slug": "741832",
+    "status": "future",
+    "type": "sp_event",
+    "link": "https://ibasketball.co.il/match/741832/",
+    "title": {
+      "rendered": "א.ס רמה&quot;ש ירק השדה — הפועל מגדל העמק/יזרעאל"
+    },
+    "content": {
+      "rendered": "",
+      "protected": false
+    },
+    "excerpt": {
+      "rendered": "",
+      "protected": false
+    },
+    "author": 15,
+    "featured_media": 0,
+    "template": "",
+    "format": "league",
+    "stream": [],
+    "leagues": [
+      119474
+    ],
+    "seasons": [
+      119472
+    ],
+    "venues": [
+      6575
+    ],
+    "class_list": {
+      "0": "post-1212468",
+      "1": "sp_event",
+      "2": "type-sp_event",
+      "3": "status-future",
+      "4": "hentry",
+      "5": "sp_league-2025-2",
+      "6": "sp_season-119472",
+      "7": "sp_venue-1892------13--",
+      "8": "",
+      "9": "no-featured-image-padding",
+      "10": "current-season",
+      "11": "future",
+      "13": "male"
+    },
+    "teams": [
+      166934,
+      596011
+    ],
+    "main_results": [],
+    "outcome": [],
+    "winner": null,
+    "mode": "team",
+    "day": "5",
+    "minutes": "90",
+    "players": [],
+    "offense": [],
+    "defense": [],
+    "staff": [],
+    "results": {
+      "166934": {
+        "points": 0
+      },
+      "596011": {
+        "points": 0
+      },
+      "0": {
+        "one": "רבע 1",
+        "two": "רבע 2",
+        "three": "רבע 3",
+        "four": "רבע 4",
+        "ot": "הארכה",
+        "points": "תוצאה",
+        "outcome": "תוֹצָאָה"
+      }
+    },
+    "performance": "",
+    "home": {
+      "team": "א.ס רמה&quot;ש ירק השדה",
+      "points": null,
+      "link": "https://ibasketball.co.il/team/585-%d7%90-%d7%a1-%d7%a8%d7%9e%d7%94%d7%a9-%d7%99%d7%a8%d7%a7-%d7%94%d7%a9%d7%93%d7%94/",
+      "abbr": ""
+    },
+    "away": {
+      "team": "הפועל מגדל העמק/יזרעאל",
+      "points": null,
+      "link": "https://ibasketball.co.il/team/2267-%d7%94%d7%a4%d7%95%d7%a2%d7%9c-%d7%9e%d7%92%d7%93%d7%9c-%d7%94%d7%a2%d7%9e%d7%a7-%d7%99%d7%96%d7%a8%d7%a2/",
+      "abbr": ""
+    },
+    "league": {
+      "name": "לאומית",
+      "link": "https://ibasketball.co.il/league/2025-2/",
+      "gender": "M"
+    },
+    "quarter_current": "",
+    "stage_id": 30,
+    "quarter_current_time": "",
+    "state": "",
+    "minors": false,
+    "sp_players": "",
+    "sp_teams": "",
+    "_links": {
+      "self": [
+        {
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/events/1212468"
+        }
+      ],
+      "collection": [
+        {
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/events"
+        }
+      ],
+      "about": [
+        {
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/types/sp_event"
+        }
+      ],
+      "author": [
+        {
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/users/15"
+        }
+      ],
+      "wp:attachment": [
+        {
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/media?parent=1212468"
+        }
+      ],
+      "wp:term": [
+        {
+          "taxonomy": "stream",
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/stream?post=1212468"
+        },
+        {
+          "taxonomy": "sp_league",
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/sportspress/v2/leagues?post=1212468"
+        },
+        {
+          "taxonomy": "sp_season",
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/sportspress/v2/seasons?post=1212468"
+        },
+        {
+          "taxonomy": "sp_venue",
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/sportspress/v2/venues?post=1212468"
+        }
+      ],
+      "curies": [
+        {
+          "name": "wp",
+          "href": "https://api.w.org/{rel}",
+          "templated": true
+        }
+      ]
+    }
+  },
+  {
+    "id": 1212469,
+    "date": "2026-04-17T13:00:00",
+    "date_gmt": "2026-04-17T19:00:00",
+    "guid": {
+      "rendered": "https://ibasketball.co.il/match/741835/"
+    },
+    "modified": "2026-01-05T00:04:12",
+    "modified_gmt": "2026-01-04T22:04:12",
+    "slug": "741835",
+    "status": "future",
+    "type": "sp_event",
+    "link": "https://ibasketball.co.il/match/741835/",
+    "title": {
+      "rendered": "הפועל אסטרל אילת — מכבי גיא נתן חיפה"
+    },
+    "content": {
+      "rendered": "",
+      "protected": false
+    },
+    "excerpt": {
+      "rendered": "",
+      "protected": false
+    },
+    "author": 15,
+    "featured_media": 0,
+    "template": "",
+    "format": "league",
+    "stream": [],
+    "leagues": [
+      119474
+    ],
+    "seasons": [
+      119472
+    ],
+    "venues": [
+      5617
+    ],
+    "class_list": {
+      "0": "post-1212469",
+      "1": "sp_event",
+      "2": "type-sp_event",
+      "3": "status-future",
+      "4": "hentry",
+      "5": "sp_league-2025-2",
+      "6": "sp_season-119472",
+      "7": "sp_venue-509-----1-",
+      "8": "",
+      "9": "no-featured-image-padding",
+      "10": "current-season",
+      "11": "future",
+      "13": "male"
+    },
+    "teams": [
+      167423,
+      166400
+    ],
+    "main_results": [],
+    "outcome": [],
+    "winner": null,
+    "mode": "team",
+    "day": "5",
+    "minutes": "90",
+    "players": [],
+    "offense": [],
+    "defense": [],
+    "staff": [],
+    "results": {
+      "167423": {
+        "points": 0
+      },
+      "166400": {
+        "points": 0
+      },
+      "0": {
+        "one": "רבע 1",
+        "two": "רבע 2",
+        "three": "רבע 3",
+        "four": "רבע 4",
+        "ot": "הארכה",
+        "points": "תוצאה",
+        "outcome": "תוֹצָאָה"
+      }
+    },
+    "performance": "",
+    "home": {
+      "team": "הפועל אסטרל אילת",
+      "points": null,
+      "link": "https://ibasketball.co.il/team/1278-%d7%94%d7%a4%d7%95%d7%a2%d7%9c-%d7%90%d7%99%d7%9c%d7%aa/",
+      "abbr": ""
+    },
+    "away": {
+      "team": "מכבי גיא נתן חיפה",
+      "points": null,
+      "link": "https://ibasketball.co.il/team/69-%d7%9e%d7%9b%d7%91%d7%99-%d7%97%d7%99%d7%a4%d7%94-%d7%92%d7%99%d7%90/",
+      "abbr": ""
+    },
+    "league": {
+      "name": "לאומית",
+      "link": "https://ibasketball.co.il/league/2025-2/",
+      "gender": "M"
+    },
+    "quarter_current": "",
+    "stage_id": 30,
+    "quarter_current_time": "",
+    "state": "",
+    "minors": false,
+    "sp_players": "",
+    "sp_teams": "",
+    "_links": {
+      "self": [
+        {
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/events/1212469"
+        }
+      ],
+      "collection": [
+        {
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/events"
+        }
+      ],
+      "about": [
+        {
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/types/sp_event"
+        }
+      ],
+      "author": [
+        {
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/users/15"
+        }
+      ],
+      "wp:attachment": [
+        {
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/media?parent=1212469"
+        }
+      ],
+      "wp:term": [
+        {
+          "taxonomy": "stream",
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/stream?post=1212469"
+        },
+        {
+          "taxonomy": "sp_league",
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/sportspress/v2/leagues?post=1212469"
+        },
+        {
+          "taxonomy": "sp_season",
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/sportspress/v2/seasons?post=1212469"
+        },
+        {
+          "taxonomy": "sp_venue",
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/sportspress/v2/venues?post=1212469"
+        }
+      ],
+      "curies": [
+        {
+          "name": "wp",
+          "href": "https://api.w.org/{rel}",
+          "templated": true
+        }
+      ]
+    }
+  },
+  {
+    "id": 1212471,
+    "date": "2026-04-17T13:00:00",
+    "date_gmt": "2026-04-17T19:00:00",
+    "guid": {
+      "rendered": "https://ibasketball.co.il/match/741836/"
+    },
+    "modified": "2026-01-05T00:04:12",
+    "modified_gmt": "2026-01-04T22:04:12",
+    "slug": "741836",
+    "status": "future",
+    "type": "sp_event",
+    "link": "https://ibasketball.co.il/match/741836/",
+    "title": {
+      "rendered": "מכבי מעלה אדומים — מכבי מנדל פ&quot;ת"
+    },
+    "content": {
+      "rendered": "",
+      "protected": false
+    },
+    "excerpt": {
+      "rendered": "",
+      "protected": false
+    },
+    "author": 15,
+    "featured_media": 0,
+    "template": "",
+    "format": "league",
+    "stream": [],
+    "leagues": [
+      119474
+    ],
+    "seasons": [
+      119472
+    ],
+    "venues": [
+      5460
+    ],
+    "class_list": {
+      "0": "post-1212471",
+      "1": "sp_event",
+      "2": "type-sp_event",
+      "3": "status-future",
+      "4": "hentry",
+      "5": "sp_league-2025-2",
+      "6": "sp_season-119472",
+      "7": "sp_venue-227----5--",
+      "8": "",
+      "9": "no-featured-image-padding",
+      "10": "current-season",
+      "11": "future",
+      "13": "male"
+    },
+    "teams": [
+      168690,
+      166367
+    ],
+    "main_results": [],
+    "outcome": [],
+    "winner": null,
+    "mode": "team",
+    "day": "5",
+    "minutes": "90",
+    "players": [],
+    "offense": [],
+    "defense": [],
+    "staff": [],
+    "results": {
+      "168690": {
+        "points": 0
+      },
+      "166367": {
+        "points": 0
+      },
+      "0": {
+        "one": "רבע 1",
+        "two": "רבע 2",
+        "three": "רבע 3",
+        "four": "רבע 4",
+        "ot": "הארכה",
+        "points": "תוצאה",
+        "outcome": "תוֹצָאָה"
+      }
+    },
+    "performance": "",
+    "home": {
+      "team": "מכבי מעלה אדומים",
+      "points": null,
+      "link": "https://ibasketball.co.il/team/3745-%d7%9e%d7%9b%d7%91%d7%99-%d7%9e%d7%a2%d7%9c%d7%94-%d7%90%d7%93%d7%95%d7%9e%d7%99%d7%9d/",
+      "abbr": ""
+    },
+    "away": {
+      "team": "מכבי מנדל פ&quot;ת",
+      "points": null,
+      "link": "https://ibasketball.co.il/team/42-%d7%9e%d7%9b%d7%91%d7%99-%d7%a4%d7%aa%d7%97-%d7%aa%d7%a7%d7%95%d7%95%d7%94-%d7%9e%d7%a0%d7%93%d7%9c/",
+      "abbr": ""
+    },
+    "league": {
+      "name": "לאומית",
+      "link": "https://ibasketball.co.il/league/2025-2/",
+      "gender": "M"
+    },
+    "quarter_current": "",
+    "stage_id": 30,
+    "quarter_current_time": "",
+    "state": "",
+    "minors": false,
+    "sp_players": "",
+    "sp_teams": "",
+    "_links": {
+      "self": [
+        {
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/events/1212471"
+        }
+      ],
+      "collection": [
+        {
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/events"
+        }
+      ],
+      "about": [
+        {
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/types/sp_event"
+        }
+      ],
+      "author": [
+        {
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/users/15"
+        }
+      ],
+      "wp:attachment": [
+        {
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/media?parent=1212471"
+        }
+      ],
+      "wp:term": [
+        {
+          "taxonomy": "stream",
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/wp/v2/stream?post=1212471"
+        },
+        {
+          "taxonomy": "sp_league",
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/sportspress/v2/leagues?post=1212471"
+        },
+        {
+          "taxonomy": "sp_season",
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/sportspress/v2/seasons?post=1212471"
+        },
+        {
+          "taxonomy": "sp_venue",
+          "embeddable": true,
+          "href": "https://ibasketball.co.il/wp-json/sportspress/v2/venues?post=1212471"
+        }
+      ],
+      "curies": [
+        {
+          "name": "wp",
+          "href": "https://api.w.org/{rel}",
+          "templated": true
+        }
+      ]
+    }
+  }
+]
