@@ -141,7 +141,10 @@ export default function TeamDetail() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {games.items.slice(0, 10).map((game) => {
+                {games.items
+                  .filter((game) => game.team_score != null && game.opponent_score != null)
+                  .slice(0, 10)
+                  .map((game) => {
                   const won = game.team_score > game.opponent_score;
                   return (
                     <TableRow
