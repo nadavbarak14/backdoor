@@ -185,6 +185,8 @@ export interface Game {
   season_id: string;
   home_team_id: string;
   away_team_id: string;
+  home_team_name?: string;
+  away_team_name?: string;
   home_team?: Team;
   away_team?: Team;
   game_date: string;
