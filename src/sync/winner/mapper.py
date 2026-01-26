@@ -362,14 +362,14 @@ class WinnerMapper:
         status = (data.get("Status") or "").lower()
         if status not in ("scheduled", "live", "final"):
             # Real API uses isLive flag and scores to determine status
-            is_live = data.get("isLive", 0)
-            if (
-                is_live
-                and home_score is not None
+            # A game is "final" only if it has non-zero scores
+            # 0-0 scores indicate a scheduled/unplayed game
+            has_scores = (
+                home_score is not None
                 and away_score is not None
-                or home_score is not None
-                and away_score is not None
-            ):
+                and (home_score > 0 or away_score > 0)
+            )
+            if has_scores:
                 status = "final"
             else:
                 status = "scheduled"

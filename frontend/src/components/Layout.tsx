@@ -5,7 +5,7 @@
  * Responsive design with collapsible sidebar for mobile.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   Trophy,
@@ -141,10 +141,11 @@ function Breadcrumbs() {
 
 export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const handleCloseSidebar = useCallback(() => setSidebarOpen(false), []);
 
   return (
     <div className="flex h-screen bg-gray-50">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar isOpen={sidebarOpen} onClose={handleCloseSidebar} />
 
       <div className="flex-1 flex flex-col overflow-hidden w-full">
         {/* Header */}
