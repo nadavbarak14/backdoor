@@ -664,6 +664,280 @@ class SyncManager:
                 error_details={"traceback": traceback.format_exc()},
             )
 
+    async def sync_player_bio_from_roster(
+        self,
+        source: str,
+        team_id: UUID,
+        team_external_id: str,
+        season_id: UUID,
+    ) -> SyncLog:
+        """
+        Sync player biographical data by matching to team roster.
+
+        This method:
+        1. Gets players from the database for the given team/season
+        2. Fetches the team roster from the source (e.g., basket.co.il)
+        3. Matches players by name
+        4. Fetches player profiles and updates bio data
+
+        The source must have lang=en enabled for English name matching.
+
+        Args:
+            source: The data source name (e.g., "winner").
+            team_id: Internal UUID of the team.
+            team_external_id: External team ID for roster fetching.
+            season_id: Internal UUID of the season.
+
+        Returns:
+            SyncLog with sync operation results.
+
+        Example:
+            >>> sync_log = await manager.sync_player_bio_from_roster(
+            ...     source="winner",
+            ...     team_id=team.id,
+            ...     team_external_id="100",
+            ...     season_id=season.id
+            ... )
+        """
+        adapter = self._get_adapter(source)
+
+        # Start sync log
+        sync_log = self.sync_log_service.start_sync(
+            source=source,
+            entity_type="player_bio",
+            season_id=season_id,
+        )
+
+        records_processed = 0
+        records_updated = 0
+
+        try:
+            from src.models.player import Player, PlayerTeamHistory
+
+            # Get players on team roster from database
+            stmt = (
+                select(Player)
+                .join(PlayerTeamHistory)
+                .where(
+                    PlayerTeamHistory.team_id == team_id,
+                    PlayerTeamHistory.season_id == season_id,
+                )
+            )
+            db_players = list(self.db.scalars(stmt).all())
+
+            if not db_players:
+                return self.sync_log_service.complete_sync(
+                    sync_id=sync_log.id,
+                    records_processed=0,
+                    records_created=0,
+                    records_updated=0,
+                    records_skipped=0,
+                )
+
+            records_processed = len(db_players)
+
+            # Fetch team roster from source
+            roster = await adapter.get_team_roster(team_external_id)
+
+            if not roster:
+                # No roster available, skip
+                return self.sync_log_service.complete_sync(
+                    sync_id=sync_log.id,
+                    records_processed=records_processed,
+                    records_created=0,
+                    records_updated=0,
+                    records_skipped=records_processed,
+                )
+
+            # Build lookup by normalized name
+            roster_by_name: dict[str, tuple[str, RawPlayerInfo | None]] = {}
+            for player_id, name, info in roster:
+                normalized = self._normalize_name(name)
+                roster_by_name[normalized] = (player_id, info)
+
+            # Match and update each player
+            for player in db_players:
+                normalized_name = self._normalize_name(player.full_name)
+                match = roster_by_name.get(normalized_name)
+
+                if not match:
+                    # Try partial matching (last name only)
+                    match = self._find_partial_match(player, roster_by_name)
+
+                if match:
+                    roster_player_id, player_info = match
+                    updated = self._update_player_bio(
+                        player, roster_player_id, player_info, source
+                    )
+                    if updated:
+                        records_updated += 1
+
+            self.db.commit()
+
+            return self.sync_log_service.complete_sync(
+                sync_id=sync_log.id,
+                records_processed=records_processed,
+                records_created=0,
+                records_updated=records_updated,
+                records_skipped=records_processed - records_updated,
+            )
+
+        except Exception as e:
+            self.db.rollback()
+            return self.sync_log_service.fail_sync(
+                sync_id=sync_log.id,
+                error_message=str(e),
+                error_details={"traceback": traceback.format_exc()},
+            )
+
+    def _normalize_name(self, name: str) -> str:
+        """Normalize a name for matching by lowercasing and removing extra spaces."""
+        return " ".join(name.lower().split())
+
+    def _find_partial_match(
+        self,
+        player: Any,
+        roster_by_name: dict[str, tuple[str, Any]],
+    ) -> tuple[str, Any] | None:
+        """
+        Try to find a match using partial name matching.
+
+        Attempts:
+        1. Match by last name only
+        2. Match by first initial + last name
+        """
+        last_name = self._normalize_name(player.last_name)
+        first_initial = player.first_name[0].lower() if player.first_name else ""
+
+        for full_name, match_data in roster_by_name.items():
+            # Check if last names match
+            name_parts = full_name.split()
+            if len(name_parts) >= 1:
+                roster_last = name_parts[-1]
+                if roster_last == last_name:
+                    # Additional check: first initial if available
+                    if len(name_parts) >= 2:
+                        roster_first = name_parts[0]
+                        if roster_first.startswith(first_initial):
+                            return match_data
+                    else:
+                        return match_data
+
+        return None
+
+    def _update_player_bio(
+        self,
+        player: Any,
+        external_id: str,
+        player_info: Any | None,
+        source: str,
+    ) -> bool:
+        """
+        Update a player's bio data and external_id.
+
+        Returns True if any field was updated.
+        """
+        updated = False
+
+        # Update external_id if not already set for this source
+        external_ids = player.external_ids or {}
+        if source not in external_ids:
+            external_ids[source] = external_id
+            player.external_ids = external_ids
+            updated = True
+
+        # Update bio fields if we have player_info
+        if player_info:
+            if player_info.position and not player.position:
+                player.position = player_info.position
+                updated = True
+            if player_info.height_cm and not player.height_cm:
+                player.height_cm = player_info.height_cm
+                updated = True
+            if player_info.birth_date and not player.birth_date:
+                player.birth_date = player_info.birth_date
+                updated = True
+
+        return updated
+
+    async def sync_all_player_bios(
+        self,
+        source: str,
+        season_id: UUID,
+    ) -> SyncLog:
+        """
+        Sync player bio data for all teams in a season.
+
+        Fetches rosters and bio data for all teams, matching players
+        by English name.
+
+        Args:
+            source: The data source name (e.g., "winner").
+            season_id: Internal UUID of the season.
+
+        Returns:
+            SyncLog with aggregated sync results.
+
+        Example:
+            >>> sync_log = await manager.sync_all_player_bios("winner", season.id)
+        """
+        from src.models.team import Team, TeamSeason
+
+        adapter = self._get_adapter(source)
+
+        # Start sync log
+        sync_log = self.sync_log_service.start_sync(
+            source=source,
+            entity_type="player_bio_all",
+            season_id=season_id,
+        )
+
+        total_processed = 0
+        total_updated = 0
+
+        try:
+            # Get all teams for the season
+            stmt = (
+                select(Team, TeamSeason.external_id)
+                .join(TeamSeason, Team.id == TeamSeason.team_id)
+                .where(TeamSeason.season_id == season_id)
+            )
+            teams = list(self.db.execute(stmt).all())
+
+            for team, team_external_id in teams:
+                if not team_external_id:
+                    continue
+                try:
+                    result = await self.sync_player_bio_from_roster(
+                        source=source,
+                        team_id=team.id,
+                        team_external_id=team_external_id,
+                        season_id=season_id,
+                    )
+                    total_processed += result.records_processed or 0
+                    total_updated += result.records_updated or 0
+                except Exception:
+                    # Continue with other teams if one fails
+                    continue
+
+            self.db.commit()
+
+            return self.sync_log_service.complete_sync(
+                sync_id=sync_log.id,
+                records_processed=total_processed,
+                records_created=0,
+                records_updated=total_updated,
+                records_skipped=total_processed - total_updated,
+            )
+
+        except Exception as e:
+            self.db.rollback()
+            return self.sync_log_service.fail_sync(
+                sync_id=sync_log.id,
+                error_message=str(e),
+                error_details={"traceback": traceback.format_exc()},
+            )
+
     def get_sync_status(self) -> dict[str, Any]:
         """
         Get current sync status for all sources.

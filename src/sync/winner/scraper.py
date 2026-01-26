@@ -479,6 +479,19 @@ class WinnerScraper:
                                 pass
                         elif "nationality" in label or "לאום" in label:
                             profile.nationality = value
+                        elif "birth" in label or "תאריך" in label or "dob" in label:
+                            try:
+                                # Try various date formats
+                                for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%d.%m.%Y"]:
+                                    try:
+                                        profile.birth_date = datetime.strptime(
+                                            value, fmt
+                                        )
+                                        break
+                                    except ValueError:
+                                        continue
+                            except ValueError:
+                                pass
 
             return profile
 
