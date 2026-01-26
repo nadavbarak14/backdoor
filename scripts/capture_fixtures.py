@@ -106,6 +106,7 @@ def capture_euroleague() -> None:
     """Capture Euroleague API responses."""
     print("\n=== Capturing Euroleague fixtures ===")
     import xml.etree.ElementTree as ET
+
     import httpx
     from euroleague_api.boxscore_data import BoxScoreData
     from euroleague_api.play_by_play_data import PlayByPlay
@@ -182,9 +183,12 @@ def capture_nba() -> None:
     """Capture NBA API responses."""
     print("\n=== Capturing NBA fixtures ===")
     import time
-    from nba_api.stats.endpoints import LeagueGameFinder
-    from nba_api.stats.endpoints import BoxScoreTraditionalV3
-    from nba_api.stats.endpoints import PlayByPlayV3
+
+    from nba_api.stats.endpoints import (
+        BoxScoreTraditionalV3,
+        LeagueGameFinder,
+        PlayByPlayV3,
+    )
 
     season = "2024-25"
 
