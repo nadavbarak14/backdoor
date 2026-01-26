@@ -35,10 +35,10 @@ export default function GameList() {
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Games</h1>
-        <p className="text-gray-500 mt-1">{data?.total ?? 0} games</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Games</h1>
+        <p className="text-sm sm:text-base text-gray-500 mt-1">{data?.total ?? 0} games</p>
       </div>
 
       {/* Game List */}
@@ -61,13 +61,12 @@ export default function GameList() {
                 <Link
                   key={game.id}
                   to={`/games/${game.id}`}
-                  className="block px-6 py-4 hover:bg-gray-50"
+                  className="block px-3 py-3 sm:px-6 sm:py-4 hover:bg-gray-50 active:bg-gray-100"
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 text-sm text-gray-500">
-                      <Calendar className="w-4 h-4" />
+                    <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-500">
+                      <Calendar className="w-4 h-4 hidden sm:block" />
                       <span>{new Date(game.game_date).toLocaleDateString()}</span>
-                      {game.venue && <span>@ {game.venue}</span>}
                     </div>
                     <Badge
                       variant={game.status === 'FINAL' ? 'success' : 'default'}
@@ -76,19 +75,19 @@ export default function GameList() {
                     </Badge>
                   </div>
 
-                  <div className="mt-3 flex items-center justify-between">
-                    <div className="flex-1">
+                  <div className="mt-2 sm:mt-3 flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
                       {/* Home Team */}
-                      <div className="flex items-center justify-between py-2">
+                      <div className="flex items-center justify-between py-1 sm:py-2">
                         <span
-                          className={`font-medium ${
+                          className={`text-sm sm:text-base font-medium truncate mr-2 ${
                             homeWon ? 'text-gray-900' : 'text-gray-500'
                           }`}
                         >
-                          {game.home_team?.name ?? 'Home Team'}
+                          {game.home_team_name ?? 'Home Team'}
                         </span>
                         <span
-                          className={`text-lg font-bold ${
+                          className={`text-base sm:text-lg font-bold flex-shrink-0 ${
                             homeWon ? 'text-gray-900' : 'text-gray-500'
                           }`}
                         >
@@ -97,16 +96,16 @@ export default function GameList() {
                       </div>
 
                       {/* Away Team */}
-                      <div className="flex items-center justify-between py-2 border-t border-gray-100">
+                      <div className="flex items-center justify-between py-1 sm:py-2 border-t border-gray-100">
                         <span
-                          className={`font-medium ${
+                          className={`text-sm sm:text-base font-medium truncate mr-2 ${
                             !homeWon ? 'text-gray-900' : 'text-gray-500'
                           }`}
                         >
-                          {game.away_team?.name ?? 'Away Team'}
+                          {game.away_team_name ?? 'Away Team'}
                         </span>
                         <span
-                          className={`text-lg font-bold ${
+                          className={`text-base sm:text-lg font-bold flex-shrink-0 ${
                             !homeWon ? 'text-gray-900' : 'text-gray-500'
                           }`}
                         >
@@ -115,7 +114,7 @@ export default function GameList() {
                       </div>
                     </div>
 
-                    <ChevronRight className="w-5 h-5 text-gray-400 ml-4" />
+                    <ChevronRight className="w-5 h-5 text-gray-400 ml-2 sm:ml-4 flex-shrink-0" />
                   </div>
                 </Link>
               );

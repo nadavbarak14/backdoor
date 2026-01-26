@@ -24,20 +24,20 @@ function StatCard({
 }) {
   return (
     <Link to={to}>
-      <Card className="hover:shadow-md transition-shadow">
-        <CardContent className="flex items-center gap-4">
-          <div className="p-3 bg-blue-50 rounded-lg">
-            <Icon className="w-6 h-6 text-blue-600" />
+      <Card className="hover:shadow-md active:bg-gray-50 transition-shadow">
+        <CardContent className="flex items-center gap-3 sm:gap-4">
+          <div className="p-2 sm:p-3 bg-blue-50 rounded-lg">
+            <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
           </div>
-          <div className="flex-1">
-            <p className="text-sm text-gray-500">{label}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs sm:text-sm text-gray-500">{label}</p>
             {loading ? (
-              <div className="h-8 w-16 bg-gray-200 animate-pulse rounded" />
+              <div className="h-6 sm:h-8 w-16 bg-gray-200 animate-pulse rounded" />
             ) : (
-              <p className="text-2xl font-bold text-gray-900">{value.toLocaleString()}</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">{value.toLocaleString()}</p>
             )}
           </div>
-          <ArrowRight className="w-5 h-5 text-gray-400" />
+          <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
         </CardContent>
       </Card>
     </Link>
@@ -64,14 +64,14 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4 sm:space-y-6 lg:space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 mt-1">Overview of your basketball analytics data</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-sm sm:text-base text-gray-500 mt-1">Overview of your basketball analytics data</p>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           icon={Trophy}
           label="Leagues"
@@ -104,10 +104,10 @@ export default function Dashboard() {
 
       {/* Recent Sync Activity */}
       <Card>
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+        <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-gray-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <RefreshCw className="w-5 h-5 text-gray-500" />
-            <h2 className="text-lg font-semibold text-gray-900">Recent Sync Activity</h2>
+            <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900">Recent Syncs</h2>
           </div>
           <Link to="/sync" className="text-sm text-blue-600 hover:text-blue-700">
             View all
@@ -119,40 +119,41 @@ export default function Dashboard() {
           ) : syncLogs?.items.length ? (
             <div className="divide-y divide-gray-200">
               {syncLogs.items.map((log) => (
-                <div key={log.id} className="px-6 py-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-gray-900">
-                      {log.source.charAt(0).toUpperCase() + log.source.slice(1)} - {log.entity_type}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {log.season_name && `Season: ${log.season_name} • `}
-                      {new Date(log.started_at).toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right text-sm">
-                      <p className="text-gray-900">{log.records_created} created</p>
-                      <p className="text-gray-500">{log.records_skipped} skipped</p>
+                <div key={log.id} className="px-4 py-3 sm:px-6 sm:py-4">
+                  <div className="flex items-start sm:items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-gray-900 text-sm sm:text-base truncate">
+                        {log.source.charAt(0).toUpperCase() + log.source.slice(1)} - {log.entity_type}
+                      </p>
+                      <p className="text-xs sm:text-sm text-gray-500 truncate">
+                        {log.season_name && `${log.season_name} • `}
+                        {new Date(log.started_at).toLocaleDateString()}
+                      </p>
                     </div>
-                    <Badge
-                      variant={
-                        log.status === 'COMPLETED'
-                          ? 'success'
-                          : log.status === 'FAILED'
-                          ? 'error'
-                          : log.status === 'STARTED'
-                          ? 'info'
-                          : 'warning'
-                      }
-                    >
-                      {log.status}
-                    </Badge>
+                    <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+                      <div className="text-right text-xs sm:text-sm hidden sm:block">
+                        <p className="text-gray-900">{log.records_created} new</p>
+                      </div>
+                      <Badge
+                        variant={
+                          log.status === 'COMPLETED'
+                            ? 'success'
+                            : log.status === 'FAILED'
+                            ? 'error'
+                            : log.status === 'STARTED'
+                            ? 'info'
+                            : 'warning'
+                        }
+                      >
+                        {log.status}
+                      </Badge>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="px-6 py-8 text-center text-gray-500">
+            <div className="px-4 py-6 sm:px-6 sm:py-8 text-center text-gray-500 text-sm sm:text-base">
               No sync activity yet. <Link to="/sync" className="text-blue-600 hover:underline">Start a sync</Link>
             </div>
           )}
@@ -161,31 +162,31 @@ export default function Dashboard() {
 
       {/* Quick Actions */}
       <Card>
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Quick Actions</h2>
+        <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-gray-200">
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900">Quick Actions</h2>
         </div>
         <CardContent>
-          <div className="flex flex-wrap gap-4">
+          <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-3 sm:gap-4">
             <Link
               to="/sync"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center justify-center sm:justify-start gap-2 px-4 py-3 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors text-sm sm:text-base"
             >
               <RefreshCw className="w-4 h-4" />
               Start New Sync
             </Link>
             <Link
-              to="/players"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              <UserCircle className="w-4 h-4" />
-              Browse Players
-            </Link>
-            <Link
               to="/games"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              className="inline-flex items-center justify-center sm:justify-start gap-2 px-4 py-3 sm:py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 active:bg-gray-300 transition-colors text-sm sm:text-base"
             >
               <Gamepad2 className="w-4 h-4" />
               View Games
+            </Link>
+            <Link
+              to="/teams"
+              className="inline-flex items-center justify-center sm:justify-start gap-2 px-4 py-3 sm:py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 active:bg-gray-300 transition-colors text-sm sm:text-base"
+            >
+              <Users className="w-4 h-4" />
+              Browse Teams
             </Link>
           </div>
         </CardContent>

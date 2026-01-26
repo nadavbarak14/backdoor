@@ -1,23 +1,58 @@
 @import "tailwindcss";
 
 /* Custom base styles */
+html {
+  -webkit-tap-highlight-color: transparent;
+  scroll-behavior: smooth;
+}
+
 body {
   @apply bg-gray-50 text-gray-900 min-h-screen;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  @apply w-2;
+/* Improve touch targets */
+button, a {
+  touch-action: manipulation;
 }
 
-::-webkit-scrollbar-track {
-  @apply bg-gray-100;
+/* Scrollbar styling - hide on mobile */
+@media (max-width: 640px) {
+  ::-webkit-scrollbar {
+    display: none;
+  }
+
+  * {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }
 
-::-webkit-scrollbar-thumb {
-  @apply bg-gray-300 rounded-full;
+@media (min-width: 641px) {
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-100;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400;
+  }
 }
 
-::-webkit-scrollbar-thumb:hover {
-  @apply bg-gray-400;
+/* Safe area padding for mobile devices with notches */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }
