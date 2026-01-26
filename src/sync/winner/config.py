@@ -72,15 +72,15 @@ class WinnerConfig:
         default="https://stats.segevstats.com/realtimestat_heb/get_team_action.php?game_id={game_id}",
     )
 
-    # Scraping Endpoints
+    # Scraping Endpoints - use lang=en for English content
     player_url_template: str = field(
-        default="https://basket.co.il/player.asp?PlayerId={player_id}",
+        default="https://basket.co.il/player.asp?PlayerId={player_id}&lang=en",
     )
     team_url_template: str = field(
-        default="https://basket.co.il/team.asp?TeamId={team_id}",
+        default="https://basket.co.il/team.asp?TeamId={team_id}&lang=en",
     )
     results_url_template: str = field(
-        default="https://basket.co.il/results.asp?cYear={year}",
+        default="https://basket.co.il/results.asp?cYear={year}&lang=en",
     )
 
     # Rate Limiting

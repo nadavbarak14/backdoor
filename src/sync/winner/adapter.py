@@ -349,3 +349,42 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
                 continue
 
         return results
+
+    async def get_team_roster(
+        self, team_external_id: str
+    ) -> list[tuple[str, str, RawPlayerInfo | None]]:
+        """
+        Fetch team roster with player IDs and optionally bio data.
+
+        Returns list of tuples: (player_id, player_name, RawPlayerInfo or None).
+        The RawPlayerInfo may be None if fetching the profile fails.
+
+        Args:
+            team_external_id: External team identifier.
+
+        Returns:
+            List of (player_id, player_name, player_info) tuples.
+
+        Example:
+            >>> roster = await adapter.get_team_roster("100")
+            >>> for player_id, name, info in roster:
+            ...     print(f"{name}: {info.position if info else 'N/A'}")
+        """
+        results: list[tuple[str, str, RawPlayerInfo | None]] = []
+
+        try:
+            roster = self.scraper.fetch_team_roster(team_external_id)
+            for player in roster.players:
+                player_info: RawPlayerInfo | None = None
+                try:
+                    profile = self.scraper.fetch_player(player.player_id)
+                    player_info = self.mapper.map_player_info(profile)
+                except Exception:
+                    # Profile fetch failed, still include player with name
+                    pass
+                results.append((player.player_id, player.name, player_info))
+        except Exception:
+            # Roster fetch failed
+            pass
+
+        return results
