@@ -332,29 +332,31 @@ class TestAllPlayersHaveStats:
                 ), f"Player with {player.minutes_played}s played has no ID"
 
 
-class TestPlayerNameLimitation:
-    """Tests documenting that player names are NOT in boxscore API.
+class TestPlayerNameFromPbp:
+    """Tests documenting that player names come from PBP, not boxscore.
 
-    This is intentional - segevstats boxscore endpoint does not include
-    player names. Names must be fetched separately via the scraper.
+    The boxscore API doesn't include player names - only IDs.
+    Names must be extracted from PBP response and merged in.
+    See test_winner_real_player_names.py for full name tests.
     """
 
-    def test_player_names_are_empty(
+    def test_boxscore_alone_has_no_names(
         self, mapper: WinnerMapper, boxscore_fixture: dict
     ) -> None:
-        """Player names should be empty strings from boxscore API.
+        """Boxscore API alone does not contain player names.
 
-        This is expected behavior - names come from scraper, not boxscore.
+        Names must be extracted from PBP response using extract_player_roster()
+        and merged using enrich_boxscore_with_names().
         """
         boxscore = mapper.map_boxscore(boxscore_fixture)
 
         all_players = boxscore.home_players + boxscore.away_players
 
+        # Without PBP enrichment, names are empty
         for player in all_players:
-            # This documents the known limitation
             assert player.player_name == "", (
-                f"Unexpected player name '{player.player_name}' - "
-                "segevstats boxscore should not contain names"
+                f"Boxscore alone should not have names - "
+                f"use enrich_boxscore_with_names() to add them"
             )
 
 
