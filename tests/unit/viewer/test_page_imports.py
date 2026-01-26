@@ -88,7 +88,7 @@ def viewer_module_exists() -> bool:
 
 @pytest.mark.skipif(
     not streamlit_available() or not viewer_module_exists(),
-    reason="Streamlit not installed or viewer module replaced by React frontend"
+    reason="Streamlit not installed or viewer module replaced by React frontend",
 )
 class TestViewerComponentImports:
     """Test that viewer components can be imported."""
