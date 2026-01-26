@@ -14,6 +14,7 @@ Each page provides list and detail views for a specific entity type, with naviga
 | `2_Teams.py` | Team, TeamSeason | Browse teams, rosters, recent games |
 | `3_Players.py` | Player | Browse players, career history, game logs |
 | `4_Games.py` | Game | Browse games, box scores, play-by-play |
+| `5_Sync.py` | SyncLog | Start syncs with real-time progress, view history |
 
 ## Page Naming Convention
 
@@ -161,6 +162,33 @@ def show_detail_view(entity_id: str):
 
 **Links to:** Teams, Players
 
+---
+
+### 5_Sync.py
+
+**Start Sync Tab:**
+- Source selection dropdown (winner, etc.)
+- Season ID text input
+- Include PBP checkbox
+- Start button triggers SSE streaming sync
+- Real-time progress bar and event log
+- Shows synced/error events as they happen
+
+**History Tab:**
+- Recent sync logs with expandable details
+- Status, records created/skipped, duration
+- Error messages for failed syncs
+
+**Sidebar:**
+- API status check (connected/disconnected)
+- Shows available sources and their status
+
+**Requirements:**
+- API server must be running (`uv run uvicorn src.main:app`)
+- Streams from `POST /api/v1/sync/{source}/season/{season_id}/stream`
+
+**Links to:** None (standalone utility page)
+
 ## URL Parameters
 
 Each page responds to query parameters:
@@ -171,6 +199,7 @@ Each page responds to query parameters:
 | Teams | `season_id`, `league_id` | `team_id` |
 | Players | `season_id`, `team_id`, `position` | `player_id` |
 | Games | `season_id`, `team_id`, `status` | `game_id` |
+| Sync | - | - |
 
 ## Data Loading Pattern
 
