@@ -196,10 +196,10 @@ class TestEuroleagueDirectClientLiveAPI:
 
     @pytest.fixture
     def boxscore_json(self):
-        """Load boxscore JSON fixture."""
+        """Load boxscore Live API JSON fixture."""
         import json
 
-        with open(FIXTURES_DIR / "boxscore.json") as f:
+        with open(FIXTURES_DIR / "boxscore_live.json") as f:
             return json.load(f)
 
     @patch.object(EuroleagueDirectClient, "_fetch_json")

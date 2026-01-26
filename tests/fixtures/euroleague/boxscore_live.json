@@ -1,0 +1,26 @@
+{
+  "Attendance": "11856",
+  "Referees": "RYZHYK, BORYS\nGARCIA-BELTRAN, JOSE\nGRADL, KLAUS PETER",
+  "CodeTeamA": "BER",
+  "CodeTeamB": "PAN",
+  "Stats": [
+    {
+      "Team": "A",
+      "PlayerId": "P008780",
+      "PlayerName": "HERMANNSSON, MARTIN",
+      "Minutes": "27:18",
+      "Points": 12,
+      "Assists": 9,
+      "Rebounds": 2
+    },
+    {
+      "Team": "B",
+      "PlayerId": "P012774",
+      "PlayerName": "NUNN, KENDRICK",
+      "Minutes": "32:13",
+      "Points": 16,
+      "Assists": 4,
+      "Rebounds": 3
+    }
+  ]
+}
