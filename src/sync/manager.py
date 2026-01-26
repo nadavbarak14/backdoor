@@ -30,6 +30,7 @@ Usage:
 """
 
 import traceback
+from collections.abc import AsyncGenerator
 from typing import Any
 from uuid import UUID
 
@@ -245,6 +246,173 @@ class SyncManager:
                 error_message=str(e),
                 error_details={"traceback": traceback.format_exc()},
             )
+
+    async def sync_season_with_progress(
+        self,
+        source: str,
+        season_external_id: str,
+        include_pbp: bool = True,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """
+        Sync all games for a season with progress events.
+
+        Async generator that yields progress events during the sync.
+        Use this method for streaming endpoints that need real-time feedback.
+
+        Args:
+            source: The data source name (e.g., "winner").
+            season_external_id: External ID of the season to sync.
+            include_pbp: Whether to sync play-by-play data.
+
+        Yields:
+            Dict with event data for SSE streaming:
+            - start: {"event": "start", "phase": "games", "total": N}
+            - progress: {"event": "progress", "current": N, "total": M, "game_id": "X", "status": "syncing"}
+            - synced: {"event": "synced", "game_id": "X"}
+            - error: {"event": "error", "game_id": "X", "error": "message"}
+            - complete: {"event": "complete", "sync_log": {...}}
+
+        Example:
+            >>> async for event in manager.sync_season_with_progress("winner", "2024-25"):
+            ...     print(f"{event['event']}: {event}")
+        """
+        adapter = self._get_adapter(source)
+
+        # Find or create internal season
+        season = self._get_or_create_season(source, season_external_id)
+
+        # Start sync log
+        sync_log = self.sync_log_service.start_sync(
+            source=source,
+            entity_type="season",
+            season_id=season.id,
+        )
+
+        records_processed = 0
+        records_created = 0
+        records_updated = 0
+        records_skipped = 0
+
+        try:
+            # Sync teams first
+            await self._sync_teams_for_season(adapter, season, source)
+
+            # Get schedule
+            games = await adapter.get_schedule(season_external_id)
+
+            # Filter to final games
+            final_games = [g for g in games if adapter.is_game_final(g)]
+
+            # Get unsynced games
+            all_external_ids = [g.external_id for g in final_games]
+            unsynced_ids = self.tracker.get_unsynced_games(source, all_external_ids)
+            unsynced_games = [g for g in final_games if g.external_id in unsynced_ids]
+
+            records_skipped = len(final_games) - len(unsynced_games)
+            records_processed = len(final_games)
+
+            # Emit start event
+            yield {
+                "event": "start",
+                "phase": "games",
+                "total": len(unsynced_games),
+                "skipped": records_skipped,
+            }
+
+            # Sync each unsynced game
+            for idx, raw_game in enumerate(unsynced_games, start=1):
+                # Emit progress event
+                yield {
+                    "event": "progress",
+                    "current": idx,
+                    "total": len(unsynced_games),
+                    "game_id": raw_game.external_id,
+                    "status": "syncing",
+                }
+
+                try:
+                    game = self.game_syncer.sync_game(raw_game, season.id, source)
+
+                    # Sync box score
+                    boxscore = await adapter.get_game_boxscore(raw_game.external_id)
+                    self.game_syncer.sync_boxscore(boxscore, game, source)
+
+                    # Sync PBP if requested
+                    if include_pbp:
+                        try:
+                            pbp_events = await adapter.get_game_pbp(
+                                raw_game.external_id
+                            )
+                            self.game_syncer.sync_pbp(pbp_events, game, source)
+                        except Exception:
+                            # PBP is optional, don't fail the whole sync
+                            pass
+
+                    # Mark as synced
+                    self.tracker.mark_game_synced(source, raw_game.external_id, game.id)
+                    records_created += 1
+                    self.db.commit()
+
+                    # Emit synced event
+                    yield {
+                        "event": "synced",
+                        "game_id": raw_game.external_id,
+                    }
+
+                except Exception as e:
+                    # Log error but continue with other games
+                    self.db.rollback()
+                    records_skipped += 1
+
+                    # Emit error event
+                    yield {
+                        "event": "error",
+                        "game_id": raw_game.external_id,
+                        "error": str(e),
+                    }
+
+            # Complete sync log
+            final_sync_log = self.sync_log_service.complete_sync(
+                sync_id=sync_log.id,
+                records_processed=records_processed,
+                records_created=records_created,
+                records_updated=records_updated,
+                records_skipped=records_skipped,
+            )
+
+            # Emit complete event
+            yield {
+                "event": "complete",
+                "sync_log": {
+                    "id": str(final_sync_log.id),
+                    "status": final_sync_log.status,
+                    "records_processed": final_sync_log.records_processed,
+                    "records_created": final_sync_log.records_created,
+                    "records_updated": final_sync_log.records_updated,
+                    "records_skipped": final_sync_log.records_skipped,
+                },
+            }
+
+        except Exception as e:
+            self.db.rollback()
+            failed_sync_log = self.sync_log_service.fail_sync(
+                sync_id=sync_log.id,
+                error_message=str(e),
+                error_details={"traceback": traceback.format_exc()},
+            )
+
+            # Emit error event for fatal failure
+            yield {
+                "event": "complete",
+                "sync_log": {
+                    "id": str(failed_sync_log.id),
+                    "status": failed_sync_log.status,
+                    "error_message": failed_sync_log.error_message,
+                    "records_processed": failed_sync_log.records_processed,
+                    "records_created": failed_sync_log.records_created,
+                    "records_skipped": failed_sync_log.records_skipped,
+                },
+            }
 
     async def sync_game(
         self,

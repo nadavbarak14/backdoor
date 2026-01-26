@@ -9,6 +9,7 @@ Endpoints:
     GET /sync/logs - Get sync operation history with filters
     GET /sync/status - Get current sync status for all sources
     POST /sync/{source}/season/{season_id} - Trigger sync for a season
+    POST /sync/{source}/season/{season_id}/stream - Stream sync progress via SSE
     POST /sync/{source}/game/{game_id} - Trigger sync for a single game
     POST /sync/{source}/teams/{season_id} - Sync team rosters for a season
 
@@ -18,10 +19,13 @@ Usage:
     app.include_router(router, prefix="/api/v1")
 """
 
+import json
+from collections.abc import AsyncGenerator
 from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from src.core import get_db
@@ -307,6 +311,113 @@ async def sync_season(
         error_details=sync_log.error_details,
         started_at=sync_log.started_at,
         completed_at=sync_log.completed_at,
+    )
+
+
+async def _format_sse_events(
+    manager: "SyncManager",
+    source: str,
+    season_id: str,
+    include_pbp: bool,
+) -> AsyncGenerator[str, None]:
+    """
+    Format sync progress events as Server-Sent Events.
+
+    Args:
+        manager: SyncManager instance.
+        source: Data source name.
+        season_id: External season identifier.
+        include_pbp: Whether to sync play-by-play data.
+
+    Yields:
+        SSE-formatted strings for streaming response.
+    """
+    async for event in manager.sync_season_with_progress(
+        source=source,
+        season_external_id=season_id,
+        include_pbp=include_pbp,
+    ):
+        event_type = event.get("event", "message")
+        data = json.dumps(event)
+        yield f"event: {event_type}\ndata: {data}\n\n"
+
+
+@router.post(
+    "/{source}/season/{season_id}/stream",
+    summary="Stream Season Sync Progress",
+    description="Trigger sync for a season with real-time progress via SSE.",
+    responses={
+        200: {
+            "description": "SSE stream of sync progress events",
+            "content": {"text/event-stream": {}},
+        }
+    },
+)
+async def sync_season_stream(
+    source: str,
+    season_id: str,
+    include_pbp: bool = Query(
+        default=True,
+        description="Whether to sync play-by-play data",
+    ),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """
+    Trigger sync for a season with streaming progress.
+
+    Returns a Server-Sent Events stream with real-time progress updates.
+    Each event contains JSON data about the current sync state.
+
+    Event types:
+    - start: Sync has started, includes total game count
+    - progress: Currently syncing a game
+    - synced: A game was successfully synced
+    - error: A game failed to sync (sync continues)
+    - complete: Sync finished, includes final summary
+
+    Args:
+        source: Data source name (e.g., "winner", "euroleague").
+        season_id: External season identifier (e.g., "2024-25").
+        include_pbp: Whether to sync play-by-play data.
+        db: Database session (injected).
+
+    Returns:
+        StreamingResponse with text/event-stream content type.
+
+    Raises:
+        HTTPException: If source is not found or not enabled.
+
+    Example:
+        >>> # Using curl with streaming
+        >>> curl -N -X POST "http://localhost:8000/api/v1/sync/winner/season/2024-25/stream"
+        event: start
+        data: {"event": "start", "phase": "games", "total": 120, "skipped": 50}
+
+        event: progress
+        data: {"event": "progress", "current": 1, "total": 70, "game_id": "12345", "status": "syncing"}
+
+        event: synced
+        data: {"event": "synced", "game_id": "12345"}
+
+        event: complete
+        data: {"event": "complete", "sync_log": {"id": "uuid", "status": "COMPLETED", ...}}
+    """
+    manager = _get_sync_manager(db)
+
+    # Validate source upfront
+    try:
+        manager._get_adapter(source)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return StreamingResponse(
+        _format_sse_events(manager, source, season_id, include_pbp),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 
