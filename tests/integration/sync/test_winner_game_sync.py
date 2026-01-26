@@ -77,7 +77,11 @@ def season(test_db: Session, league: League) -> Season:
 def all_teams(test_db: Session, games_all_response: list) -> dict[str, Team]:
     """Create all teams from the fixture data."""
     # Extract from API response (it's wrapped in a list)
-    data = games_all_response[0] if isinstance(games_all_response, list) else games_all_response
+    data = (
+        games_all_response[0]
+        if isinstance(games_all_response, list)
+        else games_all_response
+    )
     games = data.get("games", [])
 
     teams_dict: dict[str, Team] = {}
@@ -151,7 +155,11 @@ class TestSyncCurrentSeasonGames:
     ) -> None:
         """Test full sync creates expected number of games."""
         # Extract games from response
-        data = games_all_response[0] if isinstance(games_all_response, list) else games_all_response
+        data = (
+            games_all_response[0]
+            if isinstance(games_all_response, list)
+            else games_all_response
+        )
         raw_games = data.get("games", [])
 
         # Map and sync each game
@@ -173,7 +181,11 @@ class TestSyncCurrentSeasonGames:
         games_all_response: list,
     ) -> None:
         """Test fixture contains multiple games for meaningful test."""
-        data = games_all_response[0] if isinstance(games_all_response, list) else games_all_response
+        data = (
+            games_all_response[0]
+            if isinstance(games_all_response, list)
+            else games_all_response
+        )
         games = data.get("games", [])
 
         # Fixture should have at least several games
@@ -193,7 +205,11 @@ class TestSyncGamesHaveValidDates:
         test_db: Session,
     ) -> None:
         """Test that no game dates fall back to today's date."""
-        data = games_all_response[0] if isinstance(games_all_response, list) else games_all_response
+        data = (
+            games_all_response[0]
+            if isinstance(games_all_response, list)
+            else games_all_response
+        )
         raw_games = data.get("games", [])
 
         today = datetime.now().date()
@@ -217,7 +233,11 @@ class TestSyncGamesHaveValidDates:
         games_all_response: list,
     ) -> None:
         """Test parsed dates match the API game_date_txt values."""
-        data = games_all_response[0] if isinstance(games_all_response, list) else games_all_response
+        data = (
+            games_all_response[0]
+            if isinstance(games_all_response, list)
+            else games_all_response
+        )
         raw_games = data.get("games", [])
 
         for game_data in raw_games:
@@ -245,7 +265,11 @@ class TestSyncGamesHaveValidDates:
         test_db: Session,
     ) -> None:
         """Test all game dates fall within expected season range."""
-        data = games_all_response[0] if isinstance(games_all_response, list) else games_all_response
+        data = (
+            games_all_response[0]
+            if isinstance(games_all_response, list)
+            else games_all_response
+        )
         raw_games = data.get("games", [])
 
         # 2025-26 season should have games between Sep 2025 and Jun 2026
@@ -256,12 +280,12 @@ class TestSyncGamesHaveValidDates:
             raw_game = winner_mapper.map_game(game_data)
             game_date = raw_game.game_date.date()
 
-            assert game_date >= earliest_expected, (
-                f"Game date {game_date} is before season start {earliest_expected}"
-            )
-            assert game_date <= latest_expected, (
-                f"Game date {game_date} is after season end {latest_expected}"
-            )
+            assert (
+                game_date >= earliest_expected
+            ), f"Game date {game_date} is before season start {earliest_expected}"
+            assert (
+                game_date <= latest_expected
+            ), f"Game date {game_date} is after season end {latest_expected}"
 
 
 class TestSyncGamesHaveValidTeams:
@@ -277,7 +301,11 @@ class TestSyncGamesHaveValidTeams:
         test_db: Session,
     ) -> None:
         """Test all synced games have a valid home team."""
-        data = games_all_response[0] if isinstance(games_all_response, list) else games_all_response
+        data = (
+            games_all_response[0]
+            if isinstance(games_all_response, list)
+            else games_all_response
+        )
         raw_games = data.get("games", [])
 
         for game_data in raw_games:
@@ -286,7 +314,9 @@ class TestSyncGamesHaveValidTeams:
 
             assert synced_game.home_team_id is not None
             # Verify team exists
-            home_team = test_db.query(Team).filter_by(id=synced_game.home_team_id).first()
+            home_team = (
+                test_db.query(Team).filter_by(id=synced_game.home_team_id).first()
+            )
             assert home_team is not None
 
         test_db.commit()
@@ -301,7 +331,11 @@ class TestSyncGamesHaveValidTeams:
         test_db: Session,
     ) -> None:
         """Test all synced games have a valid away team."""
-        data = games_all_response[0] if isinstance(games_all_response, list) else games_all_response
+        data = (
+            games_all_response[0]
+            if isinstance(games_all_response, list)
+            else games_all_response
+        )
         raw_games = data.get("games", [])
 
         for game_data in raw_games:
@@ -310,7 +344,9 @@ class TestSyncGamesHaveValidTeams:
 
             assert synced_game.away_team_id is not None
             # Verify team exists
-            away_team = test_db.query(Team).filter_by(id=synced_game.away_team_id).first()
+            away_team = (
+                test_db.query(Team).filter_by(id=synced_game.away_team_id).first()
+            )
             assert away_team is not None
 
         test_db.commit()
@@ -325,16 +361,20 @@ class TestSyncGamesHaveValidTeams:
         test_db: Session,
     ) -> None:
         """Test home and away teams are different for each game."""
-        data = games_all_response[0] if isinstance(games_all_response, list) else games_all_response
+        data = (
+            games_all_response[0]
+            if isinstance(games_all_response, list)
+            else games_all_response
+        )
         raw_games = data.get("games", [])
 
         for game_data in raw_games:
             raw_game = winner_mapper.map_game(game_data)
             synced_game = game_syncer.sync_game(raw_game, season.id, "winner")
 
-            assert synced_game.home_team_id != synced_game.away_team_id, (
-                f"Game has same home and away team: {synced_game.home_team_id}"
-            )
+            assert (
+                synced_game.home_team_id != synced_game.away_team_id
+            ), f"Game has same home and away team: {synced_game.home_team_id}"
 
         test_db.commit()
 
@@ -352,7 +392,11 @@ class TestResyncIsIdempotent:
         test_db: Session,
     ) -> None:
         """Test syncing twice produces same game count."""
-        data = games_all_response[0] if isinstance(games_all_response, list) else games_all_response
+        data = (
+            games_all_response[0]
+            if isinstance(games_all_response, list)
+            else games_all_response
+        )
         raw_games = data.get("games", [])
 
         # First sync
@@ -383,7 +427,11 @@ class TestResyncIsIdempotent:
         test_db: Session,
     ) -> None:
         """Test re-syncing preserves existing game UUIDs."""
-        data = games_all_response[0] if isinstance(games_all_response, list) else games_all_response
+        data = (
+            games_all_response[0]
+            if isinstance(games_all_response, list)
+            else games_all_response
+        )
         raw_games = data.get("games", [])
 
         # First sync - collect game IDs
@@ -415,7 +463,11 @@ class TestResyncIsIdempotent:
         test_db: Session,
     ) -> None:
         """Test three syncs still produce consistent results."""
-        data = games_all_response[0] if isinstance(games_all_response, list) else games_all_response
+        data = (
+            games_all_response[0]
+            if isinstance(games_all_response, list)
+            else games_all_response
+        )
         raw_games = data.get("games", [])
 
         # Sync three times
@@ -443,7 +495,11 @@ class TestSyncGamesHaveCorrectScores:
         test_db: Session,
     ) -> None:
         """Test completed games have both scores populated."""
-        data = games_all_response[0] if isinstance(games_all_response, list) else games_all_response
+        data = (
+            games_all_response[0]
+            if isinstance(games_all_response, list)
+            else games_all_response
+        )
         raw_games = data.get("games", [])
 
         for game_data in raw_games:
@@ -472,7 +528,11 @@ class TestSyncGamesHaveCorrectScores:
         test_db: Session,
     ) -> None:
         """Test synced scores match API response values."""
-        data = games_all_response[0] if isinstance(games_all_response, list) else games_all_response
+        data = (
+            games_all_response[0]
+            if isinstance(games_all_response, list)
+            else games_all_response
+        )
         raw_games = data.get("games", [])
 
         for game_data in raw_games:
@@ -497,7 +557,11 @@ class TestExtractTeamsFromGamesAll:
         games_all_response: list,
     ) -> None:
         """Test all unique teams are extracted from games."""
-        data = games_all_response[0] if isinstance(games_all_response, list) else games_all_response
+        data = (
+            games_all_response[0]
+            if isinstance(games_all_response, list)
+            else games_all_response
+        )
 
         teams = winner_mapper.extract_teams_from_games(data)
 
@@ -515,7 +579,11 @@ class TestExtractTeamsFromGamesAll:
         games_all_response: list,
     ) -> None:
         """Test no duplicate teams in extracted list."""
-        data = games_all_response[0] if isinstance(games_all_response, list) else games_all_response
+        data = (
+            games_all_response[0]
+            if isinstance(games_all_response, list)
+            else games_all_response
+        )
 
         teams = winner_mapper.extract_teams_from_games(data)
 
