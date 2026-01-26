@@ -66,10 +66,10 @@ class WinnerConfig:
         default="https://basket.co.il/pbp/json/games_all.json",
     )
     boxscore_url_template: str = field(
-        default="https://segevstats.com/get_team_score.php?game_id={game_id}",
+        default="https://stats.segevstats.com/realtimestat_heb/get_team_score.php?game_id={game_id}",
     )
     pbp_url_template: str = field(
-        default="https://segevstats.com/get_team_action.php?game_id={game_id}",
+        default="https://stats.segevstats.com/realtimestat_heb/get_team_action.php?game_id={game_id}",
     )
 
     # Scraping Endpoints
