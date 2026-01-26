@@ -250,3 +250,46 @@ class SyncStatusResponse(BaseModel):
 
     sources: list[SyncSourceStatus]
     total_running_syncs: int = 0
+
+
+class SyncProgressEvent(BaseModel):
+    """
+    Schema for a sync progress event in SSE streaming.
+
+    Used for real-time progress reporting during season syncs.
+
+    Attributes:
+        event: Type of event (start, progress, synced, error, complete).
+        phase: Current sync phase (teams, games).
+        current: Current game index (1-indexed).
+        total: Total number of games to sync.
+        game_id: External ID of the current game.
+        status: Status of the current operation (syncing, synced, error).
+        error: Error message if status is error.
+        sync_log: Final sync log summary (only for complete event).
+
+    Example:
+        >>> event = SyncProgressEvent(
+        ...     event="progress",
+        ...     phase="games",
+        ...     current=5,
+        ...     total=120,
+        ...     game_id="12345",
+        ...     status="syncing"
+        ... )
+    """
+
+    event: str = Field(
+        description="Event type: start, progress, synced, error, complete"
+    )
+    phase: str | None = Field(default=None, description="Current phase: teams, games")
+    current: int | None = Field(
+        default=None, description="Current game index (1-indexed)"
+    )
+    total: int | None = Field(default=None, description="Total games to sync")
+    game_id: str | None = Field(default=None, description="External game ID")
+    status: str | None = Field(default=None, description="Operation status")
+    error: str | None = Field(default=None, description="Error message if failed")
+    sync_log: dict[str, Any] | None = Field(
+        default=None, description="Final sync log summary"
+    )

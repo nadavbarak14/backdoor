@@ -363,6 +363,136 @@ curl -X POST "http://localhost:8000/api/v1/sync/winner/season/2024-25?include_pb
 
 ---
 
+## Stream Season Sync (SSE)
+
+Trigger sync for a season with real-time progress updates via Server-Sent Events.
+
+```
+POST /api/v1/sync/{source}/season/{season_id}/stream
+```
+
+### Path Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| source | string | Data source name (e.g., "winner", "euroleague") |
+| season_id | string | External season identifier (e.g., "2024-25") |
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| include_pbp | boolean | true | Whether to sync play-by-play data |
+
+### Response
+
+Returns a `text/event-stream` response with Server-Sent Events.
+
+### SSE Event Types
+
+| Event | Description | Data Fields |
+|-------|-------------|-------------|
+| start | Sync has begun | phase, total, skipped |
+| progress | Currently syncing a game | current, total, game_id, status |
+| synced | A game was successfully synced | game_id |
+| error | A game failed to sync (sync continues) | game_id, error |
+| complete | Sync finished | sync_log (summary) |
+
+### SSE Event Format
+
+```
+event: start
+data: {"event": "start", "phase": "games", "total": 70, "skipped": 50}
+
+event: progress
+data: {"event": "progress", "current": 1, "total": 70, "game_id": "12345", "status": "syncing"}
+
+event: synced
+data: {"event": "synced", "game_id": "12345"}
+
+event: error
+data: {"event": "error", "game_id": "12346", "error": "Failed to fetch boxscore"}
+
+event: progress
+data: {"event": "progress", "current": 2, "total": 70, "game_id": "12347", "status": "syncing"}
+
+event: synced
+data: {"event": "synced", "game_id": "12347"}
+
+event: complete
+data: {"event": "complete", "sync_log": {"id": "uuid", "status": "COMPLETED", "records_processed": 120, "records_created": 70, "records_updated": 0, "records_skipped": 50}}
+```
+
+### Example
+
+```bash
+# Stream sync progress with curl (-N disables buffering)
+curl -N -X POST "http://localhost:8000/api/v1/sync/winner/season/2024-25/stream"
+
+# Without PBP for faster sync
+curl -N -X POST "http://localhost:8000/api/v1/sync/winner/season/2024-25/stream?include_pbp=false"
+```
+
+### JavaScript Example
+
+```javascript
+const eventSource = new EventSource('/api/v1/sync/winner/season/2024-25/stream', {
+  method: 'POST'
+});
+
+eventSource.addEventListener('start', (e) => {
+  const data = JSON.parse(e.data);
+  console.log(`Starting sync of ${data.total} games`);
+});
+
+eventSource.addEventListener('progress', (e) => {
+  const data = JSON.parse(e.data);
+  console.log(`Syncing game ${data.current}/${data.total}: ${data.game_id}`);
+});
+
+eventSource.addEventListener('synced', (e) => {
+  const data = JSON.parse(e.data);
+  console.log(`Synced: ${data.game_id}`);
+});
+
+eventSource.addEventListener('error', (e) => {
+  const data = JSON.parse(e.data);
+  console.error(`Error syncing ${data.game_id}: ${data.error}`);
+});
+
+eventSource.addEventListener('complete', (e) => {
+  const data = JSON.parse(e.data);
+  console.log('Sync complete:', data.sync_log);
+  eventSource.close();
+});
+```
+
+### Python Example (httpx)
+
+```python
+import httpx
+
+with httpx.stream(
+    "POST",
+    "http://localhost:8000/api/v1/sync/winner/season/2024-25/stream",
+    params={"include_pbp": False}
+) as response:
+    for line in response.iter_lines():
+        if line.startswith("data: "):
+            import json
+            event = json.loads(line[6:])
+            print(f"{event['event']}: {event}")
+```
+
+### Notes
+
+- Use `-N` flag with curl to disable buffering
+- The sync continues even if individual games fail (errors are reported via error events)
+- The complete event always contains a sync_log summary, even on failure
+- Headers include `Cache-Control: no-cache` and `X-Accel-Buffering: no` for proper streaming
+
+---
+
 ## Sync Game
 
 Trigger sync for a single game.
