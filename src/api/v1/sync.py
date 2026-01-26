@@ -59,23 +59,64 @@ def _get_sync_manager(db: Session) -> SyncManager:
     Returns:
         Configured SyncManager instance.
     """
+    from src.sync.euroleague import (
+        EuroleagueClient,
+        EuroleagueDirectClient,
+    )
+    from src.sync.euroleague.adapter import EuroleagueAdapter
+    from src.sync.euroleague.mapper import EuroleagueMapper
+    from src.sync.ibasketball import (
+        IBasketballApiClient,
+        IBasketballMapper,
+        IBasketballScraper,
+    )
+    from src.sync.ibasketball.adapter import IBasketballAdapter
+    from src.sync.nba import NBAClient, NBAConfig, NBAMapper
+    from src.sync.nba.adapter import NBAAdapter
     from src.sync.winner import WinnerClient, WinnerScraper
     from src.sync.winner.adapter import WinnerAdapter
     from src.sync.winner.mapper import WinnerMapper
 
     # Initialize Winner adapter
-    client = WinnerClient(db)
-    scraper = WinnerScraper(db)
-    mapper = WinnerMapper()
-    winner_adapter = WinnerAdapter(client, scraper, mapper)
+    winner_client = WinnerClient(db)
+    winner_scraper = WinnerScraper(db)
+    winner_mapper = WinnerMapper()
+    winner_adapter = WinnerAdapter(winner_client, winner_scraper, winner_mapper)
+
+    # Initialize Euroleague adapter
+    euroleague_client = EuroleagueClient(db)
+    euroleague_direct_client = EuroleagueDirectClient(db)
+    euroleague_mapper = EuroleagueMapper()
+    euroleague_adapter = EuroleagueAdapter(
+        euroleague_client, euroleague_direct_client, euroleague_mapper
+    )
+
+    # Initialize iBasketball adapter
+    ibasketball_client = IBasketballApiClient(db)
+    ibasketball_mapper = IBasketballMapper()
+    ibasketball_scraper = IBasketballScraper(db)
+    ibasketball_adapter = IBasketballAdapter(
+        ibasketball_client, ibasketball_mapper, ibasketball_scraper
+    )
+
+    # Initialize NBA adapter
+    nba_config = NBAConfig()
+    nba_client = NBAClient(nba_config)
+    nba_mapper = NBAMapper()
+    nba_adapter = NBAAdapter(nba_client, nba_mapper, nba_config)
 
     # Create config
     config = SyncConfig.from_settings()
 
-    # Create manager
+    # Create manager with all adapters
     return SyncManager(
         db=db,
-        adapters={"winner": winner_adapter},
+        adapters={
+            "winner": winner_adapter,
+            "euroleague": euroleague_adapter,
+            "ibasketball": ibasketball_adapter,
+            "nba": nba_adapter,
+        },
         config=config,
     )
 
