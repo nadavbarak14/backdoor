@@ -31,7 +31,7 @@ export function CardHeader({
   className?: string;
 }) {
   return (
-    <div className={`px-6 py-4 border-b border-gray-200 ${className}`}>
+    <div className={`px-4 py-3 sm:px-6 sm:py-4 border-b border-gray-200 ${className}`}>
       {children}
     </div>
   );
@@ -44,7 +44,7 @@ export function CardContent({
   children: ReactNode;
   className?: string;
 }) {
-  return <div className={`px-6 py-4 ${className}`}>{children}</div>;
+  return <div className={`px-4 py-3 sm:px-6 sm:py-4 ${className}`}>{children}</div>;
 }
 
 // Loading spinner
@@ -102,9 +102,9 @@ export function StatCard({
   subtext?: string;
 }) {
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4">
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
+    <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
+      <p className="text-xs sm:text-sm text-gray-500">{label}</p>
+      <p className="text-xl sm:text-2xl font-bold text-gray-900">{value}</p>
       {subtext && <p className="text-xs text-gray-400 mt-1">{subtext}</p>}
     </div>
   );
@@ -312,7 +312,7 @@ export function TableHeader({
 }) {
   return (
     <th
-      className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${className}`}
+      className={`px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${className}`}
     >
       {children}
     </th>
@@ -327,7 +327,7 @@ export function TableCell({
   className?: string;
 }) {
   return (
-    <td className={`px-6 py-4 whitespace-nowrap text-sm ${className}`}>
+    <td className={`px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm ${className}`}>
       {children}
     </td>
   );
@@ -346,22 +346,22 @@ export function Pagination({
   if (totalPages <= 1) return null;
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200">
-      <div className="text-sm text-gray-500">
-        Page {currentPage} of {totalPages}
+    <div className="flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3 bg-white border-t border-gray-200">
+      <div className="text-xs sm:text-sm text-gray-500">
+        {currentPage} / {totalPages}
       </div>
       <div className="flex gap-2">
         <button
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
-          className="p-2 rounded-lg border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+          className="p-2.5 sm:p-2 rounded-lg border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 active:bg-gray-100"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
         <button
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
-          className="p-2 rounded-lg border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+          className="p-2.5 sm:p-2 rounded-lg border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 active:bg-gray-100"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
