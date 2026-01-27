@@ -546,10 +546,14 @@ class EuroleagueMapper:
             except ValueError:
                 period = 1
 
-        # Get player name
+        # Get player info
         player_name = data.get("PLAYERNAME", data.get("playername"))
         if not player_name:
             player_name = data.get("PLAYER", data.get("player"))
+
+        player_external_id = data.get("PLAYER_ID", data.get("player_id"))
+        if player_external_id:
+            player_external_id = str(player_external_id).strip() or None
 
         # Get coordinates
         coord_x = data.get("COORD_X", data.get("coord_x"))
@@ -572,6 +576,7 @@ class EuroleagueMapper:
             period=period,
             clock=str(data.get("MARKERTIME", data.get("markertime", ""))),
             event_type=event_type,
+            player_external_id=player_external_id,
             player_name=player_name,
             team_external_id=str(data.get("TEAM", data.get("team", ""))) or None,
             success=success,
