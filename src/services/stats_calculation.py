@@ -111,9 +111,16 @@ class StatsCalculationService:
         if not game_stats:
             return None
 
-        # Aggregate totals
-        games_played = len(game_stats)
-        games_started = sum(1 for gs in game_stats if gs.is_starter)
+        # Filter out DNP games (0 minutes played) for games_played count and averages
+        games_with_minutes = [gs for gs in game_stats if gs.minutes_played > 0]
+
+        # If no games with actual playing time, don't create stats
+        if not games_with_minutes:
+            return None
+
+        # Aggregate totals (use all game stats for totals - they'll be 0 anyway for DNP)
+        games_played = len(games_with_minutes)
+        games_started = sum(1 for gs in games_with_minutes if gs.is_starter)
         total_minutes = sum(gs.minutes_played for gs in game_stats)
         total_points = sum(gs.points for gs in game_stats)
         total_fgm = sum(gs.field_goals_made for gs in game_stats)
