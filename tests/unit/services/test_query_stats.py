@@ -1441,3 +1441,494 @@ class TestGetRecentGamesWithLocationFilters:
         # Should only include game vs target opponent
         assert len(result) == 1
         assert result[0] == game_vs_target
+
+
+class TestLineupParamValidation:
+    """Tests for lineup parameter validation."""
+
+    def test_validate_lineup_params_valid(self):
+        """Test validation passes for valid lineup params."""
+        from src.services.query_stats import _validate_lineup_params
+
+        # discover_lineups=False, no validation needed
+        assert _validate_lineup_params(False, 5, 10.0, None, None) is None
+
+        # discover_lineups=True with team_id
+        assert _validate_lineup_params(True, 5, 10.0, None, "team-123") is None
+
+        # Valid lineup sizes
+        assert _validate_lineup_params(True, 2, 10.0, None, "team-123") is None
+        assert _validate_lineup_params(True, 3, 10.0, None, "team-123") is None
+        assert _validate_lineup_params(True, 5, 10.0, None, "team-123") is None
+
+    def test_validate_lineup_params_requires_team(self):
+        """Test validation fails when discover_lineups without team."""
+        from src.services.query_stats import _validate_lineup_params
+
+        result = _validate_lineup_params(True, 5, 10.0, None, None)
+        assert "team_id" in result
+
+    def test_validate_lineup_params_invalid_size(self):
+        """Test validation fails for invalid lineup size."""
+        from src.services.query_stats import _validate_lineup_params
+
+        # Too small
+        result = _validate_lineup_params(True, 1, 10.0, None, "team-123")
+        assert "between 2 and 5" in result
+
+        # Too large
+        result = _validate_lineup_params(True, 6, 10.0, None, "team-123")
+        assert "between 2 and 5" in result
+
+    def test_validate_lineup_params_negative_minutes(self):
+        """Test validation fails for negative min_minutes."""
+        from src.services.query_stats import _validate_lineup_params
+
+        result = _validate_lineup_params(True, 5, -1.0, None, "team-123")
+        assert "non-negative" in result
+
+
+class TestLeaderboardParamValidation:
+    """Tests for leaderboard parameter validation."""
+
+    def test_validate_leaderboard_params_valid(self):
+        """Test validation passes for valid leaderboard params."""
+        from src.services.query_stats import _validate_leaderboard_params
+
+        assert _validate_leaderboard_params(None, "desc", 5) is None
+        assert _validate_leaderboard_params("points", "desc", 5) is None
+        assert _validate_leaderboard_params("rebounds", "asc", 10) is None
+        assert _validate_leaderboard_params("fg_pct", "desc", 1) is None
+
+    def test_validate_leaderboard_params_invalid_order_by(self):
+        """Test validation fails for invalid order_by metric."""
+        from src.services.query_stats import _validate_leaderboard_params
+
+        result = _validate_leaderboard_params("invalid_metric", "desc", 5)
+        assert "order_by" in result
+
+    def test_validate_leaderboard_params_invalid_order(self):
+        """Test validation fails for invalid order direction."""
+        from src.services.query_stats import _validate_leaderboard_params
+
+        result = _validate_leaderboard_params("points", "invalid", 5)
+        assert "asc" in result and "desc" in result
+
+    def test_validate_leaderboard_params_invalid_min_games(self):
+        """Test validation fails for invalid min_games."""
+        from src.services.query_stats import _validate_leaderboard_params
+
+        result = _validate_leaderboard_params("points", "desc", 0)
+        assert "at least 1" in result
+
+
+class TestLineupStatsFormatting:
+    """Tests for lineup stats formatting."""
+
+    def test_format_lineup_stats_with_data(self):
+        """Test formatting lineup stats with data."""
+        from src.services.query_stats import _format_lineup_stats
+
+        lineup_stats = {
+            "games": 10,
+            "minutes": 150.5,
+            "team_pts": 200,
+            "opp_pts": 180,
+            "plus_minus": 20,
+        }
+
+        result = _format_lineup_stats(
+            lineup_stats, ["Player A", "Player B"], "2024-25"
+        )
+
+        assert "Player A" in result
+        assert "Player B" in result
+        assert "2024-25" in result
+        assert "150.5" in result
+        assert "+20" in result
+
+    def test_format_lineup_stats_no_games(self):
+        """Test formatting lineup stats with no data."""
+        from src.services.query_stats import _format_lineup_stats
+
+        lineup_stats = {"games": 0, "minutes": 0, "plus_minus": 0}
+
+        result = _format_lineup_stats(
+            lineup_stats, ["Player A", "Player B"], "2024-25"
+        )
+
+        assert "No games found" in result
+
+
+class TestBestLineupsFormatting:
+    """Tests for best lineups formatting."""
+
+    def test_format_best_lineups_with_data(self):
+        """Test formatting best lineups with data."""
+        from uuid import UUID
+
+        from src.services.query_stats import _format_best_lineups
+
+        mock_db = MagicMock()
+
+        # Create mock players
+        mock_player1 = MagicMock()
+        mock_player1.first_name = "John"
+        mock_player1.last_name = "Doe"
+
+        mock_player2 = MagicMock()
+        mock_player2.first_name = "Jane"
+        mock_player2.last_name = "Smith"
+
+        mock_db.get.side_effect = [mock_player1, mock_player2]
+
+        lineups = [
+            {
+                "player_ids": [UUID("12345678-1234-5678-1234-567812345678"),
+                               UUID("12345678-1234-5678-1234-567812345679")],
+                "minutes": 25.5,
+                "plus_minus": 15,
+                "team_pts": 50,
+                "opp_pts": 35,
+            }
+        ]
+
+        result = _format_best_lineups(lineups, mock_db, "Test Team", "2024-25", 2)
+
+        assert "Test Team" in result
+        assert "2024-25" in result
+        assert "J. Doe" in result
+        assert "J. Smith" in result
+        assert "+15" in result
+
+    def test_format_best_lineups_empty(self):
+        """Test formatting best lineups with no data."""
+        from src.services.query_stats import _format_best_lineups
+
+        mock_db = MagicMock()
+        result = _format_best_lineups([], mock_db, "Test Team", "2024-25", 5)
+
+        assert "No lineups found" in result
+
+
+class TestQueryLineupStats:
+    """Tests for _query_lineup_stats handler."""
+
+    def test_query_lineup_stats_insufficient_players(self):
+        """Test lineup stats with less than 2 players."""
+        from src.services.query_stats import _query_lineup_stats
+
+        mock_db = MagicMock()
+        mock_player = MagicMock()
+        mock_player.id = "player-123"
+        mock_season = MagicMock()
+
+        result = _query_lineup_stats(mock_db, [mock_player], mock_season)
+
+        assert "Error" in result
+        assert "at least 2 players" in result
+
+    def test_query_lineup_stats_calls_analytics(self):
+        """Test lineup stats calls AnalyticsService correctly."""
+        from src.services.query_stats import _query_lineup_stats
+
+        with patch("src.services.query_stats.AnalyticsService") as mock_analytics_cls:
+            mock_analytics = MagicMock()
+            mock_analytics.get_lineup_stats_for_season.return_value = {
+                "games": 5,
+                "minutes": 50.0,
+                "team_pts": 100,
+                "opp_pts": 90,
+                "plus_minus": 10,
+            }
+            mock_analytics_cls.return_value = mock_analytics
+
+            mock_db = MagicMock()
+            mock_player1 = MagicMock()
+            mock_player1.id = "player-1"
+            mock_player1.first_name = "John"
+            mock_player1.last_name = "Doe"
+
+            mock_player2 = MagicMock()
+            mock_player2.id = "player-2"
+            mock_player2.first_name = "Jane"
+            mock_player2.last_name = "Smith"
+
+            mock_season = MagicMock()
+            mock_season.id = "season-123"
+            mock_season.name = "2024-25"
+
+            result = _query_lineup_stats(
+                mock_db, [mock_player1, mock_player2], mock_season
+            )
+
+            mock_analytics.get_lineup_stats_for_season.assert_called_once()
+            assert "John Doe" in result
+            assert "Jane Smith" in result
+
+
+class TestQueryDiscoverLineups:
+    """Tests for _query_discover_lineups handler."""
+
+    def test_query_discover_lineups_no_games(self):
+        """Test lineup discovery with no games."""
+        from src.services.query_stats import _query_discover_lineups
+
+        with patch("src.services.query_stats._get_recent_games") as mock_get_games:
+            mock_get_games.return_value = []
+
+            mock_db = MagicMock()
+            mock_team = MagicMock()
+            mock_team.name = "Test Team"
+            mock_team.id = "team-123"
+            mock_season = MagicMock()
+            mock_season.name = "2024-25"
+
+            result = _query_discover_lineups(
+                mock_db, mock_team, mock_season, 5, 10.0, 10
+            )
+
+            assert "No games found" in result
+
+    def test_query_discover_lineups_aggregates_games(self):
+        """Test lineup discovery aggregates across games."""
+        from src.services.query_stats import _query_discover_lineups
+
+        with (
+            patch("src.services.query_stats._get_recent_games") as mock_get_games,
+            patch("src.services.query_stats.AnalyticsService") as mock_analytics_cls,
+            patch("src.services.query_stats._format_best_lineups") as mock_format,
+        ):
+            mock_game1 = MagicMock()
+            mock_game1.id = "game-1"
+            mock_game2 = MagicMock()
+            mock_game2.id = "game-2"
+            mock_get_games.return_value = [mock_game1, mock_game2]
+
+            mock_analytics = MagicMock()
+            # Same lineup in both games
+            mock_analytics.get_best_lineups.return_value = [
+                {
+                    "player_ids": ["p1", "p2", "p3", "p4", "p5"],
+                    "team_pts": 10,
+                    "opp_pts": 8,
+                    "plus_minus": 2,
+                    "minutes": 6.0,
+                }
+            ]
+            mock_analytics_cls.return_value = mock_analytics
+
+            mock_format.return_value = "Formatted lineups"
+
+            mock_db = MagicMock()
+            mock_team = MagicMock()
+            mock_team.name = "Test Team"
+            mock_team.id = "team-123"
+            mock_season = MagicMock()
+            mock_season.name = "2024-25"
+
+            _query_discover_lineups(mock_db, mock_team, mock_season, 5, 10.0, 10)
+
+            # Should have called get_best_lineups for each game
+            assert mock_analytics.get_best_lineups.call_count == 2
+
+
+class TestQueryLeaderboard:
+    """Tests for _query_leaderboard handler."""
+
+    def test_query_leaderboard_no_results(self):
+        """Test leaderboard with no qualifying players."""
+        from src.services.query_stats import _query_leaderboard
+
+        with patch(
+            "src.services.query_stats.PlayerSeasonStatsService"
+        ) as mock_service_cls:
+            mock_service = MagicMock()
+            mock_service.get_league_leaders.return_value = []
+            mock_service_cls.return_value = mock_service
+
+            mock_db = MagicMock()
+            mock_season = MagicMock()
+            mock_season.id = "season-123"
+            mock_season.name = "2024-25"
+
+            result = _query_leaderboard(
+                mock_db, None, mock_season, "points", "desc", 10,
+                ["points", "rebounds"], "game", 10
+            )
+
+            assert "No stats found" in result
+            assert "min 10 games" in result
+
+    def test_query_leaderboard_with_results(self):
+        """Test leaderboard with qualifying players."""
+        from src.services.query_stats import _query_leaderboard
+
+        with patch(
+            "src.services.query_stats.PlayerSeasonStatsService"
+        ) as mock_service_cls:
+            mock_service = MagicMock()
+            mock_stats = MagicMock()
+            mock_stats.player = MagicMock()
+            mock_stats.player.first_name = "Test"
+            mock_stats.player.last_name = "Player"
+            mock_stats.team = MagicMock()
+            mock_stats.team.short_name = "TST"
+            mock_stats.avg_points = 25.0
+            mock_stats.avg_rebounds = 10.0
+            mock_service.get_league_leaders.return_value = [mock_stats]
+            mock_service_cls.return_value = mock_service
+
+            mock_db = MagicMock()
+            mock_season = MagicMock()
+            mock_season.id = "season-123"
+            mock_season.name = "2024-25"
+
+            result = _query_leaderboard(
+                mock_db, None, mock_season, "points", "desc", 5,
+                ["points", "rebounds"], "game", 10
+            )
+
+            assert "Leaderboard" in result
+            assert "Test Player" in result
+            assert "descending" in result
+            assert "min 5 games" in result
+
+    def test_query_leaderboard_ascending(self):
+        """Test leaderboard with ascending order."""
+        from src.services.query_stats import _query_leaderboard
+
+        with patch(
+            "src.services.query_stats.PlayerSeasonStatsService"
+        ) as mock_service_cls:
+            mock_service = MagicMock()
+            mock_stats = MagicMock()
+            mock_stats.player = MagicMock()
+            mock_stats.player.first_name = "Test"
+            mock_stats.player.last_name = "Player"
+            mock_stats.team = MagicMock()
+            mock_stats.team.short_name = "TST"
+            mock_stats.avg_points = 5.0
+            mock_service.get_league_leaders.return_value = [mock_stats]
+            mock_service_cls.return_value = mock_service
+
+            mock_db = MagicMock()
+            mock_season = MagicMock()
+            mock_season.id = "season-123"
+            mock_season.name = "2024-25"
+
+            result = _query_leaderboard(
+                mock_db, None, mock_season, "points", "asc", 5,
+                ["points"], "game", 10
+            )
+
+            assert "ascending" in result
+
+
+class TestQueryStatsLineupMode:
+    """Tests for query_stats with lineup mode."""
+
+    def test_query_stats_two_players_triggers_lineup(self):
+        """Test that 2+ players triggers lineup mode."""
+        from src.services.query_stats import query_stats
+
+        with (
+            patch("src.services.query_stats._resolve_season") as mock_season,
+            patch("src.services.query_stats._get_entity_by_id") as mock_get_entity,
+            patch("src.services.query_stats._query_lineup_stats") as mock_lineup,
+        ):
+            mock_season.return_value = MagicMock()
+
+            mock_player1 = MagicMock()
+            mock_player2 = MagicMock()
+            mock_get_entity.side_effect = [mock_player1, mock_player2]
+            mock_lineup.return_value = "Lineup stats"
+
+            mock_db = MagicMock()
+            uuid1 = "12345678-1234-5678-1234-567812345678"
+            uuid2 = "12345678-1234-5678-1234-567812345679"
+
+            result = query_stats.func(player_ids=[uuid1, uuid2], db=mock_db)
+
+            mock_lineup.assert_called_once()
+            assert result == "Lineup stats"
+
+
+class TestQueryStatsLeaderboardMode:
+    """Tests for query_stats with leaderboard mode."""
+
+    def test_query_stats_order_by_triggers_leaderboard(self):
+        """Test that order_by without entity triggers leaderboard mode."""
+        from src.services.query_stats import query_stats
+
+        with (
+            patch("src.services.query_stats._resolve_season") as mock_season,
+            patch("src.services.query_stats._query_leaderboard") as mock_leaderboard,
+        ):
+            mock_season.return_value = MagicMock()
+            mock_leaderboard.return_value = "Leaderboard results"
+
+            mock_db = MagicMock()
+            result = query_stats.func(
+                order_by="points", min_games=10, db=mock_db
+            )
+
+            mock_leaderboard.assert_called_once()
+            assert result == "Leaderboard results"
+
+    def test_query_stats_order_by_with_team_not_leaderboard(self):
+        """Test that order_by with team_id doesn't trigger leaderboard."""
+        from src.services.query_stats import query_stats
+
+        with (
+            patch("src.services.query_stats._resolve_season") as mock_season,
+            patch("src.services.query_stats._get_entity_by_id") as mock_get_entity,
+            patch("src.services.query_stats._query_team_stats") as mock_team_stats,
+        ):
+            mock_season.return_value = MagicMock()
+            mock_team = MagicMock()
+            mock_get_entity.return_value = mock_team
+            mock_team_stats.return_value = "Team stats"
+
+            mock_db = MagicMock()
+            uuid = "12345678-1234-5678-1234-567812345678"
+
+            result = query_stats.func(
+                team_id=uuid, order_by="points", db=mock_db
+            )
+
+            # Should use team stats, not leaderboard
+            mock_team_stats.assert_called_once()
+            assert result == "Team stats"
+
+
+class TestQueryStatsDiscoverLineups:
+    """Tests for query_stats with discover_lineups mode."""
+
+    def test_query_stats_discover_lineups_triggers_mode(self):
+        """Test that discover_lineups=True triggers lineup discovery."""
+        from src.services.query_stats import query_stats
+
+        with (
+            patch("src.services.query_stats._resolve_season") as mock_season,
+            patch("src.services.query_stats._get_entity_by_id") as mock_get_entity,
+            patch("src.services.query_stats._query_discover_lineups") as mock_discover,
+        ):
+            mock_season.return_value = MagicMock()
+            mock_team = MagicMock()
+            mock_get_entity.return_value = mock_team
+            mock_discover.return_value = "Best lineups"
+
+            mock_db = MagicMock()
+            uuid = "12345678-1234-5678-1234-567812345678"
+
+            result = query_stats.func(
+                team_id=uuid,
+                discover_lineups=True,
+                lineup_size=3,
+                min_minutes=5.0,
+                db=mock_db
+            )
+
+            mock_discover.assert_called_once()
+            assert result == "Best lineups"
