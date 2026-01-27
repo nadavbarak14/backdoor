@@ -107,37 +107,100 @@ class PlayerSyncer:
         raw: RawPlayerStats,
         team_id: UUID,
         season_id: UUID,
+        source: str | None = None,
     ) -> Player | None:
         """
-        Find a roster player by jersey number for boxscore/PBP data.
+        Find or create a player from boxscore stats.
 
-        Players are ONLY created from rosters. Boxscore data just has
-        jersey numbers which we use to match to existing roster players.
-        We never create new players from boxscore data.
+        First tries to match by external_id if available (and source provided).
+        If not found and we have player name, creates the player.
+        Falls back to jersey number matching for roster-based sources.
 
         Args:
-            raw: Raw player stats from a box score (has jersey_number).
+            raw: Raw player stats from a box score.
             team_id: UUID of the team.
             season_id: UUID of the season.
+            source: Optional data source name for external_id matching.
 
         Returns:
-            The matched Player if found by jersey, None otherwise.
+            The matched or created Player, or None if cannot match/create.
 
         Example:
             >>> player = syncer.sync_player_from_stats(
             ...     raw=raw_player_stats,
             ...     team_id=team.id,
             ...     season_id=season.id,
+            ...     source="euroleague",
             ... )
         """
-        if not raw.jersey_number:
-            return None
+        # Try to find/create by external_id first (e.g., Euroleague)
+        if source and raw.player_external_id:
+            player = self.deduplicator.get_by_external_id(
+                source, raw.player_external_id
+            )
+            if player:
+                return player
 
-        return self.deduplicator.match_player_by_jersey(
-            team_id=team_id,
-            season_id=season_id,
-            jersey_number=raw.jersey_number,
+            # Create new player from boxscore data if we have a name
+            if raw.player_name:
+                return self._create_player_from_stats(
+                    raw, team_id, source, season_id
+                )
+
+        # Fall back to jersey matching (e.g., Winner league with rosters)
+        if raw.jersey_number:
+            return self.deduplicator.match_player_by_jersey(
+                team_id=team_id,
+                season_id=season_id,
+                jersey_number=raw.jersey_number,
+            )
+
+        return None
+
+    def _create_player_from_stats(
+        self,
+        raw: RawPlayerStats,
+        team_id: UUID,
+        source: str,
+        season_id: UUID | None = None,
+    ) -> Player:
+        """Create a new player from boxscore stats data."""
+        # Parse name (format: "LASTNAME, FIRSTNAME" or "FIRSTNAME LASTNAME")
+        name = raw.player_name or ""
+        first_name = ""
+        last_name = ""
+
+        if "," in name:
+            parts = name.split(",", 1)
+            last_name = parts[0].strip()
+            first_name = parts[1].strip() if len(parts) > 1 else ""
+        else:
+            parts = name.split()
+            if parts:
+                first_name = parts[0]
+                last_name = " ".join(parts[1:]) if len(parts) > 1 else ""
+
+        player = Player(
+            first_name=first_name,
+            last_name=last_name,
+            external_ids={source: raw.player_external_id},
         )
+        self.db.add(player)
+        self.db.flush()
+
+        # Create team history if we have season_id
+        if season_id:
+            from src.models.player import PlayerTeamHistory
+
+            history = PlayerTeamHistory(
+                player_id=player.id,
+                team_id=team_id,
+                season_id=season_id,
+            )
+            self.db.add(history)
+            self.db.flush()
+
+        return player
 
     def get_by_external_id(self, source: str, external_id: str) -> Player | None:
         """

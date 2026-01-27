@@ -358,12 +358,14 @@ class EuroleagueAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         # Get current season for the API call
         current_season = max(self.configured_seasons)
 
-        result = self.direct_client.fetch_player(external_id, current_season)
+        # The API expects player codes without the P prefix
+        player_code = external_id.lstrip("P")
 
-        # Add the external_id to the data if not present
+        result = self.direct_client.fetch_player(player_code, current_season)
+
+        # Add the external_id (with P prefix) to the data
         data = result.data
-        if "code" not in data:
-            data["code"] = external_id
+        data["code"] = external_id
 
         return self.mapper.map_player_info(data)
 

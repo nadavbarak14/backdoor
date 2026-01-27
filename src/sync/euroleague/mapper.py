@@ -349,9 +349,9 @@ class EuroleagueMapper:
         fg3a = data.get("FieldGoalsAttempted3", 0) or 0
 
         return RawPlayerStats(
-            player_external_id=str(data.get("Player_ID", "")),
+            player_external_id=str(data.get("Player_ID", "")).strip(),
             player_name=data.get("Player", ""),
-            team_external_id=str(data.get("Team", "")),
+            team_external_id=str(data.get("Team", "")).strip(),
             minutes_played=minutes_played,
             is_starter=bool(data.get("IsStarter", 0)),
             points=data.get("Points", 0) or 0,

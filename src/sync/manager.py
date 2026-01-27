@@ -226,7 +226,7 @@ class SyncManager:
 
                     # Sync box score
                     boxscore = await adapter.get_game_boxscore(raw_game.external_id)
-                    self.game_syncer.sync_boxscore(boxscore, game)
+                    self.game_syncer.sync_boxscore(boxscore, game, source=source)
 
                     # Sync PBP if requested
                     if include_pbp:
@@ -395,7 +395,7 @@ class SyncManager:
 
                     # Sync box score
                     boxscore = await adapter.get_game_boxscore(raw_game.external_id)
-                    self.game_syncer.sync_boxscore(boxscore, game)
+                    self.game_syncer.sync_boxscore(boxscore, game, source=source)
 
                     # Sync PBP if requested
                     if include_pbp:
@@ -552,7 +552,7 @@ class SyncManager:
             game = self.game_syncer.sync_game(raw_game, season.id, source)
 
             # Sync box score
-            self.game_syncer.sync_boxscore(boxscore, game)
+            self.game_syncer.sync_boxscore(boxscore, game, source=source)
 
             # Sync PBP if requested
             if include_pbp:

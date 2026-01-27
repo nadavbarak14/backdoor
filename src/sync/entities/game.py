@@ -137,23 +137,25 @@ class GameSyncer:
         self,
         raw: RawBoxScore,
         game: Game,
+        source: str | None = None,
     ) -> tuple[list[PlayerGameStats], list[TeamGameStats]]:
         """
         Sync box score data for a game.
 
         Creates PlayerGameStats for all players and TeamGameStats
-        for both teams. Players are matched by jersey number to roster.
+        for both teams. Players are matched by external_id or jersey number.
 
         Args:
             raw: Raw box score data from external source.
             game: The Game entity to sync stats for.
+            source: Optional data source name for player matching.
 
         Returns:
             Tuple of (player_stats, team_stats) lists.
 
         Example:
             >>> player_stats, team_stats = syncer.sync_boxscore(
-            ...     raw_boxscore, game
+            ...     raw_boxscore, game, source="euroleague"
             ... )
         """
         player_stats: list[PlayerGameStats] = []
@@ -167,6 +169,7 @@ class GameSyncer:
             raw.home_players,
             game=game,
             team_id=game.home_team_id,
+            source=source,
         )
         player_stats.extend(home_player_stats)
 
@@ -175,6 +178,7 @@ class GameSyncer:
             raw.away_players,
             game=game,
             team_id=game.away_team_id,
+            source=source,
         )
         player_stats.extend(away_player_stats)
 
@@ -332,20 +336,22 @@ class GameSyncer:
         player_stats: list[RawPlayerStats],
         game: Game,
         team_id: UUID,
+        source: str | None = None,
     ) -> list[PlayerGameStats]:
         """Sync player stats for one team."""
         result: list[PlayerGameStats] = []
 
         for raw in player_stats:
-            # Match player by jersey number to roster
+            # Match or create player from stats
             player = self.player_syncer.sync_player_from_stats(
                 raw=raw,
                 team_id=team_id,
                 season_id=game.season_id,
+                source=source,
             )
 
             if player is None:
-                # Player not in roster - skip their stats
+                # Could not match/create player - skip their stats
                 continue
 
             stats = PlayerGameStats(
