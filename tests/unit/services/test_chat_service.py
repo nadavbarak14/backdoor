@@ -13,7 +13,12 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from src.schemas.chat import ChatMessage
-from src.services.chat_service import BASKETBALL_SYSTEM_PROMPT, ChatService
+from src.services.chat_service import (
+    BASKETBALL_SYSTEM_PROMPT,
+    ChatService,
+    _session_store,
+    get_session_history,
+)
 
 
 class TestChatServiceMessageConversion:
@@ -83,6 +88,13 @@ class TestChatServiceMessageConversion:
 class TestChatServiceSessionManagement:
     """Tests for session management functionality."""
 
+    @pytest.fixture(autouse=True)
+    def clear_session_store(self):
+        """Clear the global session store before each test."""
+        _session_store.clear()
+        yield
+        _session_store.clear()
+
     @pytest.fixture
     def chat_service(self):
         """Create a ChatService with mocked LLM."""
@@ -102,8 +114,9 @@ class TestChatServiceSessionManagement:
         """Test that existing sessions are returned."""
         # Create session
         chat_service._get_session_messages("existing-session")
-        # Add a message manually
-        chat_service.sessions["existing-session"].append(HumanMessage(content="Test"))
+        # Add a message via the history object
+        history = get_session_history("existing-session")
+        history.add_message(HumanMessage(content="Test"))
 
         messages = chat_service._get_session_messages("existing-session")
 
@@ -117,7 +130,8 @@ class TestChatServiceSessionManagement:
 
         chat_service._update_session("session-123", user_messages, "Hi there!")
 
-        session = chat_service.sessions["session-123"]
+        history = get_session_history("session-123")
+        session = list(history.messages)
         assert len(session) == 3  # System + User + Assistant
         assert isinstance(session[1], HumanMessage)
         assert session[1].content == "Hello"
@@ -134,7 +148,8 @@ class TestChatServiceSessionManagement:
 
         chat_service._update_session("session-123", user_messages, "Hi!")
 
-        session = chat_service.sessions["session-123"]
+        history = get_session_history("session-123")
+        session = list(history.messages)
         # Should have: original system + user + assistant (not the user's system msg)
         assert len(session) == 3
         assert session[0].content == BASKETBALL_SYSTEM_PROMPT  # Original system
@@ -148,7 +163,7 @@ class TestChatServiceSessionManagement:
         result = chat_service.clear_session("session-to-clear")
 
         assert result is True
-        assert "session-to-clear" not in chat_service.sessions
+        assert "session-to-clear" not in _session_store
 
     def test_clear_session_returns_false_for_nonexistent(self, chat_service):
         """Test that clear_session returns False for nonexistent session."""
@@ -159,7 +174,8 @@ class TestChatServiceSessionManagement:
     def test_get_session_message_count_returns_count(self, chat_service):
         """Test that message count is correctly returned."""
         chat_service._get_session_messages("session-123")
-        chat_service.sessions["session-123"].append(HumanMessage(content="Test"))
+        history = get_session_history("session-123")
+        history.add_message(HumanMessage(content="Test"))
 
         count = chat_service.get_session_message_count("session-123")
 
@@ -174,6 +190,13 @@ class TestChatServiceSessionManagement:
 
 class TestChatServiceStreaming:
     """Tests for the streaming functionality."""
+
+    @pytest.fixture(autouse=True)
+    def clear_session_store(self):
+        """Clear the global session store before each test."""
+        _session_store.clear()
+        yield
+        _session_store.clear()
 
     @pytest.fixture
     def chat_service(self):
@@ -244,7 +267,8 @@ class TestChatServiceStreaming:
         async for _ in chat_service.stream(messages, "test-session"):
             pass
 
-        session = chat_service.sessions["test-session"]
+        history = get_session_history("test-session")
+        session = list(history.messages)
         # Session should have: system + user + assistant
         assert len(session) == 3
         assert isinstance(session[-1], AIMessage)

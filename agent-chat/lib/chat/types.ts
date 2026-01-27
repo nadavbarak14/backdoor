@@ -88,6 +88,8 @@ export interface ChatInputProps {
   disabled?: boolean;
   /** Placeholder text */
   placeholder?: string;
+  /** Handler for clearing the conversation (shows clear button when provided) */
+  onClear?: () => void;
 }
 
 /**

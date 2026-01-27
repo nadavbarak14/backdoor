@@ -142,13 +142,23 @@ class TestChatStream:
         assert response.status_code == 200
 
     def test_chat_stream_with_session_id(self, client, mock_chat_service):
-        """Test that chat stream accepts session_id parameter."""
+        """Test that chat stream accepts session_id parameter in body."""
         response = client.post(
             "/api/v1/chat/stream",
             json={
                 "messages": [{"role": "user", "content": "Hello"}],
                 "session_id": "test-session-123",
             },
+        )
+
+        assert response.status_code == 200
+
+    def test_chat_stream_with_x_session_id_header(self, client, mock_chat_service):
+        """Test that chat stream accepts X-Session-ID header."""
+        response = client.post(
+            "/api/v1/chat/stream",
+            json={"messages": [{"role": "user", "content": "Hello"}]},
+            headers={"X-Session-ID": "header-session-456"},
         )
 
         assert response.status_code == 200
