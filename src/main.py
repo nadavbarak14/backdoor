@@ -21,6 +21,10 @@ Endpoints:
 import logging
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from src.api.v1.router import router as api_v1_router
+from src.core import settings
 
 # Configure logging for token debugging
 logging.basicConfig(
@@ -30,10 +34,6 @@ logging.basicConfig(
 # Set our service loggers to INFO
 logging.getLogger("src.services.chat_service").setLevel(logging.INFO)
 logging.getLogger("src.services.chat_tools").setLevel(logging.INFO)
-from fastapi.middleware.cors import CORSMiddleware
-
-from src.api.v1.router import router as api_v1_router
-from src.core import settings
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
