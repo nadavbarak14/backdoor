@@ -4,9 +4,11 @@
  * Shows game information and full box score.
  */
 
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Calendar, MapPin } from 'lucide-react';
-import { useGame } from '../hooks/useApi';
+import { useGame, useGamePbp } from '../hooks/useApi';
+import type { PlayByPlayEvent } from '../types';
 import {
   Card,
   CardHeader,
@@ -123,13 +125,130 @@ function BoxScoreTable({
   );
 }
 
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  shot: 'Shot',
+  free_throw: 'Free Throw',
+  rebound: 'Rebound',
+  assist: 'Assist',
+  turnover: 'Turnover',
+  steal: 'Steal',
+  block: 'Block',
+  foul: 'Foul',
+  substitution: 'Substitution',
+  timeout: 'Timeout',
+};
+
+const EVENT_TYPE_COLORS: Record<string, string> = {
+  shot: 'bg-blue-100 text-blue-800',
+  free_throw: 'bg-purple-100 text-purple-800',
+  rebound: 'bg-orange-100 text-orange-800',
+  assist: 'bg-green-100 text-green-800',
+  turnover: 'bg-red-100 text-red-800',
+  steal: 'bg-yellow-100 text-yellow-800',
+  block: 'bg-indigo-100 text-indigo-800',
+  foul: 'bg-pink-100 text-pink-800',
+  substitution: 'bg-gray-100 text-gray-800',
+  timeout: 'bg-gray-100 text-gray-800',
+};
+
+function PlayByPlayTimeline({
+  events,
+  periodFilter,
+  eventTypeFilter,
+  onPeriodChange,
+  onEventTypeChange,
+}: {
+  events: PlayByPlayEvent[];
+  periodFilter: number | null;
+  eventTypeFilter: string | null;
+  onPeriodChange: (p: number | null) => void;
+  onEventTypeChange: (e: string | null) => void;
+}) {
+  const periods = [...new Set(events.map((e) => e.period))].sort();
+  const eventTypes = [...new Set(events.map((e) => e.event_type))].sort();
+
+  const filtered = events.filter((e) => {
+    if (periodFilter && e.period !== periodFilter) return false;
+    if (eventTypeFilter && e.event_type !== eventTypeFilter) return false;
+    return true;
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-gray-900">Play-by-Play</h3>
+          <span className="text-sm text-gray-500">{filtered.length} events</span>
+        </div>
+        <div className="flex gap-2 mt-2 flex-wrap">
+          <select
+            className="text-sm border rounded px-2 py-1"
+            value={periodFilter ?? ''}
+            onChange={(e) => onPeriodChange(e.target.value ? Number(e.target.value) : null)}
+          >
+            <option value="">All Quarters</option>
+            {periods.map((p) => (
+              <option key={p} value={p}>Q{p}</option>
+            ))}
+          </select>
+          <select
+            className="text-sm border rounded px-2 py-1"
+            value={eventTypeFilter ?? ''}
+            onChange={(e) => onEventTypeChange(e.target.value || null)}
+          >
+            <option value="">All Events</option>
+            {eventTypes.map((t) => (
+              <option key={t} value={t}>{EVENT_TYPE_LABELS[t] || t}</option>
+            ))}
+          </select>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0 max-h-96 overflow-y-auto">
+        <div className="divide-y">
+          {filtered.map((event) => (
+            <div key={event.id} className="px-4 py-2 flex items-center gap-3 text-sm">
+              <span className="w-12 text-gray-500 font-mono">Q{event.period} {event.clock}</span>
+              <Badge className={EVENT_TYPE_COLORS[event.event_type] || 'bg-gray-100'}>
+                {event.success === true && '✓ '}
+                {event.success === false && '✗ '}
+                {EVENT_TYPE_LABELS[event.event_type] || event.event_type}
+              </Badge>
+              <span className="flex-1">
+                {event.player_name && (
+                  <Link
+                    to={`/players/${event.player_id}`}
+                    className="font-medium hover:text-blue-600"
+                  >
+                    {event.player_name}
+                  </Link>
+                )}
+                {event.event_subtype && (
+                  <span className="text-gray-500 ml-1">({event.event_subtype})</span>
+                )}
+              </span>
+              <span className="text-gray-400 text-xs">{event.team_name}</span>
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div className="px-4 py-8 text-center text-gray-500">No events found</div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function GameDetail() {
   const { gameId } = useParams<{ gameId: string }>();
+  const [periodFilter, setPeriodFilter] = useState<number | null>(null);
+  const [eventTypeFilter, setEventTypeFilter] = useState<string | null>(null);
 
   const { data: game, isLoading: gameLoading, error: gameError } = useGame(gameId!);
+  const { data: pbpData } = useGamePbp(gameId!);
 
   // Box score data is included in the game response
   const hasBoxScore = game?.home_players && game.home_players.length > 0;
+  const hasPbp = pbpData?.events && pbpData.events.length > 0;
 
   if (gameLoading) return <LoadingSpinner />;
   if (gameError) return <ErrorMessage message={gameError.message} />;
@@ -220,6 +339,17 @@ export default function GameDetail() {
             Box score not available for this game
           </CardContent>
         </Card>
+      )}
+
+      {/* Play-by-Play */}
+      {hasPbp && (
+        <PlayByPlayTimeline
+          events={pbpData.events}
+          periodFilter={periodFilter}
+          eventTypeFilter={eventTypeFilter}
+          onPeriodChange={setPeriodFilter}
+          onEventTypeChange={setEventTypeFilter}
+        />
       )}
     </div>
   );

@@ -237,6 +237,33 @@ export interface GameBoxScore {
   away_players: PlayerGameStats[];
 }
 
+// Play-by-play types
+export interface PlayByPlayEvent {
+  id: string;
+  game_id: string;
+  event_number: number;
+  period: number;
+  clock: string;
+  event_type: string;
+  event_subtype: string | null;
+  player_id: string | null;
+  player_name: string | null;
+  team_id: string;
+  team_name: string;
+  success: boolean | null;
+  coord_x: number | null;
+  coord_y: number | null;
+  attributes: Record<string, unknown>;
+  description: string | null;
+  related_event_ids: string[];
+}
+
+export interface PlayByPlayResponse {
+  game_id: string;
+  events: PlayByPlayEvent[];
+  total_events: number;
+}
+
 // Sync types
 export type SyncStatus = 'STARTED' | 'COMPLETED' | 'FAILED' | 'PARTIAL';
 

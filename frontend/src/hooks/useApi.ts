@@ -7,7 +7,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../api/client';
-import type { TeamFilters, PlayerFilters, GameFilters } from '../api/client';
+import type { TeamFilters, PlayerFilters, GameFilters, PbpFilters } from '../api/client';
 
 // Query keys for cache management
 export const queryKeys = {
@@ -28,6 +28,7 @@ export const queryKeys = {
   games: (filters: GameFilters) => ['games', filters] as const,
   game: (id: string) => ['game', id] as const,
   gameBoxScore: (id: string) => ['game', id, 'boxscore'] as const,
+  gamePbp: (id: string, filters: PbpFilters) => ['game', id, 'pbp', filters] as const,
   syncStatus: ['sync', 'status'] as const,
   syncLogs: (filters: object) => ['sync', 'logs', filters] as const,
 };
@@ -140,6 +141,14 @@ export function useGameBoxScore(gameId: string) {
   return useQuery({
     queryKey: queryKeys.gameBoxScore(gameId),
     queryFn: () => api.getGameBoxScore(gameId),
+    enabled: !!gameId,
+  });
+}
+
+export function useGamePbp(gameId: string, filters: PbpFilters = {}) {
+  return useQuery({
+    queryKey: queryKeys.gamePbp(gameId, filters),
+    queryFn: () => api.getGamePbp(gameId, filters),
     enabled: !!gameId,
   });
 }

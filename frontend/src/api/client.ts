@@ -18,6 +18,7 @@ import type {
   PlayerCareerStats,
   Game,
   GameBoxScore,
+  PlayByPlayResponse,
   SyncLog,
   SyncStatusResponse,
 } from '../types';
@@ -188,6 +189,26 @@ export async function getGame(gameId: string): Promise<Game> {
 
 export async function getGameBoxScore(gameId: string): Promise<GameBoxScore> {
   return fetchJson(`${API_BASE}/games/${gameId}/boxscore`);
+}
+
+export interface PbpFilters {
+  period?: number;
+  event_type?: string;
+  player_id?: string;
+  team_id?: string;
+}
+
+export async function getGamePbp(
+  gameId: string,
+  filters: PbpFilters = {}
+): Promise<PlayByPlayResponse> {
+  const params = new URLSearchParams();
+  if (filters.period) params.set('period', filters.period.toString());
+  if (filters.event_type) params.set('event_type', filters.event_type);
+  if (filters.player_id) params.set('player_id', filters.player_id);
+  if (filters.team_id) params.set('team_id', filters.team_id);
+  const query = params.toString();
+  return fetchJson(`${API_BASE}/games/${gameId}/pbp${query ? `?${query}` : ''}`);
 }
 
 // Sync endpoints
