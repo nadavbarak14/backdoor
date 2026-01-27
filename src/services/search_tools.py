@@ -166,7 +166,9 @@ def search_teams(
         city = team.city or "N/A"
         country = team.country or "N/A"
 
-        lines.append(f"| `{team.id}` | {team.name} | {short_name} | {city} | {country} |")
+        lines.append(
+            f"| `{team.id}` | {team.name} | {short_name} | {city} | {country} |"
+        )
 
     lines.append("")
     lines.append("*Use the ID value with `query_stats(team_id=...)`*")
@@ -317,11 +319,15 @@ def search_seasons(
     for season in seasons:
         league_name = season.league.name if season.league else "N/A"
         is_current = "Yes" if season.is_current else "No"
-        lines.append(f"| `{season.id}` | {season.name} | {league_name} | {is_current} |")
+        lines.append(
+            f"| `{season.id}` | {season.name} | {league_name} | {is_current} |"
+        )
 
     lines.append("")
     lines.append("*Use the ID value with `query_stats(season_id=...)`*")
-    lines.append("*Note: If season_id is not specified, query_stats uses the current season.*")
+    lines.append(
+        "*Note: If season_id is not specified, query_stats uses the current season.*"
+    )
 
     return "\n".join(lines)
 
