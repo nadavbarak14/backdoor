@@ -263,7 +263,7 @@ class BasePlayerInfoAdapter(ABC):
         ...
 
     async def get_team_roster(
-        self, team_external_id: str
+        self, team_external_id: str  # noqa: ARG002
     ) -> list[tuple[str, str, RawPlayerInfo | None]]:
         """
         Fetch team roster with player IDs and optionally bio data.
