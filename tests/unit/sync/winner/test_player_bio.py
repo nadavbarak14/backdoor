@@ -84,9 +84,7 @@ class TestLangEnParameter:
 class TestFetchTeamRosterEnglish:
     """Tests for parsing team roster with English names."""
 
-    def test_parse_team_roster_extracts_players(
-        self, mock_db, team_html: str
-    ) -> None:
+    def test_parse_team_roster_extracts_players(self, mock_db, team_html: str) -> None:
         """Test roster parsing extracts player IDs and English names."""
         scraper = WinnerScraper(mock_db)
         roster = scraper._parse_team_roster(team_html, "100")
@@ -95,9 +93,7 @@ class TestFetchTeamRosterEnglish:
         assert roster.team_name == "Maccabi Tel Aviv"
         assert len(roster.players) == 5
 
-    def test_parse_team_roster_english_names(
-        self, mock_db, team_html: str
-    ) -> None:
+    def test_parse_team_roster_english_names(self, mock_db, team_html: str) -> None:
         """Test roster contains English player names."""
         scraper = WinnerScraper(mock_db)
         roster = scraper._parse_team_roster(team_html, "100")
@@ -107,9 +103,7 @@ class TestFetchTeamRosterEnglish:
         assert "David Cohen" in player_names
         assert "Michael Brown" in player_names
 
-    def test_parse_team_roster_player_ids(
-        self, mock_db, team_html: str
-    ) -> None:
+    def test_parse_team_roster_player_ids(self, mock_db, team_html: str) -> None:
         """Test roster extracts correct player IDs."""
         scraper = WinnerScraper(mock_db)
         roster = scraper._parse_team_roster(team_html, "100")
@@ -119,9 +113,7 @@ class TestFetchTeamRosterEnglish:
         assert "1002" in player_ids
         assert "1003" in player_ids
 
-    def test_parse_team_roster_positions(
-        self, mock_db, team_html: str
-    ) -> None:
+    def test_parse_team_roster_positions(self, mock_db, team_html: str) -> None:
         """Test roster extracts player positions."""
         scraper = WinnerScraper(mock_db)
         roster = scraper._parse_team_roster(team_html, "100")
@@ -135,36 +127,28 @@ class TestFetchTeamRosterEnglish:
 class TestFetchPlayerProfileEnglish:
     """Tests for parsing player profile with English content."""
 
-    def test_parse_player_profile_english_name(
-        self, mock_db, player_html: str
-    ) -> None:
+    def test_parse_player_profile_english_name(self, mock_db, player_html: str) -> None:
         """Test player profile parses English name."""
         scraper = WinnerScraper(mock_db)
         profile = scraper._parse_player_profile(player_html, "1001")
 
         assert profile.name == "John Smith"
 
-    def test_parse_player_profile_team_name(
-        self, mock_db, player_html: str
-    ) -> None:
+    def test_parse_player_profile_team_name(self, mock_db, player_html: str) -> None:
         """Test player profile parses English team name."""
         scraper = WinnerScraper(mock_db)
         profile = scraper._parse_player_profile(player_html, "1001")
 
         assert profile.team_name == "Maccabi Tel Aviv"
 
-    def test_parse_player_profile_position(
-        self, mock_db, player_html: str
-    ) -> None:
+    def test_parse_player_profile_position(self, mock_db, player_html: str) -> None:
         """Test player profile parses position."""
         scraper = WinnerScraper(mock_db)
         profile = scraper._parse_player_profile(player_html, "1001")
 
         assert profile.position == "Guard"
 
-    def test_parse_player_profile_nationality(
-        self, mock_db, player_html: str
-    ) -> None:
+    def test_parse_player_profile_nationality(self, mock_db, player_html: str) -> None:
         """Test player profile parses nationality."""
         scraper = WinnerScraper(mock_db)
         profile = scraper._parse_player_profile(player_html, "1001")
@@ -175,18 +159,14 @@ class TestFetchPlayerProfileEnglish:
 class TestParsePlayerHeight:
     """Tests for parsing player height from profile."""
 
-    def test_parse_height_from_profile(
-        self, mock_db, player_html: str
-    ) -> None:
+    def test_parse_height_from_profile(self, mock_db, player_html: str) -> None:
         """Test height is parsed from profile HTML."""
         scraper = WinnerScraper(mock_db)
         profile = scraper._parse_player_profile(player_html, "1001")
 
         assert profile.height_cm == 195
 
-    def test_parse_height_with_cm_suffix(
-        self, mock_db
-    ) -> None:
+    def test_parse_height_with_cm_suffix(self, mock_db) -> None:
         """Test height parsing handles 'cm' suffix."""
         html = """
         <html>
@@ -203,9 +183,7 @@ class TestParsePlayerHeight:
 
         assert profile.height_cm == 198
 
-    def test_parse_height_with_spaces(
-        self, mock_db
-    ) -> None:
+    def test_parse_height_with_spaces(self, mock_db) -> None:
         """Test height parsing handles spaces."""
         html = """
         <html>
@@ -226,18 +204,14 @@ class TestParsePlayerHeight:
 class TestParsePlayerPosition:
     """Tests for parsing player position from profile."""
 
-    def test_parse_position_guard(
-        self, mock_db, player_html: str
-    ) -> None:
+    def test_parse_position_guard(self, mock_db, player_html: str) -> None:
         """Test parsing Guard position."""
         scraper = WinnerScraper(mock_db)
         profile = scraper._parse_player_profile(player_html, "1001")
 
         assert profile.position == "Guard"
 
-    def test_parse_position_from_various_labels(
-        self, mock_db
-    ) -> None:
+    def test_parse_position_from_various_labels(self, mock_db) -> None:
         """Test position parsing with different label formats."""
         for label in ["Position:", "position", "POSITION:"]:
             html = f"""
@@ -271,9 +245,7 @@ class TestParsePlayerBirthdate:
         assert profile.birth_date.month == 5
         assert profile.birth_date.day == 15
 
-    def test_parse_birthdate_european_format(
-        self, mock_db
-    ) -> None:
+    def test_parse_birthdate_european_format(self, mock_db) -> None:
         """Test birth date parsing with European format (DD/MM/YYYY)."""
         html = """
         <html>
@@ -291,9 +263,7 @@ class TestParsePlayerBirthdate:
         assert profile.birth_date is not None
         assert profile.birth_date.year == 1995
 
-    def test_parse_birthdate_dot_format(
-        self, mock_db
-    ) -> None:
+    def test_parse_birthdate_dot_format(self, mock_db) -> None:
         """Test birth date parsing with dot format (DD.MM.YYYY)."""
         html = """
         <html>
@@ -349,9 +319,7 @@ class TestMatchPlayerByName:
 class TestMapperPlayerInfo:
     """Tests for mapping player profile to RawPlayerInfo."""
 
-    def test_map_player_info_splits_name(
-        self, winner_mapper: WinnerMapper
-    ) -> None:
+    def test_map_player_info_splits_name(self, winner_mapper: WinnerMapper) -> None:
         """Test name is split into first and last name."""
         from src.sync.winner.scraper import PlayerProfile
 
