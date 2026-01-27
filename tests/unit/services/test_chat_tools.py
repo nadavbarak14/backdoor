@@ -24,10 +24,18 @@ from src.services.chat_tools import (
     _resolve_player_by_name,
     _resolve_season,
     _resolve_team_by_name,
+    get_clutch_stats,
+    get_game_details,
+    get_home_away_split,
     get_league_leaders,
+    get_lineup_stats,
+    get_on_off_stats,
     get_player_games,
     get_player_stats,
+    get_quarter_splits,
     get_team_roster,
+    get_trend,
+    get_vs_opponent,
     search_players,
     search_teams,
 )
@@ -733,3 +741,409 @@ class TestAllToolsExist:
             # LangChain tools have description attribute
             assert tool.description is not None
             assert len(tool.description) > 50  # Should have meaningful docs
+
+
+class TestAdvancedAnalyticsTools:
+    """Tests for advanced analytics tools."""
+
+    @pytest.fixture
+    def analytics_data(self, test_db: Session) -> dict:
+        """Create comprehensive test data for analytics tools."""
+        league = League(id=uuid4(), name="NBA", code="NBA", country="USA")
+        test_db.add(league)
+        test_db.flush()
+
+        season = Season(
+            id=uuid4(),
+            league_id=league.id,
+            name="2023-24",
+            start_date=date(2023, 10, 1),
+            end_date=date(2024, 6, 30),
+            is_current=True,
+        )
+        test_db.add(season)
+        test_db.flush()
+
+        team1 = Team(
+            id=uuid4(),
+            name="Golden State Warriors",
+            short_name="GSW",
+            city="San Francisco",
+            country="USA",
+            external_ids={},
+        )
+        team2 = Team(
+            id=uuid4(),
+            name="Los Angeles Lakers",
+            short_name="LAL",
+            city="Los Angeles",
+            country="USA",
+            external_ids={},
+        )
+        test_db.add(team1)
+        test_db.add(team2)
+        test_db.flush()
+
+        player1 = Player(
+            id=uuid4(),
+            first_name="Stephen",
+            last_name="Curry",
+            position="PG",
+            external_ids={},
+        )
+        player2 = Player(
+            id=uuid4(),
+            first_name="LeBron",
+            last_name="James",
+            position="SF",
+            external_ids={},
+        )
+        test_db.add(player1)
+        test_db.add(player2)
+        test_db.flush()
+
+        # Create player team history
+        history1 = PlayerTeamHistory(
+            player_id=player1.id,
+            team_id=team1.id,
+            season_id=season.id,
+            jersey_number=30,
+            position="PG",
+        )
+        history2 = PlayerTeamHistory(
+            player_id=player2.id,
+            team_id=team2.id,
+            season_id=season.id,
+            jersey_number=23,
+            position="SF",
+        )
+        test_db.add(history1)
+        test_db.add(history2)
+        test_db.flush()
+
+        # Create games between teams
+        game1 = Game(
+            id=uuid4(),
+            season_id=season.id,
+            home_team_id=team1.id,
+            away_team_id=team2.id,
+            game_date=datetime(2024, 1, 15, 19, 30),
+            status="FINAL",
+            home_score=115,
+            away_score=110,
+            external_ids={},
+        )
+        test_db.add(game1)
+        test_db.flush()
+
+        # Create player game stats
+        stats1 = PlayerGameStats(
+            id=uuid4(),
+            game_id=game1.id,
+            player_id=player1.id,
+            team_id=team1.id,
+            minutes_played=2400,
+            points=35,
+            total_rebounds=5,
+            assists=8,
+            steals=2,
+            blocks=0,
+            turnovers=3,
+            field_goals_made=12,
+            field_goals_attempted=20,
+            is_starter=True,
+            extra_stats={},
+        )
+        stats2 = PlayerGameStats(
+            id=uuid4(),
+            game_id=game1.id,
+            player_id=player2.id,
+            team_id=team2.id,
+            minutes_played=2400,
+            points=28,
+            total_rebounds=8,
+            assists=5,
+            steals=1,
+            blocks=2,
+            turnovers=4,
+            field_goals_made=10,
+            field_goals_attempted=22,
+            is_starter=True,
+            extra_stats={},
+        )
+        test_db.add(stats1)
+        test_db.add(stats2)
+
+        # Create season stats for players
+        season_stats1 = PlayerSeasonStats(
+            id=uuid4(),
+            player_id=player1.id,
+            team_id=team1.id,
+            season_id=season.id,
+            games_played=50,
+            avg_points=28.0,
+            avg_rebounds=5.0,
+            avg_assists=6.5,
+        )
+        season_stats2 = PlayerSeasonStats(
+            id=uuid4(),
+            player_id=player2.id,
+            team_id=team2.id,
+            season_id=season.id,
+            games_played=50,
+            avg_points=25.0,
+            avg_rebounds=7.5,
+            avg_assists=8.0,
+        )
+        test_db.add(season_stats1)
+        test_db.add(season_stats2)
+
+        test_db.commit()
+
+        return {
+            "league": league,
+            "season": season,
+            "team1": team1,
+            "team2": team2,
+            "player1": player1,
+            "player2": player2,
+            "game": game1,
+        }
+
+    def test_get_game_details_by_teams(self, test_db: Session, analytics_data: dict):
+        """Test get_game_details finds game by team names."""
+        result = get_game_details.invoke(
+            {
+                "home_team": "Warriors",
+                "away_team": "Lakers",
+                "db": test_db,
+            }
+        )
+
+        assert "Warriors" in result or "GSW" in result
+        assert "Lakers" in result or "LAL" in result
+
+    def test_get_game_details_not_found(self, test_db: Session):
+        """Test get_game_details handles missing teams."""
+        result = get_game_details.invoke(
+            {
+                "home_team": "NonExistent1",
+                "away_team": "NonExistent2",
+                "db": test_db,
+            }
+        )
+
+        assert "not find" in result.lower() or "not found" in result.lower()
+
+    def test_get_game_details_requires_params(self, test_db: Session):
+        """Test get_game_details requires either game_id or team names."""
+        result = get_game_details.invoke({"db": test_db})
+
+        assert "provide" in result.lower()
+
+    def test_get_clutch_stats_team_not_found(self, test_db: Session):
+        """Test get_clutch_stats handles team not found."""
+        result = get_clutch_stats.invoke(
+            {
+                "team_name": "NonExistent",
+                "db": test_db,
+            }
+        )
+
+        assert "not found" in result
+
+    def test_get_clutch_stats_requires_entity(self, test_db: Session):
+        """Test get_clutch_stats requires team or player."""
+        result = get_clutch_stats.invoke({"db": test_db})
+
+        assert "provide" in result.lower()
+
+    def test_get_quarter_splits_player_not_found(self, test_db: Session):
+        """Test get_quarter_splits handles player not found."""
+        result = get_quarter_splits.invoke(
+            {
+                "player_name": "NonExistent",
+                "db": test_db,
+            }
+        )
+
+        assert "not found" in result
+
+    def test_get_quarter_splits_requires_entity(self, test_db: Session):
+        """Test get_quarter_splits requires team or player."""
+        result = get_quarter_splits.invoke({"db": test_db})
+
+        assert "provide" in result.lower()
+
+    def test_get_trend_player_not_found(self, test_db: Session):
+        """Test get_trend handles player not found."""
+        result = get_trend.invoke(
+            {
+                "stat": "points",
+                "player_name": "NonExistent",
+                "db": test_db,
+            }
+        )
+
+        assert "not found" in result
+
+    def test_get_trend_requires_entity(self, test_db: Session):
+        """Test get_trend requires team or player."""
+        result = get_trend.invoke(
+            {
+                "stat": "points",
+                "db": test_db,
+            }
+        )
+
+        assert "provide" in result.lower()
+
+    def test_get_lineup_stats_player_not_found(self, test_db: Session):
+        """Test get_lineup_stats handles player not found."""
+        result = get_lineup_stats.invoke(
+            {
+                "player_names": ["NonExistent1", "NonExistent2"],
+                "db": test_db,
+            }
+        )
+
+        assert "not found" in result
+
+    def test_get_lineup_stats_requires_minimum_players(self, test_db: Session):
+        """Test get_lineup_stats requires at least 2 players."""
+        result = get_lineup_stats.invoke(
+            {
+                "player_names": ["OnlyOne"],
+                "db": test_db,
+            }
+        )
+
+        assert "2" in result
+
+    def test_get_lineup_stats_max_players(self, test_db: Session):
+        """Test get_lineup_stats allows max 5 players."""
+        result = get_lineup_stats.invoke(
+            {
+                "player_names": ["P1", "P2", "P3", "P4", "P5", "P6"],
+                "db": test_db,
+            }
+        )
+
+        assert "5" in result
+
+    def test_get_home_away_split_player_not_found(self, test_db: Session):
+        """Test get_home_away_split handles player not found."""
+        result = get_home_away_split.invoke(
+            {
+                "player_name": "NonExistent",
+                "db": test_db,
+            }
+        )
+
+        assert "not found" in result
+
+    def test_get_on_off_stats_player_not_found(self, test_db: Session):
+        """Test get_on_off_stats handles player not found."""
+        result = get_on_off_stats.invoke(
+            {
+                "player_name": "NonExistent",
+                "db": test_db,
+            }
+        )
+
+        assert "not found" in result
+
+    def test_get_vs_opponent_player_not_found(self, test_db: Session):
+        """Test get_vs_opponent handles player not found."""
+        result = get_vs_opponent.invoke(
+            {
+                "player_name": "NonExistent",
+                "opponent_team": "Lakers",
+                "db": test_db,
+            }
+        )
+
+        assert "not found" in result
+
+    def test_get_vs_opponent_team_not_found(
+        self, test_db: Session, analytics_data: dict
+    ):
+        """Test get_vs_opponent handles opponent not found."""
+        result = get_vs_opponent.invoke(
+            {
+                "player_name": "Curry",
+                "opponent_team": "NonExistent",
+                "db": test_db,
+            }
+        )
+
+        assert "not found" in result
+
+    def test_get_vs_opponent_returns_stats(
+        self, test_db: Session, analytics_data: dict
+    ):
+        """Test get_vs_opponent returns player stats against opponent."""
+        result = get_vs_opponent.invoke(
+            {
+                "player_name": "Curry",
+                "opponent_team": "Lakers",
+                "db": test_db,
+            }
+        )
+
+        assert "Curry" in result
+        assert "Lakers" in result
+
+
+class TestNoDbErrorHandling:
+    """Test all analytics tools handle missing db session."""
+
+    def test_get_game_details_no_db(self):
+        """Test get_game_details returns error without db."""
+        result = get_game_details.invoke(
+            {
+                "home_team": "Lakers",
+                "away_team": "Celtics",
+            }
+        )
+        assert "Error" in result
+
+    def test_get_clutch_stats_no_db(self):
+        """Test get_clutch_stats returns error without db."""
+        result = get_clutch_stats.invoke({"team_name": "Lakers"})
+        assert "Error" in result
+
+    def test_get_quarter_splits_no_db(self):
+        """Test get_quarter_splits returns error without db."""
+        result = get_quarter_splits.invoke({"team_name": "Lakers"})
+        assert "Error" in result
+
+    def test_get_trend_no_db(self):
+        """Test get_trend returns error without db."""
+        result = get_trend.invoke({"stat": "points", "player_name": "Curry"})
+        assert "Error" in result
+
+    def test_get_lineup_stats_no_db(self):
+        """Test get_lineup_stats returns error without db."""
+        result = get_lineup_stats.invoke({"player_names": ["A", "B"]})
+        assert "Error" in result
+
+    def test_get_home_away_split_no_db(self):
+        """Test get_home_away_split returns error without db."""
+        result = get_home_away_split.invoke({"player_name": "Curry"})
+        assert "Error" in result
+
+    def test_get_on_off_stats_no_db(self):
+        """Test get_on_off_stats returns error without db."""
+        result = get_on_off_stats.invoke({"player_name": "Curry"})
+        assert "Error" in result
+
+    def test_get_vs_opponent_no_db(self):
+        """Test get_vs_opponent returns error without db."""
+        result = get_vs_opponent.invoke(
+            {
+                "player_name": "Curry",
+                "opponent_team": "Lakers",
+            }
+        )
+        assert "Error" in result
