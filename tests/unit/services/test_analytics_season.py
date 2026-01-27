@@ -12,11 +12,9 @@ from datetime import UTC, date, datetime
 import pytest
 from sqlalchemy.orm import Session
 
-from src.models.game import Game
 from src.models.league import League, Season
 from src.models.player import Player
 from src.models.team import Team
-from src.schemas.analytics import ClutchFilter
 from src.schemas.game import GameCreate, GameStatus
 from src.schemas.league import LeagueCreate, SeasonCreate
 from src.schemas.player import PlayerCreate
@@ -26,7 +24,7 @@ from src.services.game import GameService
 from src.services.league import LeagueService, SeasonService
 from src.services.play_by_play import PlayByPlayService
 from src.services.player import PlayerService
-from src.services.stats import PlayerGameStatsService, TeamGameStatsService
+from src.services.stats import PlayerGameStatsService
 from src.services.team import TeamService
 
 
