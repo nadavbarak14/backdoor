@@ -4,12 +4,14 @@
  * Chat Page
  *
  * Main chat interface for the BACKDOOR AI Analytics application.
- * Manages message state and orchestrates the modular chat components.
+ * Manages message state via Vercel AI SDK's useChat hook with
+ * session-based conversation history.
  *
  * @module app/page
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useChat } from "@ai-sdk/react";
 import {
   ChatContainer,
   ChatInput,
@@ -17,51 +19,49 @@ import {
   WelcomeScreen,
 } from "@/components/chat";
 import type { Message } from "@/lib/chat/types";
-import { SIMULATED_AI_RESPONSE } from "@/lib/chat/constants";
+import { API_URL } from "@/lib/chat/constants";
+import { clearSession, getSessionId } from "@/lib/session";
 
 /**
  * Main chat page component.
  *
  * Handles:
- * - Message state management
- * - User message submission
- * - Simulated AI responses (to be replaced with real API)
- * - Typing indicator state
+ * - Message state management via useChat hook
+ * - Session-based conversation history
+ * - Real-time streaming from the AI backend
+ * - Clear conversation functionality
  */
 export default function ChatPage() {
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
+  const [sessionId, setSessionId] = useState<string>("");
+
+  // Initialize session ID on client side
+  useEffect(() => {
+    setSessionId(getSessionId());
+  }, []);
+
+  const {
+    messages,
+    input,
+    setInput,
+    handleSubmit: submitChat,
+    isLoading,
+    setMessages,
+  } = useChat({
+    api: `${API_URL}/api/v1/chat/stream`,
+    headers: sessionId
+      ? {
+          "X-Session-ID": sessionId,
+        }
+      : undefined,
+    streamProtocol: "data",
+  });
 
   /**
-   * Handles message submission.
-   * Adds user message to the list and triggers simulated AI response.
+   * Handles form submission for chat messages.
    */
   const handleSubmit = () => {
     if (!input.trim()) return;
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: "user",
-      content: input,
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
-    setIsTyping(true);
-
-    // Simulate AI response (will be replaced with actual API call)
-    setTimeout(() => {
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: SIMULATED_AI_RESPONSE,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, aiMessage]);
-      setIsTyping(false);
-    }, 1500);
+    submitChat();
   };
 
   /**
@@ -72,6 +72,23 @@ export default function ChatPage() {
     setInput(prompt);
   };
 
+  /**
+   * Clears the current conversation and starts a new session.
+   */
+  const handleClearConversation = () => {
+    clearSession();
+    setMessages([]);
+    setSessionId(getSessionId());
+  };
+
+  // Convert useChat messages to our Message type
+  const chatMessages: Message[] = messages.map((msg) => ({
+    id: msg.id,
+    role: msg.role as "user" | "assistant",
+    content: msg.content,
+    timestamp: msg.createdAt || new Date(),
+  }));
+
   return (
     <ChatContainer
       footer={
@@ -79,14 +96,15 @@ export default function ChatPage() {
           value={input}
           onChange={setInput}
           onSubmit={handleSubmit}
-          disabled={isTyping}
+          disabled={isLoading}
+          onClear={messages.length > 0 ? handleClearConversation : undefined}
         />
       }
     >
-      {messages.length === 0 ? (
+      {chatMessages.length === 0 ? (
         <WelcomeScreen onPromptSelect={handleQuickPrompt} />
       ) : (
-        <MessageList messages={messages} isLoading={isTyping} />
+        <MessageList messages={chatMessages} isLoading={isLoading} />
       )}
     </ChatContainer>
   );

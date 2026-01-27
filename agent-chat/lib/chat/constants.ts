@@ -47,3 +47,9 @@ export const INPUT_PLACEHOLDER = "Ask about players, teams, stats...";
  */
 export const SIMULATED_AI_RESPONSE =
   "I'm ready to analyze basketball data for you. This feature will be fully connected in the next update.";
+
+/**
+ * Backend API URL for chat streaming endpoint.
+ * Defaults to localhost:8000 for local development.
+ */
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";

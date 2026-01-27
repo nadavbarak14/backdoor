@@ -10,7 +10,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { Send } from "lucide-react";
+import { Send, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,7 @@ import { INPUT_PLACEHOLDER } from "@/lib/chat/constants";
  * Features:
  * - Enter key submits the message
  * - Send button disabled when input is empty
+ * - Optional clear button to reset conversation
  * - Accessible with proper ARIA attributes
  * - 44px minimum touch target for mobile
  *
@@ -31,6 +32,7 @@ import { INPUT_PLACEHOLDER } from "@/lib/chat/constants";
  * @param onSubmit - Handler for form submission
  * @param disabled - Whether the input is disabled
  * @param placeholder - Placeholder text
+ * @param onClear - Optional handler for clearing conversation
  *
  * @example
  * ```tsx
@@ -39,6 +41,7 @@ import { INPUT_PLACEHOLDER } from "@/lib/chat/constants";
  *   onChange={setInput}
  *   onSubmit={handleSubmit}
  *   disabled={isLoading}
+ *   onClear={handleClear}
  * />
  * ```
  */
@@ -48,6 +51,7 @@ export function ChatInput({
   onSubmit,
   disabled = false,
   placeholder = INPUT_PLACEHOLDER,
+  onClear,
   className,
   ...props
 }: ChatInputProps & Omit<React.ComponentProps<"form">, keyof ChatInputProps>) {
@@ -81,6 +85,18 @@ export function ChatInput({
       {...props}
     >
       <div className="input-wrapper">
+        {onClear && (
+          <Button
+            type="button"
+            variant="ghost"
+            className="clear-button"
+            onClick={onClear}
+            disabled={disabled}
+            aria-label="Clear conversation"
+          >
+            <Trash2 className="clear-icon" aria-hidden="true" />
+          </Button>
+        )}
         <Input
           value={value}
           onChange={(e) => onChange(e.target.value)}

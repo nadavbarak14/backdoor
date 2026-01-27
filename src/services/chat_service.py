@@ -7,7 +7,7 @@ for basketball analytics queries.
 
 This service integrates with the LangChain ChatOpenAI model and provides:
 - Streaming responses compatible with Vercel AI SDK
-- Session-based conversation history (in-memory)
+- Session-based conversation history using LangChain's InMemoryChatMessageHistory
 - Tool binding for database queries (future: Ticket 5)
 - Basketball analytics context via system prompt
 
@@ -25,6 +25,7 @@ Usage:
 from collections.abc import AsyncGenerator
 from typing import Any
 
+from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
@@ -51,17 +52,45 @@ Guidelines:
 
 You have access to tools that can query the basketball database for real statistics. Use them when specific data is needed."""
 
+# Global session store using LangChain's InMemoryChatMessageHistory
+_session_store: dict[str, InMemoryChatMessageHistory] = {}
+
+
+def get_session_history(session_id: str) -> InMemoryChatMessageHistory:
+    """
+    Get or create chat history for a session.
+
+    Uses LangChain's InMemoryChatMessageHistory for per-session message storage.
+    New sessions are initialized with the basketball analytics system prompt.
+
+    Args:
+        session_id: Unique identifier for the chat session.
+
+    Returns:
+        InMemoryChatMessageHistory instance for the session.
+
+    Example:
+        >>> history = get_session_history("session-123")
+        >>> len(history.messages)
+        1  # System prompt
+    """
+    if session_id not in _session_store:
+        history = InMemoryChatMessageHistory()
+        history.add_message(SystemMessage(content=BASKETBALL_SYSTEM_PROMPT))
+        _session_store[session_id] = history
+    return _session_store[session_id]
+
 
 class ChatService:
     """
     AI chat service using LangChain with GPT-5 nano.
 
-    Manages chat conversations with streaming support, session-based history,
-    and tool binding for basketball analytics queries.
+    Manages chat conversations with streaming support, session-based history
+    via LangChain's InMemoryChatMessageHistory, and tool binding for
+    basketball analytics queries.
 
     Attributes:
         llm: The LangChain ChatOpenAI instance configured for streaming.
-        sessions: In-memory storage for conversation history by session ID.
         tools: List of tools available for the LLM to use (populated in Ticket 5).
 
     Example:
@@ -76,8 +105,8 @@ class ChatService:
         """
         Initialize the chat service with LangChain ChatOpenAI.
 
-        Configures the LLM with settings from environment variables
-        and initializes empty session storage.
+        Configures the LLM with settings from environment variables.
+        Session storage uses the global _session_store via get_session_history.
 
         Raises:
             ValueError: If LLM_API_KEY is not configured.
@@ -90,7 +119,6 @@ class ChatService:
             max_tokens=settings.LLM_MAX_TOKENS,
             streaming=True,
         )
-        self.sessions: dict[str, list[BaseMessage]] = {}
         self.tools: list[Any] = []  # Will be populated in Ticket 5
 
     def _to_langchain_messages(self, messages: list[ChatMessage]) -> list[BaseMessage]:
@@ -128,6 +156,7 @@ class ChatService:
         """
         Retrieve conversation history for a session.
 
+        Uses the global session store via get_session_history.
         If the session doesn't exist, creates a new session with the
         basketball analytics system prompt.
 
@@ -144,11 +173,8 @@ class ChatService:
             >>> isinstance(msgs[0], SystemMessage)
             True
         """
-        if session_id not in self.sessions:
-            self.sessions[session_id] = [
-                SystemMessage(content=BASKETBALL_SYSTEM_PROMPT)
-            ]
-        return self.sessions[session_id]
+        history = get_session_history(session_id)
+        return list(history.messages)
 
     def _update_session(
         self,
@@ -174,13 +200,15 @@ class ChatService:
             ...     "Hi there!"
             ... )
         """
+        history = get_session_history(session_id)
+
         # Add non-system user messages to history
         for msg in user_messages:
             if not isinstance(msg, SystemMessage):
-                self.sessions[session_id].append(msg)
+                history.add_message(msg)
 
         # Add assistant response
-        self.sessions[session_id].append(AIMessage(content=assistant_response))
+        history.add_message(AIMessage(content=assistant_response))
 
     async def stream(
         self,
@@ -263,8 +291,8 @@ class ChatService:
             >>> service.clear_session("nonexistent")
             False
         """
-        if session_id in self.sessions:
-            del self.sessions[session_id]
+        if session_id in _session_store:
+            del _session_store[session_id]
             return True
         return False
 
@@ -282,4 +310,6 @@ class ChatService:
             >>> service.get_session_message_count("session-123")
             5
         """
-        return len(self.sessions.get(session_id, []))
+        if session_id not in _session_store:
+            return 0
+        return len(_session_store[session_id].messages)

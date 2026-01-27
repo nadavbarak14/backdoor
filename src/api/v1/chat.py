@@ -17,7 +17,7 @@ Usage:
 import uuid
 from collections.abc import AsyncGenerator
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Header, status
 from fastapi.responses import StreamingResponse
 
 from src.schemas.chat import ChatChunk, ChatRequest
@@ -50,6 +50,7 @@ def get_chat_service() -> ChatService:
 
 async def _generate_stream(
     request: ChatRequest,
+    session_id: str,
 ) -> AsyncGenerator[str, None]:
     """
     Generate streaming response from the LLM.
@@ -59,21 +60,19 @@ async def _generate_stream(
 
     Args:
         request: The chat request containing conversation messages.
+        session_id: Unique session identifier from X-Session-ID header or request body.
 
     Yields:
         SSE-formatted string chunks.
 
     Example:
-        >>> async for chunk in _generate_stream(request):
+        >>> async for chunk in _generate_stream(request, "session-123"):
         ...     print(chunk)
         data: {"content": "Hello"}
         data: {"content": " there"}
         ...
     """
     chat_service = get_chat_service()
-
-    # Generate session ID if not provided
-    session_id = request.session_id or str(uuid.uuid4())
 
     # Stream response from LLM
     async for content in chat_service.stream(request.messages, session_id):
@@ -95,8 +94,9 @@ a Server-Sent Events (SSE) stream of response chunks. Each chunk contains
 a portion of the AI's response, allowing for real-time streaming display.
 
 **Session Management:**
-Include a `session_id` in your request to maintain conversation history
-across multiple requests. If not provided, a new session is created.
+Include the `X-Session-ID` header to maintain conversation history across
+multiple requests. If not provided, a new session is created. The session_id
+in the request body is also supported for backwards compatibility.
 
 **SSE Format:**
 - Each chunk: `data: {"content": "token"}\\n\\n`
@@ -122,7 +122,14 @@ Vercel AI SDK, which handles SSE parsing automatically.
     },
     status_code=status.HTTP_200_OK,
 )
-async def chat_stream(request: ChatRequest) -> StreamingResponse:
+async def chat_stream(
+    request: ChatRequest,
+    x_session_id: str | None = Header(
+        default=None,
+        description="Session ID for conversation history. If not provided, uses request body session_id or creates new session.",
+        alias="X-Session-ID",
+    ),
+) -> StreamingResponse:
     """
     Stream a chat response via Server-Sent Events.
 
@@ -131,6 +138,7 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
 
     Args:
         request: ChatRequest containing the message history and optional session_id.
+        x_session_id: Session ID from X-Session-ID header for conversation history.
 
     Returns:
         StreamingResponse with SSE media type containing response chunks.
@@ -142,10 +150,14 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
         >>> # curl example
         >>> # curl -X POST http://localhost:8000/api/v1/chat/stream \\
         >>> #   -H "Content-Type: application/json" \\
-        >>> #   -d '{"messages": [{"role": "user", "content": "Hello"}], "session_id": "abc123"}'
+        >>> #   -H "X-Session-ID: abc123" \\
+        >>> #   -d '{"messages": [{"role": "user", "content": "Hello"}]}'
     """
+    # Header takes precedence, then body, then generate new
+    session_id = x_session_id or request.session_id or str(uuid.uuid4())
+
     return StreamingResponse(
-        _generate_stream(request),
+        _generate_stream(request, session_id),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
