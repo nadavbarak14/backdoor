@@ -30,6 +30,8 @@ from sqlalchemy.orm import Session
 
 from src.core import get_db
 from src.schemas import (
+    SeasonSyncCoverage,
+    SyncCoverageResponse,
     SyncLogFilter,
     SyncLogListResponse,
     SyncLogResponse,
@@ -39,7 +41,7 @@ from src.schemas.sync import (
     SyncSourceStatus,
     SyncStatusResponse,
 )
-from src.services import SyncLogService
+from src.services import SyncCoverageService, SyncLogService
 from src.sync import SyncConfig
 from src.sync.manager import SyncManager
 
@@ -279,6 +281,66 @@ def get_sync_status(
     return SyncStatusResponse(
         sources=sources,
         total_running_syncs=status_data.get("total_running_syncs", 0),
+    )
+
+
+@router.get(
+    "/coverage",
+    response_model=SyncCoverageResponse,
+    summary="Get Sync Coverage",
+    description="Get detailed sync coverage statistics per season.",
+)
+def get_sync_coverage(
+    db: Session = Depends(get_db),
+) -> SyncCoverageResponse:
+    """
+    Get detailed sync coverage statistics for all seasons.
+
+    Returns per-season breakdown of what data has been synced including:
+    - Total games vs games with boxscore vs games with play-by-play
+    - Total players vs players with bio data (position/height)
+    - Percentages for each category
+
+    This endpoint is useful for identifying what data needs to be synced
+    and for monitoring overall sync progress.
+
+    Args:
+        db: Database session (injected).
+
+    Returns:
+        SyncCoverageResponse with per-season coverage statistics.
+
+    Example:
+        >>> response = client.get("/api/v1/sync/coverage")
+        >>> data = response.json()
+        >>> for season in data["seasons"]:
+        ...     print(f"{season['season_name']}: {season['boxscore_pct']}% boxscore")
+    """
+    service = SyncCoverageService(db)
+    coverage_list = service.get_all_seasons_coverage()
+
+    seasons = [
+        SeasonSyncCoverage(
+            season_id=c.season_id,
+            season_name=c.season_name,
+            league_name=c.league_name,
+            games_total=c.games_total,
+            games_with_boxscore=c.games_with_boxscore,
+            games_with_pbp=c.games_with_pbp,
+            players_total=c.players_total,
+            players_with_bio=c.players_with_bio,
+            boxscore_pct=c.boxscore_pct,
+            pbp_pct=c.pbp_pct,
+            bio_pct=c.bio_pct,
+        )
+        for c in coverage_list
+    ]
+
+    return SyncCoverageResponse(
+        seasons=seasons,
+        total_games=sum(c.games_total for c in coverage_list),
+        total_games_with_boxscore=sum(c.games_with_boxscore for c in coverage_list),
+        total_games_with_pbp=sum(c.games_with_pbp for c in coverage_list),
     )
 
 

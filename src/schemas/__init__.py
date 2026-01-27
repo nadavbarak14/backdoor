@@ -87,6 +87,8 @@ from src.schemas.stats import (
     TeamGameSummaryResponse,
 )
 from src.schemas.sync import (
+    SeasonSyncCoverage,
+    SyncCoverageResponse,
     SyncLogFilter,
     SyncLogListResponse,
     SyncLogResponse,
@@ -181,4 +183,6 @@ __all__ = [
     "SyncTriggerRequest",
     "SyncSourceStatus",
     "SyncStatusResponse",
+    "SeasonSyncCoverage",
+    "SyncCoverageResponse",
 ]

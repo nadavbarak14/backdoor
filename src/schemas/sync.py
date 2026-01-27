@@ -122,9 +122,17 @@ class SyncLogResponse(OrmBase):
 
         Returns None if sync is still in progress (no completed_at).
         """
-        if self.completed_at is None:
+        if self.completed_at is None or self.started_at is None:
             return None
-        delta = self.completed_at - self.started_at
+        # Handle timezone-naive vs timezone-aware datetime comparison
+        completed = self.completed_at
+        started = self.started_at
+        # Remove timezone info for comparison if one is naive
+        if completed.tzinfo is not None and started.tzinfo is None:
+            completed = completed.replace(tzinfo=None)
+        elif completed.tzinfo is None and started.tzinfo is not None:
+            started = started.replace(tzinfo=None)
+        delta = completed - started
         return delta.total_seconds()
 
 
@@ -293,3 +301,82 @@ class SyncProgressEvent(BaseModel):
     sync_log: dict[str, Any] | None = Field(
         default=None, description="Final sync log summary"
     )
+
+
+class SeasonSyncCoverage(BaseModel):
+    """
+    Schema for sync coverage statistics of a single season.
+
+    Shows what percentage of data has been synced for a season,
+    enabling identification of missing data for incremental syncs.
+
+    Attributes:
+        season_id: UUID of the season.
+        season_name: Name of the season (e.g., "2024-25").
+        league_name: Name of the league.
+        games_total: Total number of FINAL games.
+        games_with_boxscore: Games that have box score data.
+        games_with_pbp: Games that have play-by-play data.
+        players_total: Total unique players in the season.
+        players_with_bio: Players with position or height data.
+        boxscore_pct: Percentage of games with box score.
+        pbp_pct: Percentage of games with play-by-play.
+        bio_pct: Percentage of players with bio data.
+
+    Example:
+        >>> coverage = SeasonSyncCoverage(
+        ...     season_id=uuid4(),
+        ...     season_name="2024-25",
+        ...     league_name="Winner League",
+        ...     games_total=104,
+        ...     games_with_boxscore=104,
+        ...     games_with_pbp=100,
+        ...     players_total=232,
+        ...     players_with_bio=200,
+        ...     boxscore_pct=100.0,
+        ...     pbp_pct=96.2,
+        ...     bio_pct=86.2,
+        ... )
+    """
+
+    season_id: uuid.UUID = Field(description="UUID of the season")
+    season_name: str = Field(description="Season name (e.g., '2024-25')")
+    league_name: str = Field(description="League name")
+    games_total: int = Field(description="Total FINAL games in season")
+    games_with_boxscore: int = Field(description="Games with PlayerGameStats")
+    games_with_pbp: int = Field(description="Games with PlayByPlayEvent")
+    players_total: int = Field(description="Unique players in season")
+    players_with_bio: int = Field(description="Players with position or height")
+    boxscore_pct: float = Field(description="Percentage of games with boxscore")
+    pbp_pct: float = Field(description="Percentage of games with PBP")
+    bio_pct: float = Field(description="Percentage of players with bio")
+
+
+class SyncCoverageResponse(BaseModel):
+    """
+    Schema for sync coverage response across all seasons.
+
+    Provides a comprehensive view of sync coverage to identify
+    what data needs to be synced.
+
+    Attributes:
+        seasons: List of per-season sync coverage statistics.
+        total_games: Total games across all seasons.
+        total_games_with_boxscore: Total games with box score data.
+        total_games_with_pbp: Total games with play-by-play data.
+
+    Example:
+        >>> response = SyncCoverageResponse(
+        ...     seasons=[coverage1, coverage2],
+        ...     total_games=500,
+        ...     total_games_with_boxscore=495,
+        ...     total_games_with_pbp=400,
+        ... )
+    """
+
+    seasons: list[SeasonSyncCoverage] = Field(
+        description="Per-season sync coverage statistics"
+    )
+    total_games: int = Field(description="Total games across all seasons")
+    total_games_with_boxscore: int = Field(description="Total games with boxscore")
+    total_games_with_pbp: int = Field(description="Total games with PBP")
