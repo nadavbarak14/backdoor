@@ -13,7 +13,7 @@ Usage:
     game = syncer.sync_game(raw_game, season_id, source)
 
     # Sync box score
-    syncer.sync_boxscore(raw_boxscore, game, source)
+    syncer.sync_boxscore(raw_boxscore, game)
 
     # Sync play-by-play
     syncer.sync_pbp(raw_events, game, source)
@@ -50,7 +50,7 @@ class GameSyncer:
     Example:
         >>> syncer = GameSyncer(db, team_matcher, player_deduplicator)
         >>> game = syncer.sync_game(raw_game, season.id, "winner")
-        >>> syncer.sync_boxscore(raw_boxscore, game, "winner")
+        >>> syncer.sync_boxscore(raw_boxscore, game)
     """
 
     def __init__(
@@ -137,25 +137,23 @@ class GameSyncer:
         self,
         raw: RawBoxScore,
         game: Game,
-        source: str,
     ) -> tuple[list[PlayerGameStats], list[TeamGameStats]]:
         """
         Sync box score data for a game.
 
         Creates PlayerGameStats for all players and TeamGameStats
-        for both teams. Handles player deduplication automatically.
+        for both teams. Players are matched by jersey number to roster.
 
         Args:
             raw: Raw box score data from external source.
             game: The Game entity to sync stats for.
-            source: The data source name.
 
         Returns:
             Tuple of (player_stats, team_stats) lists.
 
         Example:
             >>> player_stats, team_stats = syncer.sync_boxscore(
-            ...     raw_boxscore, game, "winner"
+            ...     raw_boxscore, game
             ... )
         """
         player_stats: list[PlayerGameStats] = []
@@ -169,7 +167,6 @@ class GameSyncer:
             raw.home_players,
             game=game,
             team_id=game.home_team_id,
-            source=source,
         )
         player_stats.extend(home_player_stats)
 
@@ -178,7 +175,6 @@ class GameSyncer:
             raw.away_players,
             game=game,
             team_id=game.away_team_id,
-            source=source,
         )
         player_stats.extend(away_player_stats)
 
@@ -336,18 +332,21 @@ class GameSyncer:
         player_stats: list[RawPlayerStats],
         game: Game,
         team_id: UUID,
-        source: str,
     ) -> list[PlayerGameStats]:
         """Sync player stats for one team."""
         result: list[PlayerGameStats] = []
 
         for raw in player_stats:
-            # Find or create player
+            # Match player by jersey number to roster
             player = self.player_syncer.sync_player_from_stats(
                 raw=raw,
                 team_id=team_id,
-                source=source,
+                season_id=game.season_id,
             )
+
+            if player is None:
+                # Player not in roster - skip their stats
+                continue
 
             stats = PlayerGameStats(
                 game_id=game.id,

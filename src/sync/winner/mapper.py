@@ -620,6 +620,7 @@ class WinnerMapper:
             personal_fouls=self._parse_int(data.get("f")),
             plus_minus=self._parse_int(data.get("plusMinus")),
             efficiency=self._parse_int(data.get("rate")),
+            jersey_number=str(data.get("jerseyNumber", "")) or None,
         )
 
     def map_boxscore(self, data: dict) -> RawBoxScore:

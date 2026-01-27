@@ -97,21 +97,26 @@ class PlayerDeduplicator:
         external_id: str,
         player_data: RawPlayerInfo,
         team_id: UUID | None = None,
+        season_id: UUID | None = None,
+        jersey_number: str | None = None,
     ) -> Player:
         """
         Find an existing player or create a new one from external data.
 
         This method follows a multi-tier matching process:
         1. Check if a player exists with this external_id for this source
-        2. If team_id provided, check team roster for name match
-        3. Try global match using name + bio data (birth_date, height)
-        4. If no match found, create new player
+        2. If team_id + season_id + jersey_number provided, match by jersey
+        3. If team_id provided, check team roster for name match
+        4. Try global match using name + bio data (birth_date, height)
+        5. If no match found, create new player
 
         Args:
             source: The data source name (e.g., "winner", "euroleague").
             external_id: The external ID from the data source.
             player_data: Raw player info containing name and bio data.
             team_id: Optional UUID of the team this player belongs to.
+            season_id: Optional UUID of the season (for jersey matching).
+            jersey_number: Optional jersey number (for matching with roster).
 
         Returns:
             The matched or newly created Player entity.
@@ -137,13 +142,21 @@ class PlayerDeduplicator:
 
         player_name = f"{player_data.first_name} {player_data.last_name}"
 
-        # Step 2: Try to match by name on the same team (if team provided)
+        # Step 2: Try to match by jersey number on the same team/season
+        if team_id and season_id and jersey_number:
+            matched = self.match_player_by_jersey(
+                team_id, season_id, jersey_number, source
+            )
+            if matched:
+                return self.merge_external_id(matched, source, external_id)
+
+        # Step 3: Try to match by name on the same team (if team provided)
         if team_id:
             matched = self.match_player_on_team(team_id, player_name, source)
             if matched:
                 return self.merge_external_id(matched, source, external_id)
 
-        # Step 3: Try global match using bio data
+        # Step 4: Try global match using bio data
         matched = self.match_player_globally(
             player_name=player_name,
             source=source,
@@ -153,8 +166,41 @@ class PlayerDeduplicator:
         if matched:
             return self.merge_external_id(matched, source, external_id)
 
-        # Step 4: Create new player
+        # Step 5: Create new player
         return self._create_player(source, external_id, player_data)
+
+    def match_player_by_jersey(
+        self,
+        team_id: UUID,
+        season_id: UUID,
+        jersey_number: str,
+    ) -> Player | None:
+        """
+        Find a roster player by jersey number.
+
+        Args:
+            team_id: UUID of the team.
+            season_id: UUID of the season.
+            jersey_number: Jersey number to match.
+
+        Returns:
+            The matched Player if found, None otherwise.
+        """
+        try:
+            jersey_int = int(jersey_number)
+        except (ValueError, TypeError):
+            return None
+
+        stmt = (
+            select(Player)
+            .join(PlayerTeamHistory, Player.id == PlayerTeamHistory.player_id)
+            .where(
+                PlayerTeamHistory.team_id == team_id,
+                PlayerTeamHistory.season_id == season_id,
+                PlayerTeamHistory.jersey_number == jersey_int,
+            )
+        )
+        return self.db.scalars(stmt).first()
 
     def get_by_external_id(self, source: str, external_id: str) -> Player | None:
         """

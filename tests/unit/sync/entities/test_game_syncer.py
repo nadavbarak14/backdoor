@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from src.models.game import PlayerGameStats
 from src.models.league import League, Season
 from src.models.play_by_play import PlayByPlayEvent, PlayByPlayEventLink
-from src.models.player import Player
+from src.models.player import Player, PlayerTeamHistory
 from src.models.team import Team
 from src.sync.deduplication import PlayerDeduplicator, TeamMatcher
 from src.sync.entities import GameSyncer
@@ -87,8 +87,8 @@ def away_team(test_db: Session) -> Team:
 
 
 @pytest.fixture
-def home_player(test_db: Session) -> Player:
-    """Create a home team player."""
+def home_player(test_db: Session, home_team: Team, season: Season) -> Player:
+    """Create a home team player with roster entry."""
     player = Player(
         id=uuid4(),
         first_name="Home",
@@ -96,13 +96,22 @@ def home_player(test_db: Session) -> Player:
         external_ids={"winner": "hp-1"},
     )
     test_db.add(player)
+    test_db.flush()
+    # Create PlayerTeamHistory with jersey number for matching
+    pth = PlayerTeamHistory(
+        player_id=player.id,
+        team_id=home_team.id,
+        season_id=season.id,
+        jersey_number=10,  # Matches boxscore jersey
+    )
+    test_db.add(pth)
     test_db.commit()
     return player
 
 
 @pytest.fixture
-def away_player(test_db: Session) -> Player:
-    """Create an away team player."""
+def away_player(test_db: Session, away_team: Team, season: Season) -> Player:
+    """Create an away team player with roster entry."""
     player = Player(
         id=uuid4(),
         first_name="Away",
@@ -110,6 +119,15 @@ def away_player(test_db: Session) -> Player:
         external_ids={"winner": "ap-1"},
     )
     test_db.add(player)
+    test_db.flush()
+    # Create PlayerTeamHistory with jersey number for matching
+    pth = PlayerTeamHistory(
+        player_id=player.id,
+        team_id=away_team.id,
+        season_id=season.id,
+        jersey_number=20,  # Matches boxscore jersey
+    )
+    test_db.add(pth)
     test_db.commit()
     return player
 
@@ -169,6 +187,7 @@ def raw_boxscore(raw_game: RawGame) -> RawBoxScore:
         turnovers=2,
         steals=1,
         blocks=1,
+        jersey_number="10",  # For jersey matching
     )
 
     away_stats = RawPlayerStats(
@@ -184,6 +203,7 @@ def raw_boxscore(raw_game: RawGame) -> RawBoxScore:
         three_pointers_attempted=6,
         total_rebounds=5,
         assists=3,
+        jersey_number="20",  # For jersey matching
     )
 
     return RawBoxScore(
@@ -263,13 +283,13 @@ class TestSyncBoxscore:
         game_syncer: GameSyncer,
         raw_boxscore: RawBoxScore,
         season: Season,
+        home_player: Player,  # Ensures roster player exists with jersey
+        away_player: Player,  # Ensures roster player exists with jersey
         test_db: Session,
     ) -> None:
         """Should create PlayerGameStats for all players."""
         game = game_syncer.sync_game(raw_boxscore.game, season.id, "winner")
-        player_stats, team_stats = game_syncer.sync_boxscore(
-            raw_boxscore, game, "winner"
-        )
+        player_stats, team_stats = game_syncer.sync_boxscore(raw_boxscore, game)
 
         assert len(player_stats) == 2
 
@@ -285,13 +305,13 @@ class TestSyncBoxscore:
         game_syncer: GameSyncer,
         raw_boxscore: RawBoxScore,
         season: Season,
+        home_player: Player,
+        away_player: Player,
         test_db: Session,
     ) -> None:
         """Should create TeamGameStats for both teams."""
         game = game_syncer.sync_game(raw_boxscore.game, season.id, "winner")
-        player_stats, team_stats = game_syncer.sync_boxscore(
-            raw_boxscore, game, "winner"
-        )
+        player_stats, team_stats = game_syncer.sync_boxscore(raw_boxscore, game)
 
         assert len(team_stats) == 2
 
@@ -305,13 +325,15 @@ class TestSyncBoxscore:
         game_syncer: GameSyncer,
         raw_boxscore: RawBoxScore,
         season: Season,
+        home_player: Player,
+        away_player: Player,
         test_db: Session,
     ) -> None:
         """Should delete old stats when re-syncing."""
         game = game_syncer.sync_game(raw_boxscore.game, season.id, "winner")
 
         # First sync
-        game_syncer.sync_boxscore(raw_boxscore, game, "winner")
+        game_syncer.sync_boxscore(raw_boxscore, game)
         test_db.commit()
 
         # Count stats
@@ -321,7 +343,7 @@ class TestSyncBoxscore:
         assert initial_count == 2
 
         # Re-sync (should replace)
-        game_syncer.sync_boxscore(raw_boxscore, game, "winner")
+        game_syncer.sync_boxscore(raw_boxscore, game)
         test_db.commit()
 
         final_count = test_db.query(PlayerGameStats).filter_by(game_id=game.id).count()

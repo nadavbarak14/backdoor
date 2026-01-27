@@ -22,6 +22,7 @@ from sqlalchemy.pool import StaticPool
 
 from src.models import Base, Game, League, Player, PlayerGameStats, Season, Team
 from src.models.game import TeamGameStats
+from src.models.player import PlayerTeamHistory
 from src.models.team import TeamSeason
 from src.sync.deduplication import PlayerDeduplicator, TeamMatcher
 from src.sync.entities.game import GameSyncer
@@ -186,6 +187,62 @@ def game_syncer(db_session: Session) -> GameSyncer:
     return GameSyncer(db_session, team_matcher, player_dedup)
 
 
+@pytest.fixture(autouse=True)
+def roster_players(
+    db_session: Session,
+    boxscore_fixture: dict,
+    home_team: Team,
+    away_team: Team,
+    sample_season: Season,
+) -> list[Player]:
+    """Create roster players with jersey numbers from boxscore fixture.
+
+    This fixture extracts player data from the boxscore and creates
+    Player and PlayerTeamHistory records so jersey matching works.
+    """
+    boxscore = boxscore_fixture["result"]["boxscore"]
+    players = []
+
+    # Create home team players
+    for p in boxscore["homeTeam"]["players"]:
+        player = Player(
+            first_name=f"Home{p['jerseyNumber']}",
+            last_name="Player",
+            external_ids={"winner": str(p["playerId"])},
+        )
+        db_session.add(player)
+        db_session.flush()
+        pth = PlayerTeamHistory(
+            player_id=player.id,
+            team_id=home_team.id,
+            season_id=sample_season.id,
+            jersey_number=int(p["jerseyNumber"]),
+        )
+        db_session.add(pth)
+        players.append(player)
+
+    # Create away team players
+    for p in boxscore["awayTeam"]["players"]:
+        player = Player(
+            first_name=f"Away{p['jerseyNumber']}",
+            last_name="Player",
+            external_ids={"winner": str(p["playerId"])},
+        )
+        db_session.add(player)
+        db_session.flush()
+        pth = PlayerTeamHistory(
+            player_id=player.id,
+            team_id=away_team.id,
+            season_id=sample_season.id,
+            jersey_number=int(p["jerseyNumber"]),
+        )
+        db_session.add(pth)
+        players.append(player)
+
+    db_session.commit()
+    return players
+
+
 class TestSyncBoxscoreCreatesPlayerGameStats:
     """Test that sync_boxscore creates PlayerGameStats records."""
 
@@ -202,9 +259,7 @@ class TestSyncBoxscoreCreatesPlayerGameStats:
         raw_boxscore = mapper.map_boxscore(boxscore_fixture)
 
         # Sync boxscore
-        player_stats, team_stats = game_syncer.sync_boxscore(
-            raw_boxscore, sample_game, "winner"
-        )
+        player_stats, team_stats = game_syncer.sync_boxscore(raw_boxscore, sample_game)
         db_session.commit()
 
         # Verify PlayerGameStats were created
@@ -229,7 +284,7 @@ class TestSyncBoxscoreCreatesPlayerGameStats:
         """All PlayerGameStats should be linked to the correct game."""
         raw_boxscore = mapper.map_boxscore(boxscore_fixture)
 
-        player_stats, _ = game_syncer.sync_boxscore(raw_boxscore, sample_game, "winner")
+        player_stats, _ = game_syncer.sync_boxscore(raw_boxscore, sample_game)
         db_session.commit()
 
         for stats in player_stats:
@@ -248,7 +303,7 @@ class TestSyncBoxscoreCreatesPlayerGameStats:
         """PlayerGameStats should have valid team_id (home or away)."""
         raw_boxscore = mapper.map_boxscore(boxscore_fixture)
 
-        player_stats, _ = game_syncer.sync_boxscore(raw_boxscore, sample_game, "winner")
+        player_stats, _ = game_syncer.sync_boxscore(raw_boxscore, sample_game)
         db_session.commit()
 
         valid_team_ids = {home_team.id, away_team.id}
@@ -270,7 +325,7 @@ class TestSyncBoxscoreCreatesTeamGameStats:
         """sync_boxscore should create TeamGameStats for both teams."""
         raw_boxscore = mapper.map_boxscore(boxscore_fixture)
 
-        _, team_stats = game_syncer.sync_boxscore(raw_boxscore, sample_game, "winner")
+        _, team_stats = game_syncer.sync_boxscore(raw_boxscore, sample_game)
         db_session.commit()
 
         # Should have 2 team stats (home and away)
@@ -291,7 +346,7 @@ class TestSyncBoxscoreCreatesTeamGameStats:
         """TeamGameStats should have one home and one away record."""
         raw_boxscore = mapper.map_boxscore(boxscore_fixture)
 
-        _, team_stats = game_syncer.sync_boxscore(raw_boxscore, sample_game, "winner")
+        _, team_stats = game_syncer.sync_boxscore(raw_boxscore, sample_game)
         db_session.commit()
 
         home_stats = [s for s in team_stats if s.is_home is True]
@@ -311,7 +366,7 @@ class TestSyncBoxscoreCreatesTeamGameStats:
         """TeamGameStats should be linked to correct game."""
         raw_boxscore = mapper.map_boxscore(boxscore_fixture)
 
-        _, team_stats = game_syncer.sync_boxscore(raw_boxscore, sample_game, "winner")
+        _, team_stats = game_syncer.sync_boxscore(raw_boxscore, sample_game)
         db_session.commit()
 
         for stats in team_stats:
@@ -328,9 +383,7 @@ class TestSyncBoxscoreCreatesTeamGameStats:
         """TeamGameStats should aggregate player stats correctly."""
         raw_boxscore = mapper.map_boxscore(boxscore_fixture)
 
-        player_stats, team_stats = game_syncer.sync_boxscore(
-            raw_boxscore, sample_game, "winner"
-        )
+        player_stats, team_stats = game_syncer.sync_boxscore(raw_boxscore, sample_game)
         db_session.commit()
 
         # Get home team stats
@@ -360,7 +413,7 @@ class TestSyncBoxscoreAllPlayersHaveStats:
         """Every player in boxscore should have a PlayerGameStats record."""
         raw_boxscore = mapper.map_boxscore(boxscore_fixture)
 
-        player_stats, _ = game_syncer.sync_boxscore(raw_boxscore, sample_game, "winner")
+        player_stats, _ = game_syncer.sync_boxscore(raw_boxscore, sample_game)
         db_session.commit()
 
         # Get all external IDs from boxscore
@@ -392,7 +445,7 @@ class TestSyncBoxscoreStatsAreValid:
         """Count stats should be non-negative (except plus_minus)."""
         raw_boxscore = mapper.map_boxscore(boxscore_fixture)
 
-        player_stats, _ = game_syncer.sync_boxscore(raw_boxscore, sample_game, "winner")
+        player_stats, _ = game_syncer.sync_boxscore(raw_boxscore, sample_game)
         db_session.commit()
 
         for stats in player_stats:
@@ -419,7 +472,7 @@ class TestSyncBoxscoreStatsAreValid:
         """Made shots should not exceed attempted shots."""
         raw_boxscore = mapper.map_boxscore(boxscore_fixture)
 
-        player_stats, _ = game_syncer.sync_boxscore(raw_boxscore, sample_game, "winner")
+        player_stats, _ = game_syncer.sync_boxscore(raw_boxscore, sample_game)
         db_session.commit()
 
         for stats in player_stats:
@@ -439,7 +492,7 @@ class TestSyncBoxscoreStatsAreValid:
         """Total rebounds should equal offensive + defensive."""
         raw_boxscore = mapper.map_boxscore(boxscore_fixture)
 
-        player_stats, _ = game_syncer.sync_boxscore(raw_boxscore, sample_game, "winner")
+        player_stats, _ = game_syncer.sync_boxscore(raw_boxscore, sample_game)
         db_session.commit()
 
         for stats in player_stats:
@@ -457,7 +510,7 @@ class TestSyncBoxscoreStatsAreValid:
         """Points should equal 2*2PT + 3*3PT + FT."""
         raw_boxscore = mapper.map_boxscore(boxscore_fixture)
 
-        player_stats, _ = game_syncer.sync_boxscore(raw_boxscore, sample_game, "winner")
+        player_stats, _ = game_syncer.sync_boxscore(raw_boxscore, sample_game)
         db_session.commit()
 
         for stats in player_stats:
@@ -536,9 +589,7 @@ class TestBoxscoreLinkedToCorrectGame:
         """All stats should reference the correct game_id."""
         raw_boxscore = mapper.map_boxscore(boxscore_fixture)
 
-        player_stats, team_stats = game_syncer.sync_boxscore(
-            raw_boxscore, sample_game, "winner"
-        )
+        player_stats, team_stats = game_syncer.sync_boxscore(raw_boxscore, sample_game)
         db_session.commit()
 
         # All player stats should reference correct game
@@ -560,7 +611,7 @@ class TestBoxscoreLinkedToCorrectGame:
         """Stats should be accessible via game relationship."""
         raw_boxscore = mapper.map_boxscore(boxscore_fixture)
 
-        game_syncer.sync_boxscore(raw_boxscore, sample_game, "winner")
+        game_syncer.sync_boxscore(raw_boxscore, sample_game)
         db_session.commit()
 
         # Refresh game to load relationships
@@ -584,9 +635,7 @@ class TestBoxscoreLinkedToCorrectGame:
         raw_boxscore = mapper.map_boxscore(boxscore_fixture)
 
         # First sync
-        player_stats_1, _ = game_syncer.sync_boxscore(
-            raw_boxscore, sample_game, "winner"
-        )
+        player_stats_1, _ = game_syncer.sync_boxscore(raw_boxscore, sample_game)
         db_session.commit()
 
         count_1 = (
@@ -594,9 +643,7 @@ class TestBoxscoreLinkedToCorrectGame:
         )
 
         # Second sync (same boxscore)
-        player_stats_2, _ = game_syncer.sync_boxscore(
-            raw_boxscore, sample_game, "winner"
-        )
+        player_stats_2, _ = game_syncer.sync_boxscore(raw_boxscore, sample_game)
         db_session.commit()
 
         count_2 = (
