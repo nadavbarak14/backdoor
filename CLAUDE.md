@@ -375,3 +375,48 @@ uv run black .
 
 - If virtual environment is corrupted, delete `.venv` and recreate: `rm -rf .venv && uv venv && uv pip install -e ".[dev]"`
 - Always use `uv run python -m pytest` not just `pytest` or `uv run pytest`
+
+## Database Workflow (Multi-Branch Development)
+
+When working on sync features across multiple branches, use the template database workflow to avoid conflicts.
+
+### File Locations
+
+| File | Purpose |
+|------|---------|
+| `data/template.db` | Shared template database (gitignored) |
+| `basketball.db` | Working database for current branch (gitignored) |
+| `DB_TEMPLATE_PATH` | Environment variable pointing to template |
+
+### Commands
+
+```bash
+# Check database status
+python scripts/db_manage.py status
+
+# Copy template to working database (use when starting a new branch)
+python scripts/db_manage.py copy-template
+
+# Update template from working database (use after syncing new data)
+python scripts/db_manage.py update-template
+```
+
+### Workflow
+
+1. **Starting a new feature branch:**
+   ```bash
+   git checkout -b feature/my-sync-feature
+   python scripts/db_manage.py copy-template
+   ```
+
+2. **After syncing new data others should have:**
+   ```bash
+   python scripts/db_manage.py update-template
+   ```
+
+3. **Switching branches (if different data needed):**
+   ```bash
+   python scripts/db_manage.py copy-template
+   ```
+
+See `docs/development/database-workflow.md` for full documentation.
