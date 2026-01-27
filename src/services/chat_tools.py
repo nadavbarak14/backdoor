@@ -58,6 +58,7 @@ def _log_response(tool_name: str, response: str) -> str:
     )
     return response
 
+
 # =============================================================================
 # Helper Functions for Name Resolution
 # =============================================================================
