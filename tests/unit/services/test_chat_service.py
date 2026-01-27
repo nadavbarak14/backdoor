@@ -103,9 +103,7 @@ class TestChatServiceSessionManagement:
         # Create session
         chat_service._get_session_messages("existing-session")
         # Add a message manually
-        chat_service.sessions["existing-session"].append(
-            HumanMessage(content="Test")
-        )
+        chat_service.sessions["existing-session"].append(HumanMessage(content="Test"))
 
         messages = chat_service._get_session_messages("existing-session")
 
@@ -190,6 +188,7 @@ class TestChatServiceStreaming:
     @pytest.mark.asyncio
     async def test_stream_yields_content_chunks(self, chat_service):
         """Test that stream yields content from LLM."""
+
         # Mock the astream method
         async def mock_astream(messages):
             for content in ["Hello", " ", "World"]:
@@ -209,6 +208,7 @@ class TestChatServiceStreaming:
     @pytest.mark.asyncio
     async def test_stream_handles_empty_content(self, chat_service):
         """Test that stream handles chunks with empty content."""
+
         async def mock_astream(messages):
             chunks = [
                 MagicMock(content="Hello"),
@@ -231,6 +231,7 @@ class TestChatServiceStreaming:
     @pytest.mark.asyncio
     async def test_stream_updates_session_after_completion(self, chat_service):
         """Test that session is updated after streaming completes."""
+
         async def mock_astream(messages):
             for content in ["Hello ", "World"]:
                 chunk = MagicMock()
@@ -252,6 +253,7 @@ class TestChatServiceStreaming:
     @pytest.mark.asyncio
     async def test_stream_handles_llm_error(self, chat_service):
         """Test that stream handles LLM errors gracefully."""
+
         async def mock_astream(messages):
             raise Exception("LLM Error")
             yield  # Make it an async generator
