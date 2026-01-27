@@ -20,6 +20,7 @@ class TestLeaguesAPI:
     def test_get_league_by_id(self, real_client: TestClient, real_db: Session):
         """Test getting a specific league."""
         from src.models.league import League
+
         league = real_db.query(League).first()
 
         response = real_client.get(f"/api/v1/leagues/{league.id}")
@@ -39,6 +40,7 @@ class TestTeamsAPI:
     def test_get_team_by_id(self, real_client: TestClient, real_db: Session):
         """Test getting a specific team."""
         from src.models.team import Team
+
         team = real_db.query(Team).first()
 
         response = real_client.get(f"/api/v1/teams/{team.id}")
@@ -48,6 +50,7 @@ class TestTeamsAPI:
     def test_get_team_games(self, real_client: TestClient, real_db: Session):
         """Test getting team game history."""
         from src.models.game import Game
+
         game = real_db.query(Game).first()
 
         response = real_client.get(f"/api/v1/teams/{game.home_team_id}/games")
@@ -67,15 +70,19 @@ class TestPlayersAPI:
     def test_search_players(self, real_client: TestClient, real_db: Session):
         """Test searching players by name."""
         from src.models.player import Player
+
         player = real_db.query(Player).first()
 
-        response = real_client.get("/api/v1/players", params={"search": player.last_name[:3]})
+        response = real_client.get(
+            "/api/v1/players", params={"search": player.last_name[:3]}
+        )
         assert response.status_code == 200
         assert response.json()["total"] >= 1
 
     def test_get_player_by_id(self, real_client: TestClient, real_db: Session):
         """Test getting a specific player."""
         from src.models.player import Player
+
         player = real_db.query(Player).first()
 
         response = real_client.get(f"/api/v1/players/{player.id}")
@@ -85,6 +92,7 @@ class TestPlayersAPI:
     def test_get_player_games(self, real_client: TestClient, real_db: Session):
         """Test getting player game log."""
         from src.models.game import PlayerGameStats
+
         stat = real_db.query(PlayerGameStats).first()
 
         response = real_client.get(f"/api/v1/players/{stat.player_id}/games")
@@ -104,6 +112,7 @@ class TestGamesAPI:
     def test_get_game_by_id(self, real_client: TestClient, real_db: Session):
         """Test getting a specific game with box score."""
         from src.models.game import Game
+
         game = real_db.query(Game).first()
 
         response = real_client.get(f"/api/v1/games/{game.id}")
@@ -113,6 +122,7 @@ class TestGamesAPI:
     def test_get_game_play_by_play(self, real_client: TestClient, real_db: Session):
         """Test getting play-by-play for a game."""
         from src.models.play_by_play import PlayByPlayEvent
+
         pbp = real_db.query(PlayByPlayEvent).first()
 
         response = real_client.get(f"/api/v1/games/{pbp.game_id}/pbp")
@@ -126,11 +136,12 @@ class TestStatsAPI:
     def test_get_leaders_points(self, real_client: TestClient, real_db: Session):
         """Test getting league leaders in points."""
         from src.models.league import Season
+
         season = real_db.query(Season).first()
 
         response = real_client.get(
             "/api/v1/stats/leaders",
-            params={"season_id": season.id, "category": "points"}
+            params={"season_id": season.id, "category": "points"},
         )
         assert response.status_code == 200
         assert len(response.json()) >= 1
@@ -138,11 +149,12 @@ class TestStatsAPI:
     def test_get_leaders_rebounds(self, real_client: TestClient, real_db: Session):
         """Test getting league leaders in rebounds."""
         from src.models.league import Season
+
         season = real_db.query(Season).first()
 
         response = real_client.get(
             "/api/v1/stats/leaders",
-            params={"season_id": season.id, "category": "rebounds"}
+            params={"season_id": season.id, "category": "rebounds"},
         )
         assert response.status_code == 200
 
