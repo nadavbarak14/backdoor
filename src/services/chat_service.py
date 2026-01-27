@@ -129,9 +129,7 @@ def _create_tool_with_db(tool_func: Any, db: Session) -> StructuredTool:
     sig = inspect.signature(original_func)
 
     # Create new parameters without 'db'
-    new_params = [
-        p for name, p in sig.parameters.items() if name != "db"
-    ]
+    new_params = [p for name, p in sig.parameters.items() if name != "db"]
 
     @wraps(original_func)
     def wrapper(**kwargs: Any) -> str:
@@ -402,7 +400,10 @@ class ChatService:
                         final_message = final_message + chunk
 
                     # Check for tool calls in the aggregated message
-                    if not hasattr(final_message, 'tool_calls') or not final_message.tool_calls:
+                    if (
+                        not hasattr(final_message, "tool_calls")
+                        or not final_message.tool_calls
+                    ):
                         break
 
                     # Add AI message with tool calls to history
