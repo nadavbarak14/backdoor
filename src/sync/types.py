@@ -178,6 +178,7 @@ class RawPlayerStats:
     personal_fouls: int = 0
     plus_minus: int = 0
     efficiency: int = 0
+    jersey_number: str | None = None  # For matching with roster
 
 
 @dataclass

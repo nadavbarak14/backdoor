@@ -22,7 +22,7 @@ Usage:
 
     # Sync a game with box score
     game = game_syncer.sync_game(raw_game, season_id, source)
-    game_syncer.sync_boxscore(raw_boxscore, game, source)
+    game_syncer.sync_boxscore(raw_boxscore, game)
 """
 
 from src.sync.entities.game import GameSyncer

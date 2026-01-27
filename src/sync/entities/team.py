@@ -19,8 +19,8 @@ Usage:
     # Sync with season-specific record
     team, team_season = syncer.sync_team_season(raw_team, season_id, source)
 
-    # Sync roster for a team
-    syncer.sync_roster(player_stats, team, season, source)
+    # Sync roster with player names and jersey numbers
+    syncer.sync_roster_from_info(roster, team, season, source)
 """
 
 from uuid import UUID
@@ -33,7 +33,7 @@ from src.models.player import Player, PlayerTeamHistory
 from src.models.team import Team, TeamSeason
 from src.sync.deduplication import PlayerDeduplicator, TeamMatcher
 from src.sync.entities.player import PlayerSyncer
-from src.sync.types import RawPlayerInfo, RawPlayerStats, RawTeam
+from src.sync.types import RawPlayerInfo, RawTeam
 
 
 class TeamSyncer:
@@ -51,7 +51,7 @@ class TeamSyncer:
     Example:
         >>> syncer = TeamSyncer(db, team_matcher, player_deduplicator)
         >>> team = syncer.sync_team(raw_team, "winner")
-        >>> syncer.sync_roster(player_stats, team, season, "winner")
+        >>> syncer.sync_roster_from_info(roster, team, season, "winner")
     """
 
     def __init__(
@@ -136,54 +136,6 @@ class TeamSyncer:
             team_data=raw,
             season_id=season_id,
         )
-
-    def sync_roster(
-        self,
-        players: list[RawPlayerStats],
-        team: Team,
-        season: Season,
-        source: str,
-    ) -> list[Player]:
-        """
-        Sync roster entries for a team from player stats.
-
-        Creates or updates PlayerTeamHistory records linking players
-        to the team for the given season.
-
-        Args:
-            players: List of raw player stats (from box score).
-            team: The Team entity.
-            season: The Season entity.
-            source: The data source name.
-
-        Returns:
-            List of synced Player entities.
-
-        Example:
-            >>> players = syncer.sync_roster(
-            ...     boxscore.home_players, home_team, season, "winner"
-            ... )
-        """
-        synced_players: list[Player] = []
-
-        for raw_stats in players:
-            # Find or create player
-            player = self.player_syncer.sync_player_from_stats(
-                raw=raw_stats,
-                team_id=team.id,
-                source=source,
-            )
-
-            # Create PlayerTeamHistory if not exists
-            self._ensure_team_history(
-                player_id=player.id,
-                team_id=team.id,
-                season_id=season.id,
-            )
-
-            synced_players.append(player)
-
-        return synced_players
 
     def get_by_external_id(self, source: str, external_id: str) -> Team | None:
         """

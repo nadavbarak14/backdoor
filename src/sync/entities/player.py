@@ -4,6 +4,9 @@ Player Syncer Module
 Provides functionality to sync player data from external sources to the database.
 Uses PlayerDeduplicator to find or create players while avoiding duplicates.
 
+Players are ONLY created from roster data (which has names).
+Boxscore/PBP data matches players by jersey number - never creates new players.
+
 Usage:
     from src.sync.entities.player import PlayerSyncer
     from src.sync.deduplication import PlayerDeduplicator
@@ -11,11 +14,11 @@ Usage:
     deduplicator = PlayerDeduplicator(db_session)
     syncer = PlayerSyncer(db_session, deduplicator)
 
-    # Sync a player from raw info
+    # Sync a player from roster info (creates player with name)
     player = syncer.sync_player(raw_player_info, team_id, source)
 
-    # Sync from box score stats (creates basic player record)
-    player = syncer.sync_player_from_stats(raw_player_stats, team_id, source)
+    # Match player from boxscore by jersey (never creates, returns None if not found)
+    player = syncer.sync_player_from_stats(raw_stats, team_id, season_id, source)
 """
 
 from uuid import UUID
@@ -102,51 +105,38 @@ class PlayerSyncer:
     def sync_player_from_stats(
         self,
         raw: RawPlayerStats,
-        team_id: UUID | None,
-        source: str,
-    ) -> Player:
+        team_id: UUID,
+        season_id: UUID,
+    ) -> Player | None:
         """
-        Sync a player from box score stats to the database.
+        Find a roster player by jersey number for boxscore/PBP data.
 
-        Creates a RawPlayerInfo from the limited data available in stats.
-        This is used when syncing box scores where only basic player info
-        is available.
+        Players are ONLY created from rosters. Boxscore data just has
+        jersey numbers which we use to match to existing roster players.
+        We never create new players from boxscore data.
 
         Args:
-            raw: Raw player stats from a box score.
-            team_id: Optional UUID of the team for roster-based matching.
-            source: The data source name.
+            raw: Raw player stats from a box score (has jersey_number).
+            team_id: UUID of the team.
+            season_id: UUID of the season.
 
         Returns:
-            The found or created Player entity.
+            The matched Player if found by jersey, None otherwise.
 
         Example:
             >>> player = syncer.sync_player_from_stats(
             ...     raw=raw_player_stats,
             ...     team_id=team.id,
-            ...     source="winner"
+            ...     season_id=season.id,
             ... )
         """
-        # Parse name into first/last
-        name_parts = raw.player_name.split(maxsplit=1)
-        first_name = name_parts[0] if name_parts else ""
-        last_name = name_parts[1] if len(name_parts) > 1 else ""
+        if not raw.jersey_number:
+            return None
 
-        # Create minimal player info from stats
-        player_info = RawPlayerInfo(
-            external_id=raw.player_external_id,
-            first_name=first_name,
-            last_name=last_name,
-            birth_date=None,
-            height_cm=None,
-            position=None,
-        )
-
-        return self.deduplicator.find_or_create_player(
-            source=source,
-            external_id=raw.player_external_id,
-            player_data=player_info,
+        return self.deduplicator.match_player_by_jersey(
             team_id=team_id,
+            season_id=season_id,
+            jersey_number=raw.jersey_number,
         )
 
     def get_by_external_id(self, source: str, external_id: str) -> Player | None:
