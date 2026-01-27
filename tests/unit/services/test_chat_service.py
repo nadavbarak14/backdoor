@@ -201,9 +201,11 @@ class TestChatServiceStreaming:
     @pytest.fixture
     def chat_service(self):
         """Create a ChatService with mocked LLM and tools."""
-        with patch("src.services.chat_service.ChatOpenAI") as mock_llm_class, \
-             patch("src.services.chat_service.SessionLocal") as mock_session, \
-             patch("src.services.chat_service.ALL_TOOLS", []):  # Empty tools for testing
+        with (
+            patch("src.services.chat_service.ChatOpenAI") as mock_llm_class,
+            patch("src.services.chat_service.SessionLocal") as mock_session,
+            patch("src.services.chat_service.ALL_TOOLS", []),
+        ):  # Empty tools for testing
             mock_llm = MagicMock()
             mock_llm_class.return_value = mock_llm
             mock_session.return_value = MagicMock()
