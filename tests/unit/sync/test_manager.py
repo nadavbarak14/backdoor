@@ -174,8 +174,8 @@ class TestSyncSeason:
         test_db.add(existing_game)
         test_db.commit()
 
-        # Run sync
-        sync_log = await sync_manager.sync_season("winner", "2024-25")
+        # Run sync without PBP to test game skip behavior
+        sync_log = await sync_manager.sync_season("winner", "2024-25", include_pbp=False)
 
         # Verify boxscore was NOT called (game was skipped)
         mock_adapter.get_game_boxscore.assert_not_called()
