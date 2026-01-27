@@ -686,3 +686,171 @@ class TestAllPlayersHaveSeasonStats:
         )
 
         assert result is None  # No stats because game not FINAL
+
+
+class TestZeroMinutesExcluded:
+    """Tests for excluding DNP (0 minutes) games from stats."""
+
+    def test_zero_minutes_not_counted_as_game_played(self, test_db: Session):
+        """Test that games with 0 minutes don't count towards games_played."""
+        data = create_test_data(test_db)
+
+        # Create 3 games: 2 with minutes, 1 DNP (0 minutes)
+        for i in range(3):
+            game = create_game(
+                test_db,
+                data["season"].id,
+                data["home_team"].id,
+                data["away_team"].id,
+                datetime(2024, 11, i + 1, 19, 0, tzinfo=UTC),
+            )
+            # Game 3 is DNP (0 minutes)
+            minutes = 1800 if i < 2 else 0
+            stats = PlayerGameStats(
+                game_id=game.id,
+                player_id=data["player"].id,
+                team_id=data["home_team"].id,
+                minutes_played=minutes,
+                is_starter=(i == 0),  # Only started game 1
+                points=20 if minutes > 0 else 0,
+                field_goals_made=8 if minutes > 0 else 0,
+                field_goals_attempted=16 if minutes > 0 else 0,
+                two_pointers_made=6 if minutes > 0 else 0,
+                two_pointers_attempted=11 if minutes > 0 else 0,
+                three_pointers_made=2 if minutes > 0 else 0,
+                three_pointers_attempted=5 if minutes > 0 else 0,
+                free_throws_made=2 if minutes > 0 else 0,
+                free_throws_attempted=2 if minutes > 0 else 0,
+                offensive_rebounds=1,
+                defensive_rebounds=4,
+                total_rebounds=5 if minutes > 0 else 0,
+                assists=4 if minutes > 0 else 0,
+                turnovers=2 if minutes > 0 else 0,
+                steals=1,
+                blocks=1,
+                personal_fouls=2,
+                plus_minus=5,
+            )
+            test_db.add(stats)
+
+        test_db.commit()
+
+        service = StatsCalculationService(test_db)
+        result = service.calculate_player_season_stats(
+            data["player"].id,
+            data["home_team"].id,
+            data["season"].id,
+        )
+
+        assert result is not None
+        # Only 2 games should count (the ones with minutes)
+        assert result.games_played == 2
+        # Only 1 game started (with minutes)
+        assert result.games_started == 1
+
+    def test_zero_minutes_not_in_averages(self, test_db: Session):
+        """Test that DNP games don't affect per-game averages."""
+        data = create_test_data(test_db)
+
+        # Create 2 games with 20 points each, 1 DNP game
+        points_per_game = [20, 20, 0]  # Third is DNP
+        for i, pts in enumerate(points_per_game):
+            game = create_game(
+                test_db,
+                data["season"].id,
+                data["home_team"].id,
+                data["away_team"].id,
+                datetime(2024, 11, i + 1, 19, 0, tzinfo=UTC),
+            )
+            minutes = 1800 if pts > 0 else 0
+            stats = PlayerGameStats(
+                game_id=game.id,
+                player_id=data["player"].id,
+                team_id=data["home_team"].id,
+                minutes_played=minutes,
+                points=pts,
+                field_goals_made=8 if pts > 0 else 0,
+                field_goals_attempted=16 if pts > 0 else 0,
+                two_pointers_made=6,
+                two_pointers_attempted=11,
+                three_pointers_made=2,
+                three_pointers_attempted=5,
+                free_throws_made=2,
+                free_throws_attempted=2,
+                offensive_rebounds=1,
+                defensive_rebounds=4,
+                total_rebounds=5 if pts > 0 else 0,
+                assists=4 if pts > 0 else 0,
+                turnovers=2,
+                steals=1,
+                blocks=1,
+                personal_fouls=2,
+                plus_minus=5,
+            )
+            test_db.add(stats)
+
+        test_db.commit()
+
+        service = StatsCalculationService(test_db)
+        result = service.calculate_player_season_stats(
+            data["player"].id,
+            data["home_team"].id,
+            data["season"].id,
+        )
+
+        assert result is not None
+        assert result.games_played == 2
+        assert result.total_points == 40  # 20 + 20 + 0
+        # PPG should be 20.0 (40 / 2 games), not 13.3 (40 / 3 games)
+        assert result.avg_points == 20.0
+
+    def test_all_dnp_games_returns_none(self, test_db: Session):
+        """Test that if all games are DNP, no season stats are created."""
+        data = create_test_data(test_db)
+
+        # Create 2 DNP games (0 minutes)
+        for i in range(2):
+            game = create_game(
+                test_db,
+                data["season"].id,
+                data["home_team"].id,
+                data["away_team"].id,
+                datetime(2024, 11, i + 1, 19, 0, tzinfo=UTC),
+            )
+            stats = PlayerGameStats(
+                game_id=game.id,
+                player_id=data["player"].id,
+                team_id=data["home_team"].id,
+                minutes_played=0,  # DNP
+                points=0,
+                field_goals_made=0,
+                field_goals_attempted=0,
+                two_pointers_made=0,
+                two_pointers_attempted=0,
+                three_pointers_made=0,
+                three_pointers_attempted=0,
+                free_throws_made=0,
+                free_throws_attempted=0,
+                offensive_rebounds=0,
+                defensive_rebounds=0,
+                total_rebounds=0,
+                assists=0,
+                turnovers=0,
+                steals=0,
+                blocks=0,
+                personal_fouls=0,
+                plus_minus=0,
+            )
+            test_db.add(stats)
+
+        test_db.commit()
+
+        service = StatsCalculationService(test_db)
+        result = service.calculate_player_season_stats(
+            data["player"].id,
+            data["home_team"].id,
+            data["season"].id,
+        )
+
+        # Should return None since no games with actual playing time
+        assert result is None
