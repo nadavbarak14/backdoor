@@ -62,14 +62,14 @@ class TestChatStream:
 
         assert response.status_code == 200
 
-    def test_chat_stream_returns_sse_content_type(self, client, mock_chat_service):
-        """Test that chat stream returns text/event-stream content type."""
+    def test_chat_stream_returns_correct_content_type(self, client, mock_chat_service):
+        """Test that chat stream returns text/plain content type for Vercel AI SDK."""
         response = client.post(
             "/api/v1/chat/stream",
             json={"messages": [{"role": "user", "content": "Hello"}]},
         )
 
-        assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
+        assert response.headers["content-type"] == "text/plain; charset=utf-8"
 
     def test_chat_stream_has_correct_headers(self, client, mock_chat_service):
         """Test that chat stream has proper SSE headers."""
@@ -81,25 +81,26 @@ class TestChatStream:
         assert response.headers["cache-control"] == "no-cache"
 
     def test_chat_stream_returns_data_chunks(self, client, mock_chat_service):
-        """Test that chat stream returns data: prefixed chunks."""
+        """Test that chat stream returns Vercel AI SDK format chunks (0: prefix)."""
         response = client.post(
             "/api/v1/chat/stream",
             json={"messages": [{"role": "user", "content": "Hello"}]},
         )
 
         content = response.text
-        # Should contain data: prefixed lines
-        assert "data:" in content
+        # Should contain 0: prefixed lines (Vercel AI SDK Data Stream Protocol)
+        assert '0:"' in content
 
     def test_chat_stream_ends_with_done(self, client, mock_chat_service):
-        """Test that chat stream ends with [DONE] signal."""
+        """Test that chat stream ends with done signal (d: prefix)."""
         response = client.post(
             "/api/v1/chat/stream",
             json={"messages": [{"role": "user", "content": "Hello"}]},
         )
 
         content = response.text
-        assert "data: [DONE]" in content
+        # Vercel AI SDK uses d: for done signal
+        assert 'd:{"finishReason"' in content
 
     def test_chat_stream_echoes_user_message(self, client, mock_chat_service):
         """Test that response includes user message context."""
