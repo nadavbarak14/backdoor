@@ -749,16 +749,24 @@ class SyncManager:
                     records_skipped=records_processed,
                 )
 
-            # Build lookup by normalized name
+            # Build lookup by normalized name and compact name
             roster_by_name: dict[str, tuple[str, RawPlayerInfo | None]] = {}
+            roster_by_compact: dict[str, tuple[str, RawPlayerInfo | None]] = {}
             for player_id, name, info in roster:
                 normalized = self._normalize_name(name)
                 roster_by_name[normalized] = (player_id, info)
+                compact = self._normalize_name_compact(name)
+                roster_by_compact[compact] = (player_id, info)
 
             # Match and update each player
             for player, history in results:
                 normalized_name = self._normalize_name(player.full_name)
                 match = roster_by_name.get(normalized_name)
+
+                if not match:
+                    # Try compact name matching (handles "DJKennedy" vs "DJ Kennedy")
+                    compact_name = self._normalize_name_compact(player.full_name)
+                    match = roster_by_compact.get(compact_name)
 
                 if not match:
                     # Try partial matching (last name only)
@@ -791,8 +799,34 @@ class SyncManager:
             )
 
     def _normalize_name(self, name: str) -> str:
-        """Normalize a name for matching by lowercasing and removing extra spaces."""
-        return " ".join(name.lower().split())
+        """Normalize a name for matching.
+
+        - Lowercases
+        - Removes extra spaces
+        - Strips trailing position patterns (F-, G-, F-C, G-F, etc.)
+        - Strips trailing "Captain|" or similar suffixes
+        """
+        import re
+
+        normalized = " ".join(name.lower().split())
+
+        # Remove trailing position patterns like "f-", "g-", "f-c", "g-f", "c"
+        # These patterns appear when names were incorrectly parsed
+        normalized = re.sub(r"\s+(f-c|g-f|f-|g-|c|f|g|pg|sg|sf|pf)$", "", normalized)
+
+        # Remove trailing "captain|" or similar
+        normalized = re.sub(r"\s*captain\|?\s*$", "", normalized)
+
+        return normalized
+
+    def _normalize_name_compact(self, name: str) -> str:
+        """Normalize name to compact form (no spaces, no punctuation) for fuzzy matching."""
+        import re
+
+        # First do standard normalization
+        normalized = self._normalize_name(name)
+        # Remove all spaces, dots, apostrophes for compact comparison
+        return re.sub(r"[\s.'\"-]", "", normalized)
 
     def _find_partial_match(
         self,
