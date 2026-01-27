@@ -60,6 +60,7 @@ from src.services.player import PlayerService
 from src.services.player_stats import PlayerSeasonStatsService
 from src.services.stats import PlayerGameStatsService, TeamGameStatsService
 from src.services.stats_calculation import StatsCalculationService
+from src.services.sync_coverage import SyncCoverageService
 from src.services.sync_service import SyncLogService
 from src.services.team import TeamService
 
@@ -78,4 +79,5 @@ __all__ = [
     "StatsCalculationService",
     "PlayerSeasonStatsService",
     "SyncLogService",
+    "SyncCoverageService",
 ]
