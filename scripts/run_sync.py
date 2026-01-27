@@ -78,6 +78,7 @@ async def run_sync(source: str, season_id: str, include_pbp: bool):
     except Exception as e:
         log(f"ERROR: {e}")
         import traceback
+
         traceback.print_exc()
         return False
     finally:
@@ -88,7 +89,9 @@ def main():
     parser = argparse.ArgumentParser(description="Run data sync")
     parser.add_argument("source", choices=["winner"], help="Data source")
     parser.add_argument("season", help="Season ID (e.g., 2025-26)")
-    parser.add_argument("--include-pbp", action="store_true", help="Include play-by-play")
+    parser.add_argument(
+        "--include-pbp", action="store_true", help="Include play-by-play"
+    )
 
     args = parser.parse_args()
 
