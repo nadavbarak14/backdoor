@@ -6,7 +6,7 @@
 
 import { useParams, Link } from 'react-router-dom';
 import { Calendar, MapPin } from 'lucide-react';
-import { useGame, useGameBoxScore } from '../hooks/useApi';
+import { useGame } from '../hooks/useApi';
 import {
   Card,
   CardHeader,
@@ -127,7 +127,9 @@ export default function GameDetail() {
   const { gameId } = useParams<{ gameId: string }>();
 
   const { data: game, isLoading: gameLoading, error: gameError } = useGame(gameId!);
-  const { data: boxScore, isLoading: boxScoreLoading } = useGameBoxScore(gameId!);
+
+  // Box score data is included in the game response
+  const hasBoxScore = game?.home_players && game.home_players.length > 0;
 
   if (gameLoading) return <LoadingSpinner />;
   if (gameError) return <ErrorMessage message={gameError.message} />;
@@ -165,7 +167,7 @@ export default function GameDetail() {
                 to={`/teams/${game.home_team_id}`}
                 className="text-xl font-bold text-gray-900 hover:text-blue-600"
               >
-                {game.home_team_name ?? boxScore?.home_team.name ?? 'Home Team'}
+                {game.home_team_name ?? 'Home Team'}
               </Link>
               <p className="text-sm text-gray-500">Home</p>
               <p
@@ -185,7 +187,7 @@ export default function GameDetail() {
                 to={`/teams/${game.away_team_id}`}
                 className="text-xl font-bold text-gray-900 hover:text-blue-600"
               >
-                {game.away_team_name ?? boxScore?.away_team.name ?? 'Away Team'}
+                {game.away_team_name ?? 'Away Team'}
               </Link>
               <p className="text-sm text-gray-500">Away</p>
               <p
@@ -201,17 +203,15 @@ export default function GameDetail() {
       </Card>
 
       {/* Box Score */}
-      {boxScoreLoading ? (
-        <LoadingSpinner />
-      ) : boxScore ? (
+      {hasBoxScore ? (
         <div className="space-y-6">
           <BoxScoreTable
-            players={boxScore.home_players}
-            teamName={boxScore.home_team.name}
+            players={game.home_players!}
+            teamName={game.home_team_name ?? 'Home Team'}
           />
           <BoxScoreTable
-            players={boxScore.away_players}
-            teamName={boxScore.away_team.name}
+            players={game.away_players!}
+            teamName={game.away_team_name ?? 'Away Team'}
           />
         </div>
       ) : (
