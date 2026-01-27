@@ -33,6 +33,7 @@ dependencies = [
     "euroleague-api>=0.0.21",
     "xmltodict>=0.13.0",
     "nba_api>=1.4.1",
+    "langchain-openai>=0.2.0",
 ]
 
 [project.optional-dependencies]

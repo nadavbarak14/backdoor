@@ -37,9 +37,11 @@ class Settings(BaseSettings):
         DATABASE_URL: SQLAlchemy database connection string.
         TEST_DATABASE_URL: Database URL used during test runs.
         API_PREFIX: URL prefix for all API routes.
-        LLM_MODEL: The LLM model to use for chat (e.g., gpt-4).
+        LLM_API_KEY: API key for the LLM provider.
+        LLM_MODEL: The LLM model to use for chat (default: gpt-5-nano).
+        LLM_BASE_URL: Base URL for the LLM API.
         LLM_TEMPERATURE: Temperature setting for LLM responses (0.0-1.0).
-        OPENAI_API_KEY: API key for OpenAI services.
+        LLM_MAX_TOKENS: Maximum tokens for LLM responses.
         CORS_ORIGINS: List of allowed origins for CORS.
 
     Example:
@@ -70,9 +72,11 @@ class Settings(BaseSettings):
     API_PREFIX: str = "/api/v1"
 
     # LLM Configuration
-    LLM_MODEL: str = "gpt-4"
+    LLM_API_KEY: str = ""
+    LLM_MODEL: str = "gpt-5-nano"
+    LLM_BASE_URL: str = "https://api.openai.com/v1"
     LLM_TEMPERATURE: float = 0.7
-    OPENAI_API_KEY: str = ""
+    LLM_MAX_TOKENS: int = 4096
 
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]

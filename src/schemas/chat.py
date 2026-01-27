@@ -56,17 +56,21 @@ class ChatRequest(BaseModel):
     Request body for the chat streaming endpoint.
 
     Accepts an array of messages in the Vercel AI SDK format,
-    representing the conversation history.
+    representing the conversation history, along with an optional
+    session ID for maintaining conversation context.
 
     Attributes:
         messages: List of chat messages in chronological order.
+        session_id: Optional session identifier for conversation history.
+            If not provided, a new session is created for each request.
 
     Example:
         >>> request = ChatRequest(
         ...     messages=[
         ...         ChatMessage(role="system", content="You are a basketball analyst."),
         ...         ChatMessage(role="user", content="Who leads the league in scoring?"),
-        ...     ]
+        ...     ],
+        ...     session_id="user-session-123",
         ... )
     """
 
@@ -74,6 +78,10 @@ class ChatRequest(BaseModel):
         ...,
         description="List of chat messages in the conversation",
         min_length=1,
+    )
+    session_id: str | None = Field(
+        default=None,
+        description="Optional session ID for conversation history. If not provided, a unique session is created.",
     )
 
 
