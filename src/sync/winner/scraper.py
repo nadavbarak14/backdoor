@@ -874,8 +874,6 @@ class WinnerScraper:
             >>> segev_id = scraper.fetch_segevstats_game_id("24904")
             >>> print(f"Segevstats ID: {segev_id}")  # "56135"
         """
-        import re
-
         resource_type = "game_zone_page"
         resource_id = basket_game_id
 
