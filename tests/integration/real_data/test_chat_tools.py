@@ -291,7 +291,9 @@ class TestQueryStats:
         if not team:
             pytest.skip("No Maccabi team in database")
 
-        result = query_stats.invoke({"team_id": str(team.id), "limit": 5, "db": real_db})
+        result = query_stats.invoke(
+            {"team_id": str(team.id), "limit": 5, "db": real_db}
+        )
         assert "Maccabi" in result or "No stats" in result
 
     def test_player_stats(self, real_db: Session):
@@ -388,7 +390,9 @@ class TestQueryStats:
         if not season:
             pytest.skip("No 2024 season in database")
 
-        result = query_stats.invoke({"season_id": str(season.id), "limit": 5, "db": real_db})
+        result = query_stats.invoke(
+            {"season_id": str(season.id), "limit": 5, "db": real_db}
+        )
         assert isinstance(result, str)
 
     def test_not_found_errors(self, real_db: Session):

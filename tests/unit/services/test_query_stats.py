@@ -1537,9 +1537,7 @@ class TestLineupStatsFormatting:
             "plus_minus": 20,
         }
 
-        result = _format_lineup_stats(
-            lineup_stats, ["Player A", "Player B"], "2024-25"
-        )
+        result = _format_lineup_stats(lineup_stats, ["Player A", "Player B"], "2024-25")
 
         assert "Player A" in result
         assert "Player B" in result
@@ -1553,9 +1551,7 @@ class TestLineupStatsFormatting:
 
         lineup_stats = {"games": 0, "minutes": 0, "plus_minus": 0}
 
-        result = _format_lineup_stats(
-            lineup_stats, ["Player A", "Player B"], "2024-25"
-        )
+        result = _format_lineup_stats(lineup_stats, ["Player A", "Player B"], "2024-25")
 
         assert "No games found" in result
 
@@ -1584,8 +1580,10 @@ class TestBestLineupsFormatting:
 
         lineups = [
             {
-                "player_ids": [UUID("12345678-1234-5678-1234-567812345678"),
-                               UUID("12345678-1234-5678-1234-567812345679")],
+                "player_ids": [
+                    UUID("12345678-1234-5678-1234-567812345678"),
+                    UUID("12345678-1234-5678-1234-567812345679"),
+                ],
                 "minutes": 25.5,
                 "plus_minus": 15,
                 "team_pts": 50,
@@ -1753,8 +1751,15 @@ class TestQueryLeaderboard:
             mock_season.name = "2024-25"
 
             result = _query_leaderboard(
-                mock_db, None, mock_season, "points", "desc", 10,
-                ["points", "rebounds"], "game", 10
+                mock_db,
+                None,
+                mock_season,
+                "points",
+                "desc",
+                10,
+                ["points", "rebounds"],
+                "game",
+                10,
             )
 
             assert "No stats found" in result
@@ -1785,8 +1790,15 @@ class TestQueryLeaderboard:
             mock_season.name = "2024-25"
 
             result = _query_leaderboard(
-                mock_db, None, mock_season, "points", "desc", 5,
-                ["points", "rebounds"], "game", 10
+                mock_db,
+                None,
+                mock_season,
+                "points",
+                "desc",
+                5,
+                ["points", "rebounds"],
+                "game",
+                10,
             )
 
             assert "Leaderboard" in result
@@ -1818,8 +1830,7 @@ class TestQueryLeaderboard:
             mock_season.name = "2024-25"
 
             result = _query_leaderboard(
-                mock_db, None, mock_season, "points", "asc", 5,
-                ["points"], "game", 10
+                mock_db, None, mock_season, "points", "asc", 5, ["points"], "game", 10
             )
 
             assert "ascending" in result
@@ -1869,9 +1880,7 @@ class TestQueryStatsLeaderboardMode:
             mock_leaderboard.return_value = "Leaderboard results"
 
             mock_db = MagicMock()
-            result = query_stats.func(
-                order_by="points", min_games=10, db=mock_db
-            )
+            result = query_stats.func(order_by="points", min_games=10, db=mock_db)
 
             mock_leaderboard.assert_called_once()
             assert result == "Leaderboard results"
@@ -1893,9 +1902,7 @@ class TestQueryStatsLeaderboardMode:
             mock_db = MagicMock()
             uuid = "12345678-1234-5678-1234-567812345678"
 
-            result = query_stats.func(
-                team_id=uuid, order_by="points", db=mock_db
-            )
+            result = query_stats.func(team_id=uuid, order_by="points", db=mock_db)
 
             # Should use team stats, not leaderboard
             mock_team_stats.assert_called_once()
@@ -1927,7 +1934,7 @@ class TestQueryStatsDiscoverLineups:
                 discover_lineups=True,
                 lineup_size=3,
                 min_minutes=5.0,
-                db=mock_db
+                db=mock_db,
             )
 
             mock_discover.assert_called_once()
