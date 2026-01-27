@@ -3,14 +3,23 @@ Universal Query Stats Tool Module
 
 Provides a flexible query_stats tool for complex basketball analytics queries.
 This tool supports filtering by league, season, team, and players with
-configurable metrics and output controls.
+configurable metrics, time-based filters, and output controls.
 
 Usage:
     from src.services.query_stats import query_stats
 
+    # Basic query
     result = query_stats.invoke({
         "team_name": "Maccabi Tel-Aviv",
         "metrics": ["points", "rebounds", "assists"],
+        "db": db_session
+    })
+
+    # With time filters
+    result = query_stats.invoke({
+        "player_names": ["Jimmy Clark"],
+        "quarter": 4,
+        "clutch_only": True,
         "db": db_session
     })
 """
@@ -19,12 +28,15 @@ from langchain_core.tools import tool
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from src.models.game import Game, PlayerGameStats
 from src.models.league import League, Season
 from src.models.player import Player
 from src.models.stats import PlayerSeasonStats
 from src.models.team import Team
+from src.schemas.analytics import ClutchFilter, TimeFilter
 from src.schemas.player import PlayerFilter
 from src.schemas.team import TeamFilter
+from src.services.analytics import AnalyticsService
 from src.services.league import SeasonService
 from src.services.player import PlayerService
 from src.services.player_stats import PlayerSeasonStatsService
@@ -153,6 +165,351 @@ def _truncate_response(response: str, shown: int, total: int) -> str:
     elif shown < total:
         response += f"\n\n*Showing {shown} of {total} results.*"
     return response
+
+
+# =============================================================================
+# Time Filter Helpers
+# =============================================================================
+
+
+def _validate_time_filters(
+    quarter: int | None,
+    quarters: list[int] | None,
+) -> str | None:
+    """Validate time filter parameters. Returns error message or None."""
+    if quarter is not None and quarters is not None:
+        return "Error: 'quarter' and 'quarters' are mutually exclusive."
+    if quarter is not None and not (1 <= quarter <= 4):
+        return "Error: 'quarter' must be between 1 and 4."
+    if quarters is not None:
+        for q in quarters:
+            if not (1 <= q <= 4):
+                return f"Error: Quarter {q} must be between 1 and 4."
+    return None
+
+
+def _has_time_filters(
+    quarter: int | None,
+    quarters: list[int] | None,
+    clutch_only: bool,
+    exclude_garbage_time: bool,
+) -> bool:
+    """Check if any time-based filters are active."""
+    return (
+        quarter is not None
+        or quarters is not None
+        or clutch_only
+        or exclude_garbage_time
+    )
+
+
+def _get_recent_games(
+    db: Session,
+    season: Season,
+    player_id=None,
+    team_id=None,
+    last_n_games: int | None = None,
+) -> list[Game]:
+    """Get recent games for a player or team, optionally limited to N games."""
+    if player_id:
+        stmt = (
+            select(Game)
+            .join(PlayerGameStats, Game.id == PlayerGameStats.game_id)
+            .where(PlayerGameStats.player_id == player_id)
+            .where(Game.season_id == season.id)
+            .order_by(Game.game_date.desc())
+        )
+    elif team_id:
+        stmt = (
+            select(Game)
+            .where(Game.season_id == season.id)
+            .where((Game.home_team_id == team_id) | (Game.away_team_id == team_id))
+            .order_by(Game.game_date.desc())
+        )
+    else:
+        stmt = (
+            select(Game)
+            .where(Game.season_id == season.id)
+            .order_by(Game.game_date.desc())
+        )
+
+    if last_n_games:
+        stmt = stmt.limit(last_n_games)
+
+    return list(db.scalars(stmt).all())
+
+
+def _calc_stats_from_games(
+    db: Session,
+    games: list[Game],
+    player_id=None,
+    team_id=None,
+    quarter: int | None = None,
+    quarters: list[int] | None = None,
+    clutch_only: bool = False,
+    exclude_garbage_time: bool = False,
+) -> dict:
+    """
+    Calculate stats from games, with optional time filters.
+
+    When time filters are active, uses PBP events. Otherwise uses box scores.
+    Returns dict with aggregated stats.
+    """
+    # Initialize accumulators
+    totals = {
+        "games": 0,
+        "points": 0,
+        "rebounds": 0,
+        "assists": 0,
+        "steals": 0,
+        "blocks": 0,
+        "turnovers": 0,
+        "fgm": 0,
+        "fga": 0,
+        "fg3m": 0,
+        "fg3a": 0,
+        "ftm": 0,
+        "fta": 0,
+        "plus_minus": 0,
+        "minutes": 0,
+    }
+
+    use_pbp = _has_time_filters(quarter, quarters, clutch_only, exclude_garbage_time)
+
+    if use_pbp:
+        analytics = AnalyticsService(db)
+
+        for game in games:
+            game_stats = _calc_pbp_stats_for_game(
+                analytics,
+                game,
+                player_id=player_id,
+                team_id=team_id,
+                quarter=quarter,
+                quarters=quarters,
+                clutch_only=clutch_only,
+                exclude_garbage_time=exclude_garbage_time,
+            )
+            if game_stats["has_data"]:
+                totals["games"] += 1
+                for key in totals:
+                    if key != "games":
+                        totals[key] += game_stats.get(key, 0)
+    else:
+        # Use box scores directly
+        for game in games:
+            if player_id:
+                stmt = (
+                    select(PlayerGameStats)
+                    .where(PlayerGameStats.game_id == game.id)
+                    .where(PlayerGameStats.player_id == player_id)
+                )
+                pgs = db.scalars(stmt).first()
+                if pgs:
+                    totals["games"] += 1
+                    totals["points"] += pgs.points or 0
+                    totals["rebounds"] += pgs.total_rebounds or 0
+                    totals["assists"] += pgs.assists or 0
+                    totals["steals"] += pgs.steals or 0
+                    totals["blocks"] += pgs.blocks or 0
+                    totals["turnovers"] += pgs.turnovers or 0
+                    totals["fgm"] += pgs.field_goals_made or 0
+                    totals["fga"] += pgs.field_goals_attempted or 0
+                    totals["fg3m"] += pgs.three_pointers_made or 0
+                    totals["fg3a"] += pgs.three_pointers_attempted or 0
+                    totals["ftm"] += pgs.free_throws_made or 0
+                    totals["fta"] += pgs.free_throws_attempted or 0
+                    totals["plus_minus"] += pgs.plus_minus or 0
+                    totals["minutes"] += (pgs.minutes_played or 0) // 60
+            elif team_id:
+                # Sum all players on team for this game
+                stmt = (
+                    select(PlayerGameStats)
+                    .where(PlayerGameStats.game_id == game.id)
+                    .where(PlayerGameStats.team_id == team_id)
+                )
+                all_pgs = list(db.scalars(stmt).all())
+                if all_pgs:
+                    totals["games"] += 1
+                    for pgs in all_pgs:
+                        totals["points"] += pgs.points or 0
+                        totals["rebounds"] += pgs.total_rebounds or 0
+                        totals["assists"] += pgs.assists or 0
+                        totals["steals"] += pgs.steals or 0
+                        totals["blocks"] += pgs.blocks or 0
+                        totals["turnovers"] += pgs.turnovers or 0
+                        totals["fgm"] += pgs.field_goals_made or 0
+                        totals["fga"] += pgs.field_goals_attempted or 0
+                        totals["fg3m"] += pgs.three_pointers_made or 0
+                        totals["fg3a"] += pgs.three_pointers_attempted or 0
+                        totals["ftm"] += pgs.free_throws_made or 0
+                        totals["fta"] += pgs.free_throws_attempted or 0
+                        totals["plus_minus"] += pgs.plus_minus or 0
+
+    return totals
+
+
+def _calc_pbp_stats_for_game(
+    analytics: AnalyticsService,
+    game: Game,
+    player_id=None,
+    team_id=None,
+    quarter: int | None = None,
+    quarters: list[int] | None = None,
+    clutch_only: bool = False,
+    exclude_garbage_time: bool = False,
+) -> dict:
+    """Calculate stats from PBP events for a single game with time filters."""
+    stats = {
+        "has_data": False,
+        "points": 0,
+        "rebounds": 0,
+        "assists": 0,
+        "steals": 0,
+        "blocks": 0,
+        "turnovers": 0,
+        "fgm": 0,
+        "fga": 0,
+        "fg3m": 0,
+        "fg3a": 0,
+        "ftm": 0,
+        "fta": 0,
+        "plus_minus": 0,
+        "minutes": 0,
+    }
+
+    # Get filtered events
+    if clutch_only:
+        events = analytics.get_clutch_events(game.id, ClutchFilter())
+    else:
+        # Build TimeFilter for quarter filtering
+        time_filter = TimeFilter(
+            period=quarter,
+            periods=quarters,
+            exclude_garbage_time=exclude_garbage_time,
+        )
+        events = analytics.get_events_by_time(game.id, time_filter)
+
+    if not events:
+        return stats
+
+    # Filter events by player/team and accumulate stats
+    for event in events:
+        if player_id and event.player_id != player_id:
+            continue
+        if team_id and event.team_id != team_id:
+            continue
+
+        stats["has_data"] = True
+
+        if event.event_type == "SHOT":
+            stats["fga"] += 1
+            is_3pt = event.event_subtype == "3PT"
+            if is_3pt:
+                stats["fg3a"] += 1
+            if event.success:
+                stats["fgm"] += 1
+                stats["points"] += 3 if is_3pt else 2
+                if is_3pt:
+                    stats["fg3m"] += 1
+        elif event.event_type == "FREE_THROW":
+            stats["fta"] += 1
+            if event.success:
+                stats["ftm"] += 1
+                stats["points"] += 1
+        elif event.event_type == "REBOUND":
+            stats["rebounds"] += 1
+        elif event.event_type == "ASSIST":
+            stats["assists"] += 1
+        elif event.event_type == "STEAL":
+            stats["steals"] += 1
+        elif event.event_type == "BLOCK":
+            stats["blocks"] += 1
+        elif event.event_type == "TURNOVER":
+            stats["turnovers"] += 1
+
+    return stats
+
+
+def _format_game_stats_value(totals: dict, metric: str, per: str) -> str:
+    """Format a metric value from game-aggregated stats."""
+    games = totals.get("games", 0)
+    if games == 0:
+        return "N/A"
+
+    if metric == "games":
+        return str(games)
+    elif metric == "points":
+        val = totals["points"]
+    elif metric == "rebounds":
+        val = totals["rebounds"]
+    elif metric == "assists":
+        val = totals["assists"]
+    elif metric == "steals":
+        val = totals["steals"]
+    elif metric == "blocks":
+        val = totals["blocks"]
+    elif metric == "turnovers":
+        val = totals["turnovers"]
+    elif metric == "fg_pct":
+        fga = totals["fga"]
+        fgm = totals["fgm"]
+        pct = fgm / fga if fga > 0 else 0
+        return f"{pct * 100:.1f}%"
+    elif metric == "three_pct":
+        fg3a = totals["fg3a"]
+        fg3m = totals["fg3m"]
+        pct = fg3m / fg3a if fg3a > 0 else 0
+        return f"{pct * 100:.1f}%"
+    elif metric == "ft_pct":
+        fta = totals["fta"]
+        ftm = totals["ftm"]
+        pct = ftm / fta if fta > 0 else 0
+        return f"{pct * 100:.1f}%"
+    elif metric == "plus_minus":
+        val = totals["plus_minus"]
+        if per == "total":
+            return f"{int(val):+d}"
+        else:
+            avg = val / games
+            return f"{avg:+.1f}"
+    elif metric == "minutes":
+        val = totals["minutes"]
+    else:
+        return "N/A"
+
+    if per == "total":
+        return str(int(val))
+    else:
+        avg = val / games
+        return f"{avg:.1f}"
+
+
+def _build_time_filter_label(
+    quarter: int | None,
+    quarters: list[int] | None,
+    clutch_only: bool,
+    exclude_garbage_time: bool,
+    last_n_games: int | None,
+) -> str:
+    """Build a human-readable label for active time filters."""
+    parts = []
+    if quarter:
+        parts.append(f"Q{quarter}")
+    if quarters:
+        if quarters == [1, 2]:
+            parts.append("1st Half")
+        elif quarters == [3, 4]:
+            parts.append("2nd Half")
+        else:
+            parts.append(f"Q{','.join(str(q) for q in quarters)}")
+    if clutch_only:
+        parts.append("Clutch")
+    if exclude_garbage_time:
+        parts.append("No Garbage Time")
+    if last_n_games:
+        parts.append(f"Last {last_n_games} Games")
+    return " | ".join(parts) if parts else ""
 
 
 # =============================================================================
@@ -322,6 +679,12 @@ def query_stats(
     metrics: list[str] | None = None,
     limit: int = 10,
     per: str = "game",
+    # Time filters
+    quarter: int | None = None,
+    quarters: list[int] | None = None,
+    clutch_only: bool = False,
+    exclude_garbage_time: bool = False,
+    last_n_games: int | None = None,
     db: Session | None = None,
 ) -> str:
     """
@@ -329,6 +692,7 @@ def query_stats(
 
     Use this tool for complex queries combining filters and metrics.
     Supports querying by league, season, team, or specific players.
+    Time-based filters allow analysis of specific game situations.
 
     Args:
         league_name: Filter by league (e.g., "Israeli", "Winner League").
@@ -340,6 +704,12 @@ def query_stats(
             plus_minus, minutes, games. Defaults to basic stats.
         limit: Maximum rows to return (default 10, max 20).
         per: "game" (averages), "total" (season totals). Default "game".
+        quarter: Single quarter to filter (1-4). Mutually exclusive with quarters.
+        quarters: Multiple quarters (e.g., [1,2] for 1st half). Mutually exclusive
+            with quarter.
+        clutch_only: Only include clutch time (last 5 min Q4/OT, within 5 pts).
+        exclude_garbage_time: Exclude when score differential > 20 points.
+        last_n_games: Limit to most recent N games.
         db: Database session (injected at runtime).
 
     Returns:
@@ -347,11 +717,18 @@ def query_stats(
 
     Example queries:
         - "Get Maccabi's stats this season"
-        - "Jimmy Clark's scoring numbers"
-        - "Top 10 scorers in the league"
+        - "Jimmy Clark's 4th quarter scoring" -> quarter=4
+        - "First half shooting %" -> quarters=[1,2]
+        - "Clutch performance" -> clutch_only=True
+        - "Last 5 games trend" -> last_n_games=5
     """
     if db is None:
         return "Error: Database session not provided."
+
+    # Validate time filters
+    validation_error = _validate_time_filters(quarter, quarters)
+    if validation_error:
+        return validation_error
 
     if metrics is None:
         metrics = ["points", "rebounds", "assists", "fg_pct"]
@@ -388,10 +765,180 @@ def query_stats(
             else:
                 return f"Player '{name}' not found."
 
+    # Check if time filters are active
+    time_filters_active = (
+        _has_time_filters(quarter, quarters, clutch_only, exclude_garbage_time)
+        or last_n_games is not None
+    )
+
     # Execute query based on mode
-    if players:
+    if time_filters_active:
+        return _query_with_time_filters(
+            db=db,
+            season=season_obj,
+            players=players,
+            team=team,
+            metrics=metrics,
+            per=per,
+            limit=limit,
+            quarter=quarter,
+            quarters=quarters,
+            clutch_only=clutch_only,
+            exclude_garbage_time=exclude_garbage_time,
+            last_n_games=last_n_games,
+        )
+    elif players:
         return _query_player_stats(db, players, season_obj, metrics, per, limit)
     elif team:
         return _query_team_stats(db, team, season_obj, metrics, per, limit)
     else:
         return _query_league_stats(db, league, season_obj, metrics, per, limit)
+
+
+def _query_with_time_filters(
+    db: Session,
+    season: Season,
+    players: list[Player],
+    team: Team | None,
+    metrics: list[str],
+    per: str,
+    limit: int,
+    quarter: int | None,
+    quarters: list[int] | None,
+    clutch_only: bool,
+    exclude_garbage_time: bool,
+    last_n_games: int | None,
+) -> str:
+    """Query stats with time-based filters applied."""
+    # Build filter label for header
+    filter_label = _build_time_filter_label(
+        quarter, quarters, clutch_only, exclude_garbage_time, last_n_games
+    )
+
+    if players:
+        # Query each player with time filters
+        lines = [f"## Player Stats - {season.name}", f"*{filter_label}*", ""]
+
+        header = "| Player | Team |"
+        separator = "|--------|------|"
+        for metric in metrics:
+            header += f" {_format_metric_header(metric)} |"
+            separator += "------|"
+        lines.extend([header, separator])
+
+        row_count = 0
+        for player in players[:limit]:
+            # Get games for this player
+            games = _get_recent_games(
+                db, season, player_id=player.id, last_n_games=last_n_games
+            )
+            if not games:
+                continue
+
+            # Calculate stats with time filters
+            totals = _calc_stats_from_games(
+                db,
+                games,
+                player_id=player.id,
+                quarter=quarter,
+                quarters=quarters,
+                clutch_only=clutch_only,
+                exclude_garbage_time=exclude_garbage_time,
+            )
+
+            if totals["games"] == 0:
+                continue
+
+            # Get team name from most recent game
+            team_name = "N/A"
+            stmt = (
+                select(PlayerGameStats)
+                .where(PlayerGameStats.game_id == games[0].id)
+                .where(PlayerGameStats.player_id == player.id)
+            )
+            pgs = db.scalars(stmt).first()
+            if pgs and pgs.team:
+                team_name = pgs.team.short_name
+
+            player_name = f"{player.first_name} {player.last_name}"
+            row = f"| {player_name} | {team_name} |"
+            for metric in metrics:
+                row += f" {_format_game_stats_value(totals, metric, per)} |"
+            lines.append(row)
+            row_count += 1
+
+        if row_count == 0:
+            return f"No stats found for the specified players with {filter_label}."
+
+        return _truncate_response("\n".join(lines), row_count, len(players))
+
+    elif team:
+        # Query team players with time filters
+        games = _get_recent_games(
+            db, season, team_id=team.id, last_n_games=last_n_games
+        )
+        if not games:
+            return f"No games found for {team.name} in {season.name}."
+
+        # Get all players who played for this team
+        player_ids = set()
+        for game in games:
+            stmt = (
+                select(PlayerGameStats.player_id)
+                .where(PlayerGameStats.game_id == game.id)
+                .where(PlayerGameStats.team_id == team.id)
+            )
+            for pid in db.scalars(stmt).all():
+                player_ids.add(pid)
+
+        lines = [f"## {team.name} - {season.name}", f"*{filter_label}*", ""]
+
+        header = "| Player |"
+        separator = "|--------|"
+        for metric in metrics:
+            header += f" {_format_metric_header(metric)} |"
+            separator += "------|"
+        lines.extend([header, separator])
+
+        # Calculate stats for each player
+        player_stats_list = []
+        for player_id in player_ids:
+            totals = _calc_stats_from_games(
+                db,
+                games,
+                player_id=player_id,
+                quarter=quarter,
+                quarters=quarters,
+                clutch_only=clutch_only,
+                exclude_garbage_time=exclude_garbage_time,
+            )
+            if totals["games"] > 0:
+                player = db.get(Player, player_id)
+                if player:
+                    player_stats_list.append((player, totals))
+
+        # Sort by points (descending)
+        player_stats_list.sort(
+            key=lambda x: x[1]["points"] / max(x[1]["games"], 1), reverse=True
+        )
+
+        for player, totals in player_stats_list[:limit]:
+            player_name = f"{player.first_name} {player.last_name}"
+            row = f"| {player_name} |"
+            for metric in metrics:
+                row += f" {_format_game_stats_value(totals, metric, per)} |"
+            lines.append(row)
+
+        if len(player_stats_list) == 0:
+            return f"No stats found for {team.name} with {filter_label}."
+
+        return _truncate_response(
+            "\n".join(lines), min(len(player_stats_list), limit), len(player_stats_list)
+        )
+
+    else:
+        # League-wide query with time filters is not supported (too expensive)
+        return (
+            "Error: Time filters (quarter, clutch, etc.) require specifying "
+            "a player or team. League-wide time-filtered queries are not supported."
+        )
