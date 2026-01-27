@@ -1164,3 +1164,299 @@ class TestQueryWithTimeFilters:
             )
 
             assert "No games found" in result
+
+
+class TestLocationFilterValidation:
+    """Tests for location filter validation functions."""
+
+    def test_validate_location_filters_valid(self):
+        """Test validation passes for valid filters."""
+        from src.services.query_stats import _validate_location_filters
+
+        assert _validate_location_filters(False, False) is None
+        assert _validate_location_filters(True, False) is None
+        assert _validate_location_filters(False, True) is None
+
+    def test_validate_location_filters_mutually_exclusive(self):
+        """Test validation fails when home_only and away_only both set."""
+        from src.services.query_stats import _validate_location_filters
+
+        result = _validate_location_filters(True, True)
+        assert "mutually exclusive" in result
+
+    def test_has_location_filters_none(self):
+        """Test has_location_filters returns False when no filters active."""
+        from src.services.query_stats import _has_location_filters
+
+        assert _has_location_filters(False, False, None) is False
+
+    def test_has_location_filters_home_only(self):
+        """Test has_location_filters returns True when home_only is set."""
+        from src.services.query_stats import _has_location_filters
+
+        assert _has_location_filters(True, False, None) is True
+
+    def test_has_location_filters_away_only(self):
+        """Test has_location_filters returns True when away_only is set."""
+        from src.services.query_stats import _has_location_filters
+
+        assert _has_location_filters(False, True, None) is True
+
+    def test_has_location_filters_opponent(self):
+        """Test has_location_filters returns True when opponent_team_id is set."""
+        from src.services.query_stats import _has_location_filters
+
+        assert _has_location_filters(False, False, "team-123") is True
+
+
+class TestLocationFilterLabel:
+    """Tests for location filter label building."""
+
+    def test_build_time_filter_label_home(self):
+        """Test label for home_only."""
+        from src.services.query_stats import _build_time_filter_label
+
+        label = _build_time_filter_label(None, None, False, False, None, True, False)
+        assert "Home" in label
+
+    def test_build_time_filter_label_away(self):
+        """Test label for away_only."""
+        from src.services.query_stats import _build_time_filter_label
+
+        label = _build_time_filter_label(None, None, False, False, None, False, True)
+        assert "Away" in label
+
+    def test_build_time_filter_label_opponent(self):
+        """Test label for opponent."""
+        from src.services.query_stats import _build_time_filter_label
+
+        label = _build_time_filter_label(
+            None, None, False, False, None, False, False, "Hapoel Jerusalem"
+        )
+        assert "vs Hapoel Jerusalem" in label
+
+    def test_build_time_filter_label_combined_location(self):
+        """Test label with home + opponent."""
+        from src.services.query_stats import _build_time_filter_label
+
+        label = _build_time_filter_label(
+            None, None, False, False, None, True, False, "Hapoel"
+        )
+        assert "Home" in label
+        assert "vs Hapoel" in label
+
+    def test_build_time_filter_label_quarter_plus_home(self):
+        """Test label with quarter and home filters."""
+        from src.services.query_stats import _build_time_filter_label
+
+        label = _build_time_filter_label(4, None, False, False, None, True, False)
+        assert "Q4" in label
+        assert "Home" in label
+
+
+class TestQueryStatsWithLocationFilters:
+    """Tests for query_stats with location filters."""
+
+    def test_query_stats_mutually_exclusive_home_away(self):
+        """Test query_stats returns error when home_only and away_only both set."""
+        from src.services.query_stats import query_stats
+
+        mock_db = MagicMock()
+        result = query_stats.func(home_only=True, away_only=True, db=mock_db)
+        assert "Error" in result
+        assert "mutually exclusive" in result
+
+    def test_query_stats_opponent_not_found(self):
+        """Test query_stats returns error when opponent team not found."""
+        from src.services.query_stats import query_stats
+
+        with (
+            patch("src.services.query_stats._resolve_season") as mock_season,
+            patch("src.services.query_stats._resolve_team_by_name") as mock_team,
+        ):
+            mock_season.return_value = MagicMock()
+            mock_team.return_value = None  # Opponent not found
+
+            mock_db = MagicMock()
+            result = query_stats.func(opponent_team="NonExistent", db=mock_db)
+
+            assert "not found" in result
+
+    def test_query_stats_location_filter_triggers_time_filter_path(self):
+        """Test home_only triggers time filter path."""
+        from src.services.query_stats import query_stats
+
+        with (
+            patch("src.services.query_stats._resolve_season") as mock_season,
+            patch(
+                "src.services.query_stats._query_with_time_filters"
+            ) as mock_time_filters,
+        ):
+            mock_season.return_value = MagicMock()
+            mock_time_filters.return_value = "Location filtered results"
+
+            mock_db = MagicMock()
+            result = query_stats.func(home_only=True, db=mock_db)
+
+            # Should call time filter path due to location filter
+            mock_time_filters.assert_called_once()
+            assert result == "Location filtered results"
+
+    def test_query_stats_opponent_filter_triggers_time_filter_path(self):
+        """Test opponent_team triggers time filter path."""
+        from src.services.query_stats import query_stats
+
+        with (
+            patch("src.services.query_stats._resolve_season") as mock_season,
+            patch("src.services.query_stats._resolve_team_by_name") as mock_team,
+            patch(
+                "src.services.query_stats._query_with_time_filters"
+            ) as mock_time_filters,
+        ):
+            mock_season.return_value = MagicMock()
+            mock_opponent = MagicMock()
+            mock_opponent.id = "opponent-123"
+            mock_opponent.name = "Hapoel"
+            mock_team.return_value = mock_opponent
+            mock_time_filters.return_value = "Opponent filtered results"
+
+            mock_db = MagicMock()
+            result = query_stats.func(opponent_team="Hapoel", db=mock_db)
+
+            mock_time_filters.assert_called_once()
+            assert result == "Opponent filtered results"
+
+
+class TestGetRecentGamesWithLocationFilters:
+    """Tests for _get_recent_games with location filters."""
+
+    def test_get_recent_games_team_home_only(self):
+        """Test getting home games only for a team."""
+        from src.services.query_stats import _get_recent_games
+
+        mock_db = MagicMock()
+        mock_season = MagicMock()
+        mock_season.id = "season-123"
+
+        mock_games = [MagicMock()]
+        mock_db.scalars.return_value.all.return_value = mock_games
+
+        result = _get_recent_games(
+            mock_db, mock_season, team_id="team-123", home_only=True
+        )
+
+        assert len(result) == 1
+        mock_db.scalars.assert_called_once()
+
+    def test_get_recent_games_team_away_only(self):
+        """Test getting away games only for a team."""
+        from src.services.query_stats import _get_recent_games
+
+        mock_db = MagicMock()
+        mock_season = MagicMock()
+        mock_season.id = "season-123"
+
+        mock_games = [MagicMock()]
+        mock_db.scalars.return_value.all.return_value = mock_games
+
+        result = _get_recent_games(
+            mock_db, mock_season, team_id="team-123", away_only=True
+        )
+
+        assert len(result) == 1
+
+    def test_get_recent_games_team_vs_opponent(self):
+        """Test getting games against specific opponent for a team."""
+        from src.services.query_stats import _get_recent_games
+
+        mock_db = MagicMock()
+        mock_season = MagicMock()
+        mock_season.id = "season-123"
+
+        mock_games = [MagicMock()]
+        mock_db.scalars.return_value.all.return_value = mock_games
+
+        result = _get_recent_games(
+            mock_db, mock_season, team_id="team-123", opponent_team_id="opponent-456"
+        )
+
+        assert len(result) == 1
+
+    def test_get_recent_games_player_with_location_filters(self):
+        """Test getting home games for a player uses post-filtering."""
+        from src.services.query_stats import _get_recent_games
+
+        mock_db = MagicMock()
+        mock_season = MagicMock()
+        mock_season.id = "season-123"
+
+        # Create mock game that is a home game for the player's team
+        mock_game = MagicMock()
+        mock_game.home_team_id = "team-123"
+        mock_game.away_team_id = "team-456"
+
+        # Return tuple of (Game, team_id) as the execute result
+        mock_db.execute.return_value.all.return_value = [(mock_game, "team-123")]
+
+        result = _get_recent_games(
+            mock_db, mock_season, player_id="player-123", home_only=True
+        )
+
+        # Should include the game since it's a home game for the player's team
+        assert len(result) == 1
+        assert result[0] == mock_game
+
+    def test_get_recent_games_player_home_filter_excludes_away(self):
+        """Test player home filter excludes away games."""
+        from src.services.query_stats import _get_recent_games
+
+        mock_db = MagicMock()
+        mock_season = MagicMock()
+        mock_season.id = "season-123"
+
+        # Create mock game that is an away game for the player's team
+        mock_game = MagicMock()
+        mock_game.home_team_id = "opponent-456"  # Opponent is home
+        mock_game.away_team_id = "team-123"  # Player's team is away
+
+        mock_db.execute.return_value.all.return_value = [(mock_game, "team-123")]
+
+        result = _get_recent_games(
+            mock_db, mock_season, player_id="player-123", home_only=True
+        )
+
+        # Should exclude the game since player's team is away
+        assert len(result) == 0
+
+    def test_get_recent_games_player_opponent_filter(self):
+        """Test player opponent filter works correctly."""
+        from src.services.query_stats import _get_recent_games
+
+        mock_db = MagicMock()
+        mock_season = MagicMock()
+        mock_season.id = "season-123"
+
+        # Create games - one vs target opponent, one vs different opponent
+        game_vs_target = MagicMock()
+        game_vs_target.home_team_id = "team-123"
+        game_vs_target.away_team_id = "target-opponent"
+
+        game_vs_other = MagicMock()
+        game_vs_other.home_team_id = "team-123"
+        game_vs_other.away_team_id = "other-opponent"
+
+        mock_db.execute.return_value.all.return_value = [
+            (game_vs_target, "team-123"),
+            (game_vs_other, "team-123"),
+        ]
+
+        result = _get_recent_games(
+            mock_db,
+            mock_season,
+            player_id="player-123",
+            opponent_team_id="target-opponent",
+        )
+
+        # Should only include game vs target opponent
+        assert len(result) == 1
+        assert result[0] == game_vs_target
