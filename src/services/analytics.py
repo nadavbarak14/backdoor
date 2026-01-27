@@ -39,7 +39,15 @@ from sqlalchemy.orm import Session
 
 from src.models.game import Game, PlayerGameStats
 from src.models.play_by_play import PlayByPlayEvent
-from src.schemas.analytics import ClutchFilter, SituationalFilter, TimeFilter
+from src.models.team import Team
+from src.schemas.analytics import (
+    ClutchFilter,
+    ClutchSeasonStats,
+    QuarterStats,
+    SituationalFilter,
+    TimeFilter,
+    TrendAnalysis,
+)
 from src.schemas.game import EventType
 from src.services.game import GameService
 from src.services.play_by_play import PlayByPlayService
@@ -1365,3 +1373,513 @@ class AnalyticsService:
         if has_ot:
             result["OT"] = ot_stats
         return result
+
+    def get_clutch_stats_for_season(
+        self,
+        season_id: UUID,
+        team_id: UUID | None = None,
+        player_id: UUID | None = None,
+        clutch_filter: ClutchFilter | None = None,
+    ) -> ClutchSeasonStats:
+        """
+        Aggregate clutch performance across all games in a season.
+
+        Calculates shooting splits, win/loss record, and efficiency metrics
+        during clutch time for a team or player over an entire season.
+
+        Args:
+            season_id: UUID of the season to analyze.
+            team_id: Optional UUID of the team to filter for.
+            player_id: Optional UUID of the player to filter for.
+            clutch_filter: ClutchFilter with criteria. Uses NBA defaults if None.
+
+        Returns:
+            ClutchSeasonStats with aggregated clutch performance metrics.
+
+        Raises:
+            None - returns zero-filled stats if no data found.
+
+        Example:
+            >>> stats = service.get_clutch_stats_for_season(
+            ...     season_id, team_id=lakers_id
+            ... )
+            >>> print(f"Clutch FG%: {stats.fg_pct_clutch:.1%}")
+            >>> print(f"Record: {stats.wins}-{stats.losses}")
+        """
+        from sqlalchemy import select
+
+        if clutch_filter is None:
+            clutch_filter = ClutchFilter()
+
+        # Get all games in the season
+        stmt = select(Game).where(Game.season_id == season_id)
+        if team_id:
+            stmt = stmt.where(
+                (Game.home_team_id == team_id) | (Game.away_team_id == team_id)
+            )
+        games = list(self.db.scalars(stmt).all())
+
+        # Initialize accumulators
+        games_in_clutch = 0
+        wins = 0
+        losses = 0
+
+        # Clutch shooting stats
+        clutch_fgm, clutch_fga = 0, 0
+        clutch_fg3m, clutch_fg3a = 0, 0
+        clutch_ftm, clutch_fta = 0, 0
+        clutch_points = 0
+        clutch_turnovers = 0
+
+        # Overall stats for comparison
+        overall_fgm, overall_fga = 0, 0
+        overall_fg3m, overall_fg3a = 0, 0
+        overall_ftm, overall_fta = 0, 0
+
+        for game in games:
+            clutch_events = self.get_clutch_events(game.id, clutch_filter)
+            if not clutch_events:
+                continue
+
+            games_in_clutch += 1
+
+            # Determine if team won this game
+            if team_id:
+                is_home = game.home_team_id == team_id
+                team_score = game.home_score if is_home else game.away_score
+                opp_score = game.away_score if is_home else game.home_score
+                if team_score is not None and opp_score is not None:
+                    if team_score > opp_score:
+                        wins += 1
+                    else:
+                        losses += 1
+
+            # Get overall stats for this game for comparison
+            if player_id:
+                player_stats = self.player_stats_service.get_by_player_and_game(
+                    player_id=player_id, game_id=game.id
+                )
+                if player_stats:
+                    overall_fgm += player_stats.field_goals_made or 0
+                    overall_fga += player_stats.field_goals_attempted or 0
+                    overall_fg3m += player_stats.three_pointers_made or 0
+                    overall_fg3a += player_stats.three_pointers_attempted or 0
+                    overall_ftm += player_stats.free_throws_made or 0
+                    overall_fta += player_stats.free_throws_attempted or 0
+            elif team_id:
+                team_stats = self.team_stats_service.get_by_team_and_game(
+                    team_id=team_id, game_id=game.id
+                )
+                if team_stats:
+                    overall_fgm += team_stats.field_goals_made or 0
+                    overall_fga += team_stats.field_goals_attempted or 0
+                    overall_fg3m += team_stats.three_pointers_made or 0
+                    overall_fg3a += team_stats.three_pointers_attempted or 0
+                    overall_ftm += team_stats.free_throws_made or 0
+                    overall_fta += team_stats.free_throws_attempted or 0
+
+            # Process clutch events
+            for event in clutch_events:
+                # Filter by player or team if specified
+                if player_id and event.player_id != player_id:
+                    continue
+                if team_id and event.team_id != team_id:
+                    continue
+
+                if event.event_type == EventType.SHOT.value:
+                    clutch_fga += 1
+                    is_3pt = event.event_subtype == "3PT"
+                    if is_3pt:
+                        clutch_fg3a += 1
+                    if event.success:
+                        clutch_fgm += 1
+                        clutch_points += 3 if is_3pt else 2
+                        if is_3pt:
+                            clutch_fg3m += 1
+                elif event.event_type == EventType.FREE_THROW.value:
+                    clutch_fta += 1
+                    if event.success:
+                        clutch_ftm += 1
+                        clutch_points += 1
+                elif event.event_type == EventType.TURNOVER.value:
+                    clutch_turnovers += 1
+
+        # Calculate percentages
+        fg_pct_clutch = clutch_fgm / clutch_fga if clutch_fga > 0 else 0.0
+        fg_pct_overall = overall_fgm / overall_fga if overall_fga > 0 else 0.0
+        three_pct_clutch = clutch_fg3m / clutch_fg3a if clutch_fg3a > 0 else 0.0
+        three_pct_overall = overall_fg3m / overall_fg3a if overall_fg3a > 0 else 0.0
+        ft_pct_clutch = clutch_ftm / clutch_fta if clutch_fta > 0 else 0.0
+        ft_pct_overall = overall_ftm / overall_fta if overall_fta > 0 else 0.0
+
+        points_per_game = (
+            clutch_points / games_in_clutch if games_in_clutch > 0 else 0.0
+        )
+        to_per_game = clutch_turnovers / games_in_clutch if games_in_clutch > 0 else 0.0
+
+        return ClutchSeasonStats(
+            games_in_clutch=games_in_clutch,
+            wins=wins,
+            losses=losses,
+            fg_pct_clutch=round(fg_pct_clutch, 3),
+            fg_pct_overall=round(fg_pct_overall, 3),
+            three_pct_clutch=round(three_pct_clutch, 3),
+            three_pct_overall=round(three_pct_overall, 3),
+            ft_pct_clutch=round(ft_pct_clutch, 3),
+            ft_pct_overall=round(ft_pct_overall, 3),
+            points_per_clutch_game=round(points_per_game, 1),
+            turnovers_per_clutch_game=round(to_per_game, 1),
+        )
+
+    def get_quarter_splits_for_season(
+        self,
+        season_id: UUID,
+        team_id: UUID | None = None,
+        player_id: UUID | None = None,
+    ) -> dict[str, QuarterStats]:
+        """
+        Aggregate Q1/Q2/Q3/Q4/OT stats across all season games.
+
+        Provides quarter-by-quarter performance breakdown to identify
+        patterns like strong/weak quarters or 4th quarter struggles.
+
+        Args:
+            season_id: UUID of the season to analyze.
+            team_id: Optional UUID of the team to filter for.
+            player_id: Optional UUID of the player to filter for.
+
+        Returns:
+            Dictionary with keys "Q1", "Q2", "Q3", "Q4", and optionally "OT"
+            containing QuarterStats for each period.
+
+        Raises:
+            None - returns empty dict if no data found.
+
+        Example:
+            >>> splits = service.get_quarter_splits_for_season(
+            ...     season_id, team_id=lakers_id
+            ... )
+            >>> print(f"Q4 points: {splits['Q4'].points:.1f}")
+            >>> print(f"Q4 FG%: {splits['Q4'].fg_pct:.1%}")
+        """
+        from sqlalchemy import select
+
+        # Get all games in the season
+        stmt = select(Game).where(Game.season_id == season_id)
+        if team_id:
+            stmt = stmt.where(
+                (Game.home_team_id == team_id) | (Game.away_team_id == team_id)
+            )
+        games = list(self.db.scalars(stmt).all())
+
+        # Initialize accumulators for each quarter
+        quarters = {
+            "Q1": {"points": 0, "allowed": 0, "fgm": 0, "fga": 0, "pm": 0, "games": 0},
+            "Q2": {"points": 0, "allowed": 0, "fgm": 0, "fga": 0, "pm": 0, "games": 0},
+            "Q3": {"points": 0, "allowed": 0, "fgm": 0, "fga": 0, "pm": 0, "games": 0},
+            "Q4": {"points": 0, "allowed": 0, "fgm": 0, "fga": 0, "pm": 0, "games": 0},
+        }
+        ot_stats = {"points": 0, "allowed": 0, "fgm": 0, "fga": 0, "pm": 0, "games": 0}
+        has_ot = False
+
+        for game in games:
+            events = self.pbp_service.get_by_game(game.id)
+            if not events:
+                continue
+
+            # Determine team context
+            if team_id:
+                is_home = game.home_team_id == team_id
+                opp_id = game.away_team_id if is_home else game.home_team_id
+            else:
+                opp_id = None
+
+            # Track which quarters had events
+            quarters_seen: set[int] = set()
+
+            for event in events:
+                # Filter by player if specified
+                if player_id and event.player_id != player_id:
+                    # Still track opponent scoring for team stats
+                    if team_id and event.team_id == opp_id:
+                        pass  # Allow opponent events through for allowed calculation
+                    else:
+                        continue
+
+                # Filter by team if specified (for player's team)
+                if player_id:
+                    player_stats = self.player_stats_service.get_by_player_and_game(
+                        player_id=player_id, game_id=game.id
+                    )
+                    if player_stats and event.team_id != player_stats.team_id:
+                        continue
+
+                period = event.period
+                if period <= 4:
+                    quarter_key = f"Q{period}"
+                    stats = quarters[quarter_key]
+                    quarters_seen.add(period)
+                else:
+                    stats = ot_stats
+                    has_ot = True
+
+                if event.event_type == EventType.SHOT.value:
+                    # Check if this is the entity's shot or opponent's
+                    is_own_shot = True
+                    if team_id:
+                        is_own_shot = event.team_id == team_id
+                    elif player_id:
+                        is_own_shot = event.player_id == player_id
+
+                    if is_own_shot:
+                        stats["fga"] += 1
+                        if event.success:
+                            stats["fgm"] += 1
+                            pts = 3 if event.event_subtype == "3PT" else 2
+                            stats["points"] += pts
+                            stats["pm"] += pts
+                    elif team_id:
+                        # Opponent shot - track for points allowed
+                        if event.success:
+                            pts = 3 if event.event_subtype == "3PT" else 2
+                            stats["allowed"] += pts
+                            stats["pm"] -= pts
+
+                elif event.event_type == EventType.FREE_THROW.value:
+                    is_own_ft = True
+                    if team_id:
+                        is_own_ft = event.team_id == team_id
+                    elif player_id:
+                        is_own_ft = event.player_id == player_id
+
+                    if is_own_ft and event.success:
+                        stats["points"] += 1
+                        stats["pm"] += 1
+                    elif team_id and not is_own_ft and event.success:
+                        stats["allowed"] += 1
+                        stats["pm"] -= 1
+
+            # Count games per quarter
+            for q in quarters_seen:
+                quarters[f"Q{q}"]["games"] += 1
+
+        # Build result
+        result: dict[str, QuarterStats] = {}
+        for key, stats in quarters.items():
+            games_count = stats["games"] if stats["games"] > 0 else 1
+            fg_pct = stats["fgm"] / stats["fga"] if stats["fga"] > 0 else 0.0
+
+            result[key] = QuarterStats(
+                points=round(stats["points"] / games_count, 1),
+                points_allowed=(
+                    round(stats["allowed"] / games_count, 1) if team_id else None
+                ),
+                fg_pct=round(fg_pct, 3),
+                plus_minus=round(stats["pm"] / games_count, 1) if team_id else None,
+            )
+
+        if has_ot:
+            games_count = ot_stats["games"] if ot_stats["games"] > 0 else 1
+            fg_pct = ot_stats["fgm"] / ot_stats["fga"] if ot_stats["fga"] > 0 else 0.0
+            result["OT"] = QuarterStats(
+                points=round(ot_stats["points"] / games_count, 1),
+                points_allowed=(
+                    round(ot_stats["allowed"] / games_count, 1) if team_id else None
+                ),
+                fg_pct=round(fg_pct, 3),
+                plus_minus=round(ot_stats["pm"] / games_count, 1) if team_id else None,
+            )
+
+        return result
+
+    def get_performance_trend(
+        self,
+        stat: str,
+        last_n_games: int = 10,
+        player_id: UUID | None = None,
+        team_id: UUID | None = None,
+        season_id: UUID | None = None,
+    ) -> TrendAnalysis:
+        """
+        Analyze performance trend over recent games.
+
+        Compares recent performance to season average to determine
+        if the player or team is improving, declining, or stable.
+
+        Args:
+            stat: Statistic to track. For players: "points", "rebounds",
+                "assists", "steals", "blocks", "fg_pct", "three_pct".
+                For teams: "points", "points_allowed", "fg_pct".
+            last_n_games: Number of recent games to analyze (default 10).
+            player_id: UUID of the player to analyze.
+            team_id: UUID of the team to analyze.
+            season_id: Optional season UUID. If None, uses most recent games.
+
+        Returns:
+            TrendAnalysis with trend direction and statistics.
+
+        Raises:
+            ValueError: If neither player_id nor team_id is provided.
+
+        Example:
+            >>> trend = service.get_performance_trend(
+            ...     "points", last_n_games=10, player_id=lebron_id
+            ... )
+            >>> print(f"Recent avg: {trend.average:.1f}")
+            >>> print(f"Direction: {trend.direction}")
+        """
+        from sqlalchemy import select
+
+        if not player_id and not team_id:
+            raise ValueError("Either player_id or team_id must be provided")
+
+        # Stat mapping for player stats
+        player_stat_map = {
+            "points": "points",
+            "rebounds": "total_rebounds",
+            "assists": "assists",
+            "steals": "steals",
+            "blocks": "blocks",
+            "turnovers": "turnovers",
+            "fg_pct": None,  # Calculated
+            "three_pct": None,  # Calculated
+        }
+
+        values: list[float] = []
+        game_labels: list[str] = []
+        season_total = 0.0
+        season_count = 0
+
+        if player_id:
+            # Get player's game stats ordered by game date
+            stmt = (
+                select(PlayerGameStats)
+                .join(Game, PlayerGameStats.game_id == Game.id)
+                .where(PlayerGameStats.player_id == player_id)
+            )
+            if season_id:
+                stmt = stmt.where(Game.season_id == season_id)
+            stmt = stmt.order_by(Game.game_date.desc())
+
+            all_stats = list(self.db.scalars(stmt).all())
+
+            for pgs in all_stats:
+                game = self.game_service.get_by_id(pgs.game_id)
+                if not game:
+                    continue
+
+                # Calculate the stat value
+                if stat == "fg_pct":
+                    fga = pgs.field_goals_attempted or 0
+                    fgm = pgs.field_goals_made or 0
+                    value = fgm / fga if fga > 0 else 0.0
+                elif stat == "three_pct":
+                    tpa = pgs.three_pointers_attempted or 0
+                    tpm = pgs.three_pointers_made or 0
+                    value = tpm / tpa if tpa > 0 else 0.0
+                else:
+                    attr = player_stat_map.get(stat, stat)
+                    value = float(getattr(pgs, attr, 0) or 0)
+
+                # Track season totals
+                season_total += value
+                season_count += 1
+
+                # Track recent games
+                if len(values) < last_n_games:
+                    values.append(value)
+                    # Create game label
+                    opp_id = (
+                        game.away_team_id
+                        if pgs.team_id == game.home_team_id
+                        else game.home_team_id
+                    )
+                    is_home = pgs.team_id == game.home_team_id
+                    prefix = "vs" if is_home else "@"
+                    opp = self.db.get(Team, opp_id) if opp_id else None
+                    opp_name = opp.short_name if opp else "???"
+                    game_labels.append(f"{prefix} {opp_name}")
+
+        elif team_id:
+            # Get team's game stats ordered by game date
+            from src.models.game import TeamGameStats
+
+            stmt = (
+                select(TeamGameStats)
+                .join(Game, TeamGameStats.game_id == Game.id)
+                .where(TeamGameStats.team_id == team_id)
+            )
+            if season_id:
+                stmt = stmt.where(Game.season_id == season_id)
+            stmt = stmt.order_by(Game.game_date.desc())
+
+            all_stats = list(self.db.scalars(stmt).all())
+
+            for tgs in all_stats:
+                game = self.game_service.get_by_id(tgs.game_id)
+                if not game:
+                    continue
+
+                # Calculate the stat value
+                if stat == "points":
+                    value = float(tgs.points or 0)
+                elif stat == "points_allowed":
+                    # Get opponent's points
+                    opp_id = (
+                        game.away_team_id
+                        if tgs.team_id == game.home_team_id
+                        else game.home_team_id
+                    )
+                    opp_stats = self.team_stats_service.get_by_team_and_game(
+                        team_id=opp_id, game_id=game.id
+                    )
+                    value = float(opp_stats.points or 0) if opp_stats else 0.0
+                elif stat == "fg_pct":
+                    fga = tgs.field_goals_attempted or 0
+                    fgm = tgs.field_goals_made or 0
+                    value = fgm / fga if fga > 0 else 0.0
+                else:
+                    value = float(getattr(tgs, stat, 0) or 0)
+
+                season_total += value
+                season_count += 1
+
+                if len(values) < last_n_games:
+                    values.append(value)
+                    opp_id = (
+                        game.away_team_id
+                        if tgs.team_id == game.home_team_id
+                        else game.home_team_id
+                    )
+                    is_home = tgs.team_id == game.home_team_id
+                    prefix = "vs" if is_home else "@"
+                    opp = self.db.get(Team, opp_id) if opp_id else None
+                    opp_name = opp.short_name if opp else "???"
+                    game_labels.append(f"{prefix} {opp_name}")
+
+        # Calculate averages and trend
+        recent_avg = sum(values) / len(values) if values else 0.0
+        season_avg = season_total / season_count if season_count > 0 else 0.0
+
+        # Determine direction (5% threshold for significance)
+        if season_avg > 0:
+            change_pct = ((recent_avg - season_avg) / season_avg) * 100
+        else:
+            change_pct = 0.0
+
+        if change_pct > 5:
+            direction = "improving"
+        elif change_pct < -5:
+            direction = "declining"
+        else:
+            direction = "stable"
+
+        return TrendAnalysis(
+            stat_name=stat,
+            values=values,
+            games=game_labels,
+            average=round(recent_avg, 2),
+            season_average=round(season_avg, 2),
+            direction=direction,
+            change_pct=round(change_pct, 1),
+        )

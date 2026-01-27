@@ -1,12 +1,20 @@
 """
 Analytics Schemas Module
 
-Pydantic models for analytics filtering and configuration.
+Pydantic models for analytics filtering, configuration, and response types.
 
-This module provides filter schemas for advanced analytics queries:
+This module provides:
+
+Filter schemas for advanced analytics queries:
 - ClutchFilter: Configure clutch time criteria (time remaining, score margin)
 - SituationalFilter: Filter PBP events by situational attributes
 - OpponentFilter: Filter by opponent team and home/away games
+- TimeFilter: Filter by period and time ranges
+
+Response schemas for analytics results:
+- ClutchSeasonStats: Season-level clutch performance aggregation
+- QuarterStats: Stats broken down by quarter
+- TrendAnalysis: Performance trend over recent games
 
 Usage:
     from src.schemas.analytics import ClutchFilter, SituationalFilter, OpponentFilter
@@ -35,6 +43,7 @@ Clutch Time Definitions (research sources):
 - Source: NBA.com/stats, Basketball Reference clutch stats
 """
 
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
@@ -224,3 +233,133 @@ class TimeFilter(BaseModel):
         ):
             raise ValueError("min_time_remaining must be <= max_time_remaining")
         return self
+
+
+# =============================================================================
+# Response Schemas for Analytics Results
+# =============================================================================
+
+
+class ClutchSeasonStats(BaseModel):
+    """
+    Season-level clutch performance statistics.
+
+    Aggregates clutch time performance across all games in a season
+    for a team or player.
+
+    Attributes:
+        games_in_clutch: Number of games with clutch situations.
+        wins: Games won in clutch situations.
+        losses: Games lost in clutch situations.
+        fg_pct_clutch: Field goal percentage in clutch time.
+        fg_pct_overall: Overall field goal percentage for comparison.
+        three_pct_clutch: Three-point percentage in clutch time.
+        three_pct_overall: Overall three-point percentage.
+        ft_pct_clutch: Free throw percentage in clutch time.
+        ft_pct_overall: Overall free throw percentage.
+        points_per_clutch_game: Average points scored in clutch time per game.
+        turnovers_per_clutch_game: Average turnovers in clutch time per game.
+
+    Example:
+        >>> stats = ClutchSeasonStats(
+        ...     games_in_clutch=25,
+        ...     wins=15,
+        ...     losses=10,
+        ...     fg_pct_clutch=0.42,
+        ...     fg_pct_overall=0.48,
+        ...     ...
+        ... )
+    """
+
+    games_in_clutch: int = Field(
+        ..., ge=0, description="Number of games with clutch situations"
+    )
+    wins: int = Field(..., ge=0, description="Wins in clutch games")
+    losses: int = Field(..., ge=0, description="Losses in clutch games")
+    fg_pct_clutch: float = Field(..., ge=0.0, le=1.0, description="FG% in clutch time")
+    fg_pct_overall: float = Field(..., ge=0.0, le=1.0, description="Overall FG%")
+    three_pct_clutch: float = Field(
+        ..., ge=0.0, le=1.0, description="3P% in clutch time"
+    )
+    three_pct_overall: float = Field(..., ge=0.0, le=1.0, description="Overall 3P%")
+    ft_pct_clutch: float = Field(..., ge=0.0, le=1.0, description="FT% in clutch time")
+    ft_pct_overall: float = Field(..., ge=0.0, le=1.0, description="Overall FT%")
+    points_per_clutch_game: float = Field(
+        ..., ge=0.0, description="Avg points in clutch per game"
+    )
+    turnovers_per_clutch_game: float = Field(
+        ..., ge=0.0, description="Avg turnovers in clutch per game"
+    )
+
+
+class QuarterStats(BaseModel):
+    """
+    Stats for a single quarter or overtime period.
+
+    Used in quarter-by-quarter breakdowns to show performance
+    differences across periods.
+
+    Attributes:
+        points: Points scored in this quarter.
+        points_allowed: Points allowed (for team stats only, None for player).
+        fg_pct: Field goal percentage in this quarter.
+        plus_minus: Plus/minus differential (team or on-court for player).
+
+    Example:
+        >>> q4_stats = QuarterStats(
+        ...     points=28.5,
+        ...     points_allowed=25.0,
+        ...     fg_pct=0.52,
+        ...     plus_minus=3.5
+        ... )
+    """
+
+    points: float = Field(..., ge=0.0, description="Points scored")
+    points_allowed: float | None = Field(
+        default=None, ge=0.0, description="Points allowed (team only)"
+    )
+    fg_pct: float = Field(..., ge=0.0, le=1.0, description="Field goal percentage")
+    plus_minus: float | None = Field(
+        default=None, description="Plus/minus differential"
+    )
+
+
+class TrendAnalysis(BaseModel):
+    """
+    Performance trend analysis over recent games.
+
+    Tracks a specific statistic over the last N games to identify
+    whether performance is improving, declining, or stable.
+
+    Attributes:
+        stat_name: Name of the statistic being tracked.
+        values: List of stat values per game (most recent first).
+        games: List of game identifiers (dates/opponents) for context.
+        average: Average over the analyzed period.
+        season_average: Season average for comparison.
+        direction: Trend direction based on comparison to season average.
+        change_pct: Percentage change from season average.
+
+    Example:
+        >>> trend = TrendAnalysis(
+        ...     stat_name="points",
+        ...     values=[25.0, 28.0, 22.0, 30.0, 27.0],
+        ...     games=["vs BOS", "@ MIA", "vs PHI", "@ NYK", "vs CHI"],
+        ...     average=26.4,
+        ...     season_average=24.5,
+        ...     direction="improving",
+        ...     change_pct=7.8
+        ... )
+    """
+
+    stat_name: str = Field(..., description="Name of the tracked statistic")
+    values: list[float] = Field(
+        ..., description="Stat values per game (most recent first)"
+    )
+    games: list[str] = Field(..., description="Game identifiers for context")
+    average: float = Field(..., description="Average over analyzed period")
+    season_average: float = Field(..., description="Season average for comparison")
+    direction: Literal["improving", "declining", "stable"] = Field(
+        ..., description="Trend direction"
+    )
+    change_pct: float = Field(..., description="Percentage change from season avg")
