@@ -244,8 +244,6 @@ class SyncTracker:
         Returns:
             List of (external_id, Game) tuples for games without PBP
         """
-        from src.models.play_by_play import PlayByPlayEvent
-
         result = []
 
         stmt = select(Game).where(Game.external_ids[source].as_string().isnot(None))
