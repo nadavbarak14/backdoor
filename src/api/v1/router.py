@@ -11,6 +11,7 @@ Routers included:
     - /games - Game management endpoints
     - /stats - Statistics endpoints (league leaders)
     - /sync - Sync operation tracking endpoints
+    - /chat - AI chat streaming endpoint
 
 Usage:
     from src.api.v1.router import router as api_v1_router
@@ -20,6 +21,7 @@ Usage:
 
 from fastapi import APIRouter
 
+from src.api.v1.chat import router as chat_router
 from src.api.v1.games import router as games_router
 from src.api.v1.leagues import router as leagues_router
 from src.api.v1.players import router as players_router
@@ -36,3 +38,4 @@ router.include_router(players_router)
 router.include_router(games_router)
 router.include_router(stats_router)
 router.include_router(sync_router)
+router.include_router(chat_router)

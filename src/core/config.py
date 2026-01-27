@@ -37,6 +37,10 @@ class Settings(BaseSettings):
         DATABASE_URL: SQLAlchemy database connection string.
         TEST_DATABASE_URL: Database URL used during test runs.
         API_PREFIX: URL prefix for all API routes.
+        LLM_MODEL: The LLM model to use for chat (e.g., gpt-4).
+        LLM_TEMPERATURE: Temperature setting for LLM responses (0.0-1.0).
+        OPENAI_API_KEY: API key for OpenAI services.
+        CORS_ORIGINS: List of allowed origins for CORS.
 
     Example:
         >>> from src.core.config import Settings
@@ -64,6 +68,14 @@ class Settings(BaseSettings):
 
     # API
     API_PREFIX: str = "/api/v1"
+
+    # LLM Configuration
+    LLM_MODEL: str = "gpt-4"
+    LLM_TEMPERATURE: float = 0.7
+    OPENAI_API_KEY: str = ""
+
+    # CORS
+    CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
 
 @lru_cache
