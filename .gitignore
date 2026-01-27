@@ -103,6 +103,13 @@ cython_debug/
 *.db
 *.sqlite
 *.sqlite3
+*.db.backup
+
+# Data directory (template databases)
+# Keep the directory structure but ignore the actual database files
+data/*.db
+data/*.backup
+!data/.gitkeep
 
 # Alembic
 alembic/versions/*.pyc
