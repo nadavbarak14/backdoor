@@ -107,73 +107,56 @@ class TestQueryStatsHelpers:
 
 
 class TestQueryStatsResolution:
-    """Tests for name resolution helpers."""
+    """Tests for ID resolution helpers."""
 
-    def test_resolve_league_by_name_found(self):
-        """Test league resolution when league exists."""
-        from src.services.query_stats import _resolve_league_by_name
+    def test_parse_uuid_valid(self):
+        """Test parsing valid UUID string."""
+        from src.services.query_stats import _parse_uuid
+
+        valid_uuid = "12345678-1234-5678-1234-567812345678"
+        result = _parse_uuid(valid_uuid)
+        assert result is not None
+        assert str(result) == valid_uuid
+
+    def test_parse_uuid_invalid(self):
+        """Test parsing invalid UUID string."""
+        from src.services.query_stats import _parse_uuid
+
+        assert _parse_uuid("not-a-uuid") is None
+        assert _parse_uuid("") is None
+        assert _parse_uuid(None) is None
+
+    def test_get_entity_by_id_found(self):
+        """Test getting entity by ID when it exists."""
+        from src.services.query_stats import _get_entity_by_id
 
         mock_db = MagicMock()
-        mock_league = MagicMock()
-        mock_league.name = "Test League"
-        mock_db.scalars.return_value.first.return_value = mock_league
+        mock_entity = MagicMock()
+        mock_db.get.return_value = mock_entity
 
-        result = _resolve_league_by_name(mock_db, "Test")
-        assert result == mock_league
+        valid_uuid = "12345678-1234-5678-1234-567812345678"
+        result = _get_entity_by_id(mock_db, MagicMock, valid_uuid)
+        assert result == mock_entity
 
-    def test_resolve_league_by_name_not_found(self):
-        """Test league resolution when league doesn't exist."""
-        from src.services.query_stats import _resolve_league_by_name
+    def test_get_entity_by_id_not_found(self):
+        """Test getting entity by ID when it doesn't exist."""
+        from src.services.query_stats import _get_entity_by_id
 
         mock_db = MagicMock()
-        mock_db.scalars.return_value.first.return_value = None
+        mock_db.get.return_value = None
 
-        result = _resolve_league_by_name(mock_db, "NonExistent")
+        valid_uuid = "12345678-1234-5678-1234-567812345678"
+        result = _get_entity_by_id(mock_db, MagicMock, valid_uuid)
         assert result is None
 
-    def test_resolve_team_by_name_found(self):
-        """Test team resolution when team exists."""
-        from src.services.query_stats import _resolve_team_by_name
+    def test_get_entity_by_id_invalid_uuid(self):
+        """Test getting entity by invalid ID returns None."""
+        from src.services.query_stats import _get_entity_by_id
 
-        with patch("src.services.query_stats.TeamService") as mock_service_class:
-            mock_service = MagicMock()
-            mock_team = MagicMock()
-            mock_team.name = "Test Team"
-            mock_service.get_filtered.return_value = ([mock_team], 1)
-            mock_service_class.return_value = mock_service
-
-            mock_db = MagicMock()
-            result = _resolve_team_by_name(mock_db, "Test")
-            assert result == mock_team
-
-    def test_resolve_team_by_name_not_found(self):
-        """Test team resolution when team doesn't exist."""
-        from src.services.query_stats import _resolve_team_by_name
-
-        with patch("src.services.query_stats.TeamService") as mock_service_class:
-            mock_service = MagicMock()
-            mock_service.get_filtered.return_value = ([], 0)
-            mock_service_class.return_value = mock_service
-
-            mock_db = MagicMock()
-            result = _resolve_team_by_name(mock_db, "NonExistent")
-            assert result is None
-
-    def test_resolve_player_by_name_found(self):
-        """Test player resolution when player exists."""
-        from src.services.query_stats import _resolve_player_by_name
-
-        with patch("src.services.query_stats.PlayerService") as mock_service_class:
-            mock_service = MagicMock()
-            mock_player = MagicMock()
-            mock_player.first_name = "Test"
-            mock_player.last_name = "Player"
-            mock_service.get_filtered.return_value = ([mock_player], 1)
-            mock_service_class.return_value = mock_service
-
-            mock_db = MagicMock()
-            result = _resolve_player_by_name(mock_db, "Test")
-            assert result == mock_player
+        mock_db = MagicMock()
+        result = _get_entity_by_id(mock_db, MagicMock, "invalid-uuid")
+        assert result is None
+        mock_db.get.assert_not_called()
 
     def test_resolve_season_current(self):
         """Test season resolution for current season."""
@@ -190,16 +173,16 @@ class TestQueryStatsResolution:
             result = _resolve_season(mock_db, None, None)
             assert result == mock_season
 
-    def test_resolve_season_by_name(self):
-        """Test season resolution by name."""
+    def test_resolve_season_by_id(self):
+        """Test season resolution by ID."""
         from src.services.query_stats import _resolve_season
 
         mock_db = MagicMock()
         mock_season = MagicMock()
-        mock_season.name = "2023-24"
-        mock_db.scalars.return_value.first.return_value = mock_season
+        mock_db.get.return_value = mock_season
 
-        result = _resolve_season(mock_db, "2023", None)
+        valid_uuid = "12345678-1234-5678-1234-567812345678"
+        result = _resolve_season(mock_db, valid_uuid, None)
         assert result == mock_season
 
 
@@ -455,46 +438,44 @@ class TestQueryStatsTool:
             assert "No season found" in result
 
     def test_query_stats_team_not_found(self):
-        """Test query_stats returns error when team not found."""
+        """Test query_stats returns error when team ID not found."""
         from src.services.query_stats import query_stats
 
-        with (
-            patch("src.services.query_stats._resolve_season") as mock_season,
-            patch("src.services.query_stats._resolve_team_by_name") as mock_team,
-        ):
+        with patch("src.services.query_stats._resolve_season") as mock_season:
             mock_season.return_value = MagicMock()
-            mock_team.return_value = None
 
             mock_db = MagicMock()
-            result = query_stats.func(team_name="NonExistent", db=mock_db)
+            mock_db.get.return_value = None  # Team not found
+
+            valid_uuid = "12345678-1234-5678-1234-567812345678"
+            result = query_stats.func(team_id=valid_uuid, db=mock_db)
 
             assert "not found" in result
 
     def test_query_stats_league_not_found(self):
-        """Test query_stats returns error when league not found."""
+        """Test query_stats returns error when league ID not found."""
         from src.services.query_stats import query_stats
 
-        with patch("src.services.query_stats._resolve_league_by_name") as mock_league:
-            mock_league.return_value = None
+        mock_db = MagicMock()
+        mock_db.get.return_value = None  # League not found
 
-            mock_db = MagicMock()
-            result = query_stats.func(league_name="NonExistent", db=mock_db)
+        valid_uuid = "12345678-1234-5678-1234-567812345678"
+        result = query_stats.func(league_id=valid_uuid, db=mock_db)
 
-            assert "not found" in result
+        assert "not found" in result
 
     def test_query_stats_player_not_found(self):
-        """Test query_stats returns error when player not found."""
+        """Test query_stats returns error when player ID not found."""
         from src.services.query_stats import query_stats
 
-        with (
-            patch("src.services.query_stats._resolve_season") as mock_season,
-            patch("src.services.query_stats._resolve_player_by_name") as mock_player,
-        ):
+        with patch("src.services.query_stats._resolve_season") as mock_season:
             mock_season.return_value = MagicMock()
-            mock_player.return_value = None
 
             mock_db = MagicMock()
-            result = query_stats.func(player_names=["NonExistent"], db=mock_db)
+            mock_db.get.return_value = None  # Player not found
+
+            valid_uuid = "12345678-1234-5678-1234-567812345678"
+            result = query_stats.func(player_ids=[valid_uuid], db=mock_db)
 
             assert "not found" in result
 
@@ -1267,18 +1248,17 @@ class TestQueryStatsWithLocationFilters:
         assert "mutually exclusive" in result
 
     def test_query_stats_opponent_not_found(self):
-        """Test query_stats returns error when opponent team not found."""
+        """Test query_stats returns error when opponent team ID not found."""
         from src.services.query_stats import query_stats
 
-        with (
-            patch("src.services.query_stats._resolve_season") as mock_season,
-            patch("src.services.query_stats._resolve_team_by_name") as mock_team,
-        ):
+        with patch("src.services.query_stats._resolve_season") as mock_season:
             mock_season.return_value = MagicMock()
-            mock_team.return_value = None  # Opponent not found
 
             mock_db = MagicMock()
-            result = query_stats.func(opponent_team="NonExistent", db=mock_db)
+            mock_db.get.return_value = None  # Opponent not found
+
+            valid_uuid = "12345678-1234-5678-1234-567812345678"
+            result = query_stats.func(opponent_team_id=valid_uuid, db=mock_db)
 
             assert "not found" in result
 
@@ -1303,12 +1283,12 @@ class TestQueryStatsWithLocationFilters:
             assert result == "Location filtered results"
 
     def test_query_stats_opponent_filter_triggers_time_filter_path(self):
-        """Test opponent_team triggers time filter path."""
+        """Test opponent_team_id triggers time filter path."""
         from src.services.query_stats import query_stats
 
         with (
             patch("src.services.query_stats._resolve_season") as mock_season,
-            patch("src.services.query_stats._resolve_team_by_name") as mock_team,
+            patch("src.services.query_stats._get_entity_by_id") as mock_get_entity,
             patch(
                 "src.services.query_stats._query_with_time_filters"
             ) as mock_time_filters,
@@ -1317,11 +1297,12 @@ class TestQueryStatsWithLocationFilters:
             mock_opponent = MagicMock()
             mock_opponent.id = "opponent-123"
             mock_opponent.name = "Hapoel"
-            mock_team.return_value = mock_opponent
+            mock_get_entity.return_value = mock_opponent
             mock_time_filters.return_value = "Opponent filtered results"
 
             mock_db = MagicMock()
-            result = query_stats.func(opponent_team="Hapoel", db=mock_db)
+            valid_uuid = "12345678-1234-5678-1234-567812345678"
+            result = query_stats.func(opponent_team_id=valid_uuid, db=mock_db)
 
             mock_time_filters.assert_called_once()
             assert result == "Opponent filtered results"
