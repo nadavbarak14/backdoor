@@ -736,3 +736,431 @@ class TestQueryStatsWithTimeFilters:
             # Should call time filter path, not league stats
             mock_time_filters.assert_called_once()
             assert result == "Time filtered results"
+
+
+class TestGetRecentGames:
+    """Tests for _get_recent_games helper."""
+
+    def test_get_recent_games_player(self):
+        """Test getting recent games for a player."""
+        from src.services.query_stats import _get_recent_games
+
+        mock_db = MagicMock()
+        mock_season = MagicMock()
+        mock_season.id = "season-123"
+
+        mock_games = [MagicMock(), MagicMock()]
+        mock_db.scalars.return_value.all.return_value = mock_games
+
+        result = _get_recent_games(
+            mock_db, mock_season, player_id="player-123", last_n_games=5
+        )
+
+        assert len(result) == 2
+        mock_db.scalars.assert_called_once()
+
+    def test_get_recent_games_team(self):
+        """Test getting recent games for a team."""
+        from src.services.query_stats import _get_recent_games
+
+        mock_db = MagicMock()
+        mock_season = MagicMock()
+        mock_season.id = "season-123"
+
+        mock_games = [MagicMock()]
+        mock_db.scalars.return_value.all.return_value = mock_games
+
+        result = _get_recent_games(
+            mock_db, mock_season, team_id="team-123", last_n_games=3
+        )
+
+        assert len(result) == 1
+
+    def test_get_recent_games_no_entity(self):
+        """Test getting recent games with no specific entity."""
+        from src.services.query_stats import _get_recent_games
+
+        mock_db = MagicMock()
+        mock_season = MagicMock()
+        mock_season.id = "season-123"
+
+        mock_games = [MagicMock(), MagicMock(), MagicMock()]
+        mock_db.scalars.return_value.all.return_value = mock_games
+
+        result = _get_recent_games(mock_db, mock_season)
+
+        assert len(result) == 3
+
+
+class TestCalcStatsFromGames:
+    """Tests for _calc_stats_from_games helper."""
+
+    def test_calc_stats_no_time_filters(self):
+        """Test calculating stats without time filters (box scores)."""
+        from src.services.query_stats import _calc_stats_from_games
+
+        mock_db = MagicMock()
+        mock_game = MagicMock()
+        mock_game.id = "game-123"
+
+        mock_pgs = MagicMock()
+        mock_pgs.points = 20
+        mock_pgs.total_rebounds = 10
+        mock_pgs.assists = 5
+        mock_pgs.steals = 2
+        mock_pgs.blocks = 1
+        mock_pgs.turnovers = 3
+        mock_pgs.field_goals_made = 8
+        mock_pgs.field_goals_attempted = 15
+        mock_pgs.three_pointers_made = 2
+        mock_pgs.three_pointers_attempted = 5
+        mock_pgs.free_throws_made = 2
+        mock_pgs.free_throws_attempted = 3
+        mock_pgs.plus_minus = 5
+        mock_pgs.minutes_played = 1800  # 30 minutes
+
+        mock_db.scalars.return_value.first.return_value = mock_pgs
+
+        result = _calc_stats_from_games(
+            mock_db,
+            [mock_game],
+            player_id="player-123",
+        )
+
+        assert result["games"] == 1
+        assert result["points"] == 20
+        assert result["rebounds"] == 10
+
+    def test_calc_stats_no_games(self):
+        """Test calculating stats with no games."""
+        from src.services.query_stats import _calc_stats_from_games
+
+        mock_db = MagicMock()
+
+        result = _calc_stats_from_games(mock_db, [])
+
+        assert result["games"] == 0
+        assert result["points"] == 0
+
+    def test_calc_stats_with_time_filters(self):
+        """Test calculating stats with time filters (uses PBP)."""
+        from src.services.query_stats import _calc_stats_from_games
+
+        mock_db = MagicMock()
+        mock_game = MagicMock()
+        mock_game.id = "game-123"
+
+        with patch("src.services.query_stats.AnalyticsService") as mock_analytics_cls:
+            mock_analytics = MagicMock()
+            mock_analytics_cls.return_value = mock_analytics
+
+            with patch(
+                "src.services.query_stats._calc_pbp_stats_for_game"
+            ) as mock_calc_pbp:
+                mock_calc_pbp.return_value = {
+                    "has_data": True,
+                    "points": 8,
+                    "rebounds": 3,
+                    "assists": 2,
+                    "steals": 1,
+                    "blocks": 0,
+                    "turnovers": 1,
+                    "fgm": 3,
+                    "fga": 6,
+                    "fg3m": 1,
+                    "fg3a": 2,
+                    "ftm": 1,
+                    "fta": 2,
+                    "plus_minus": 3,
+                    "minutes": 0,
+                }
+
+                result = _calc_stats_from_games(
+                    mock_db,
+                    [mock_game],
+                    player_id="player-123",
+                    quarter=4,
+                )
+
+                assert result["games"] == 1
+                assert result["points"] == 8
+
+
+class TestCalcPbpStatsForGame:
+    """Tests for _calc_pbp_stats_for_game helper."""
+
+    def test_calc_pbp_stats_no_events(self):
+        """Test calculating PBP stats with no events."""
+        from src.services.query_stats import _calc_pbp_stats_for_game
+
+        mock_analytics = MagicMock()
+        mock_analytics.get_events_by_time.return_value = []
+
+        mock_game = MagicMock()
+        mock_game.id = "game-123"
+
+        result = _calc_pbp_stats_for_game(
+            mock_analytics,
+            mock_game,
+            player_id="player-123",
+            quarter=4,
+        )
+
+        assert result["has_data"] is False
+        assert result["points"] == 0
+
+    def test_calc_pbp_stats_with_shot_events(self):
+        """Test calculating PBP stats with shot events."""
+        from src.services.query_stats import _calc_pbp_stats_for_game
+
+        mock_analytics = MagicMock()
+
+        # Create shot event
+        mock_event = MagicMock()
+        mock_event.player_id = "player-123"
+        mock_event.team_id = "team-123"
+        mock_event.event_type = "SHOT"
+        mock_event.event_subtype = "2PT"
+        mock_event.success = True
+
+        mock_analytics.get_events_by_time.return_value = [mock_event]
+
+        mock_game = MagicMock()
+        mock_game.id = "game-123"
+
+        result = _calc_pbp_stats_for_game(
+            mock_analytics,
+            mock_game,
+            player_id="player-123",
+            quarter=4,
+        )
+
+        assert result["has_data"] is True
+        assert result["points"] == 2
+        assert result["fgm"] == 1
+        assert result["fga"] == 1
+
+    def test_calc_pbp_stats_with_3pt_shot(self):
+        """Test calculating PBP stats with 3-point shot."""
+        from src.services.query_stats import _calc_pbp_stats_for_game
+
+        mock_analytics = MagicMock()
+
+        mock_event = MagicMock()
+        mock_event.player_id = "player-123"
+        mock_event.team_id = "team-123"
+        mock_event.event_type = "SHOT"
+        mock_event.event_subtype = "3PT"
+        mock_event.success = True
+
+        mock_analytics.get_events_by_time.return_value = [mock_event]
+
+        mock_game = MagicMock()
+
+        result = _calc_pbp_stats_for_game(
+            mock_analytics,
+            mock_game,
+            player_id="player-123",
+            quarter=4,
+        )
+
+        assert result["points"] == 3
+        assert result["fg3m"] == 1
+        assert result["fg3a"] == 1
+
+    def test_calc_pbp_stats_with_free_throw(self):
+        """Test calculating PBP stats with free throw."""
+        from src.services.query_stats import _calc_pbp_stats_for_game
+
+        mock_analytics = MagicMock()
+
+        mock_event = MagicMock()
+        mock_event.player_id = "player-123"
+        mock_event.team_id = "team-123"
+        mock_event.event_type = "FREE_THROW"
+        mock_event.success = True
+
+        mock_analytics.get_events_by_time.return_value = [mock_event]
+
+        mock_game = MagicMock()
+
+        result = _calc_pbp_stats_for_game(
+            mock_analytics,
+            mock_game,
+            player_id="player-123",
+            quarter=4,
+        )
+
+        assert result["points"] == 1
+        assert result["ftm"] == 1
+        assert result["fta"] == 1
+
+    def test_calc_pbp_stats_with_other_events(self):
+        """Test calculating PBP stats with rebounds, assists, etc."""
+        from src.services.query_stats import _calc_pbp_stats_for_game
+
+        mock_analytics = MagicMock()
+
+        events = []
+        for event_type in ["REBOUND", "ASSIST", "STEAL", "BLOCK", "TURNOVER"]:
+            mock_event = MagicMock()
+            mock_event.player_id = "player-123"
+            mock_event.team_id = "team-123"
+            mock_event.event_type = event_type
+            mock_event.success = True
+            events.append(mock_event)
+
+        mock_analytics.get_events_by_time.return_value = events
+
+        mock_game = MagicMock()
+
+        result = _calc_pbp_stats_for_game(
+            mock_analytics,
+            mock_game,
+            player_id="player-123",
+            quarter=4,
+        )
+
+        assert result["rebounds"] == 1
+        assert result["assists"] == 1
+        assert result["steals"] == 1
+        assert result["blocks"] == 1
+        assert result["turnovers"] == 1
+
+    def test_calc_pbp_stats_clutch_mode(self):
+        """Test calculating PBP stats in clutch mode."""
+        from src.services.query_stats import _calc_pbp_stats_for_game
+
+        mock_analytics = MagicMock()
+        mock_analytics.get_clutch_events.return_value = []
+
+        mock_game = MagicMock()
+
+        result = _calc_pbp_stats_for_game(
+            mock_analytics,
+            mock_game,
+            player_id="player-123",
+            clutch_only=True,
+        )
+
+        mock_analytics.get_clutch_events.assert_called_once()
+        assert result["has_data"] is False
+
+    def test_calc_pbp_stats_filter_wrong_player(self):
+        """Test that events for wrong player are filtered out."""
+        from src.services.query_stats import _calc_pbp_stats_for_game
+
+        mock_analytics = MagicMock()
+
+        mock_event = MagicMock()
+        mock_event.player_id = "other-player"  # Different player
+        mock_event.team_id = "team-123"
+        mock_event.event_type = "SHOT"
+        mock_event.success = True
+
+        mock_analytics.get_events_by_time.return_value = [mock_event]
+
+        mock_game = MagicMock()
+
+        result = _calc_pbp_stats_for_game(
+            mock_analytics,
+            mock_game,
+            player_id="player-123",
+            quarter=4,
+        )
+
+        assert result["has_data"] is False
+
+
+class TestQueryWithTimeFilters:
+    """Tests for _query_with_time_filters function."""
+
+    def test_query_with_time_filters_no_entity(self):
+        """Test time filter query with no player/team returns error."""
+        from src.services.query_stats import _query_with_time_filters
+
+        mock_db = MagicMock()
+        mock_season = MagicMock()
+
+        result = _query_with_time_filters(
+            db=mock_db,
+            season=mock_season,
+            players=[],
+            team=None,
+            metrics=["points"],
+            per="game",
+            limit=10,
+            quarter=4,
+            quarters=None,
+            clutch_only=False,
+            exclude_garbage_time=False,
+            last_n_games=None,
+        )
+
+        assert "Error" in result
+        assert "require specifying" in result
+
+    def test_query_with_time_filters_player_no_games(self):
+        """Test time filter query for player with no games."""
+        from src.services.query_stats import _query_with_time_filters
+
+        mock_db = MagicMock()
+        mock_season = MagicMock()
+        mock_season.name = "2024-25"
+
+        mock_player = MagicMock()
+        mock_player.first_name = "Test"
+        mock_player.last_name = "Player"
+        mock_player.id = "player-123"
+
+        with patch("src.services.query_stats._get_recent_games") as mock_get_games:
+            mock_get_games.return_value = []
+
+            result = _query_with_time_filters(
+                db=mock_db,
+                season=mock_season,
+                players=[mock_player],
+                team=None,
+                metrics=["points"],
+                per="game",
+                limit=10,
+                quarter=4,
+                quarters=None,
+                clutch_only=False,
+                exclude_garbage_time=False,
+                last_n_games=5,
+            )
+
+            assert "No stats found" in result
+
+    def test_query_with_time_filters_team_no_games(self):
+        """Test time filter query for team with no games."""
+        from src.services.query_stats import _query_with_time_filters
+
+        mock_db = MagicMock()
+        mock_season = MagicMock()
+        mock_season.name = "2024-25"
+
+        mock_team = MagicMock()
+        mock_team.name = "Test Team"
+        mock_team.id = "team-123"
+
+        with patch("src.services.query_stats._get_recent_games") as mock_get_games:
+            mock_get_games.return_value = []
+
+            result = _query_with_time_filters(
+                db=mock_db,
+                season=mock_season,
+                players=[],
+                team=mock_team,
+                metrics=["points"],
+                per="game",
+                limit=10,
+                quarter=4,
+                quarters=None,
+                clutch_only=False,
+                exclude_garbage_time=False,
+                last_n_games=None,
+            )
+
+            assert "No games found" in result
