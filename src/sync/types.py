@@ -213,7 +213,9 @@ class RawPBPEvent:
         period: Period/quarter number (1-4 for regulation, 5+ for OT)
         clock: Game clock time as string (e.g., "10:45")
         event_type: Type of event (shot, rebound, foul, etc.)
+        event_subtype: Subtype for detail (e.g., "lay-up", "3-pointer", "offensive")
         player_name: Name of the player involved, if applicable
+        player_external_id: External ID of the player (for database linking)
         team_external_id: External ID of the team involved
         success: Whether the event was successful (e.g., shot made)
         coord_x: X coordinate on the court, if available
@@ -226,7 +228,9 @@ class RawPBPEvent:
         ...     period=1,
         ...     clock="08:32",
         ...     event_type="shot",
+        ...     event_subtype="3-pointer",
         ...     player_name="Stephen Curry",
+        ...     player_external_id="1001",
         ...     team_external_id="team-123",
         ...     success=True,
         ...     coord_x=25.5,
@@ -238,7 +242,9 @@ class RawPBPEvent:
     period: int
     clock: str
     event_type: str
+    event_subtype: str | None = None
     player_name: str | None = None
+    player_external_id: str | None = None
     team_external_id: str | None = None
     success: bool | None = None
     coord_x: float | None = None
