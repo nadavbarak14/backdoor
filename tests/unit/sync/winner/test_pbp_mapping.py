@@ -152,7 +152,14 @@ class TestMapPbpEventsFromActions:
                     {"type": "clock", "quarter": 1, "quarterTime": "09:00"},
                     {"type": "game", "quarter": 1, "quarterTime": "10:00"},
                     {"type": "quarter", "quarter": 1, "quarterTime": "10:00"},
-                    {"type": "shot", "quarter": 1, "quarterTime": "09:00", "playerId": 1, "teamId": 1, "parameters": {"made": "made"}},
+                    {
+                        "type": "shot",
+                        "quarter": 1,
+                        "quarterTime": "09:00",
+                        "playerId": 1,
+                        "teamId": 1,
+                        "parameters": {"made": "made"},
+                    },
                 ],
             }
         }

@@ -18,7 +18,9 @@ def mapper():
 @pytest.fixture
 def real_pbp_fixture():
     """Load real segevstats PBP fixture."""
-    fixture_path = Path(__file__).parent.parent.parent / "fixtures" / "winner" / "pbp.json"
+    fixture_path = (
+        Path(__file__).parent.parent.parent / "fixtures" / "winner" / "pbp.json"
+    )
     with open(fixture_path) as f:
         return json.load(f)
 
@@ -49,7 +51,9 @@ class TestSyncPbpShotsHaveSuccess:
 
         assert len(shots) > 0, "Should have shot events"
         for shot in shots:
-            assert shot.success is not None, f"Shot event {shot.event_number} missing success value"
+            assert (
+                shot.success is not None
+            ), f"Shot event {shot.event_number} missing success value"
             assert shot.success in (True, False)
 
     def test_free_throws_have_success_value(self, mapper, real_pbp_fixture):
@@ -97,7 +101,9 @@ class TestSyncPbpCoordinates:
     def test_some_shots_have_coordinates(self, mapper, real_pbp_fixture):
         events = mapper.map_pbp_events(real_pbp_fixture)
         shots = [e for e in events if e.event_type == "shot"]
-        shots_with_coords = [s for s in shots if s.coord_x is not None and s.coord_y is not None]
+        shots_with_coords = [
+            s for s in shots if s.coord_x is not None and s.coord_y is not None
+        ]
 
         # Many (but not all) shots should have coordinates
         assert len(shots_with_coords) > len(shots) * 0.3

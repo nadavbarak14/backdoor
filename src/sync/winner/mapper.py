@@ -1045,7 +1045,9 @@ class WinnerMapper:
         # Extract player info
         player_id = action.get("playerId")
         player_external_id = str(player_id) if player_id else None
-        player_name = roster.get_full_name(player_external_id) if player_external_id else None
+        player_name = (
+            roster.get_full_name(player_external_id) if player_external_id else None
+        )
 
         # Extract team info
         team_id = action.get("teamId")
