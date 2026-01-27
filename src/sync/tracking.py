@@ -211,3 +211,49 @@ class SyncTracker:
                 synced.add(ext_id)
 
         return synced
+
+    def has_pbp(self, game_id: UUID) -> bool:
+        """
+        Check if a game has play-by-play events.
+
+        Args:
+            game_id: Internal UUID of the game
+
+        Returns:
+            True if the game has at least one PBP event
+        """
+        from src.models.play_by_play import PlayByPlayEvent
+
+        stmt = (
+            select(PlayByPlayEvent.id)
+            .where(PlayByPlayEvent.game_id == game_id)
+            .limit(1)
+        )
+        return self.db.execute(stmt).scalar_one_or_none() is not None
+
+    def get_games_without_pbp(
+        self, source: str, external_ids: list[str]
+    ) -> list[tuple[str, Game]]:
+        """
+        Get games that exist but don't have PBP.
+
+        Args:
+            source: Name of the sync source
+            external_ids: List of external IDs to check
+
+        Returns:
+            List of (external_id, Game) tuples for games without PBP
+        """
+        from src.models.play_by_play import PlayByPlayEvent
+
+        result = []
+
+        stmt = select(Game).where(Game.external_ids[source].as_string().isnot(None))
+        games = self.db.execute(stmt).scalars().all()
+
+        for game in games:
+            ext_id = game.external_ids.get(source)
+            if ext_id in external_ids and not self.has_pbp(game.id):
+                result.append((ext_id, game))
+
+        return result

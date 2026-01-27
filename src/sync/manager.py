@@ -195,8 +195,28 @@ class SyncManager:
             unsynced_ids = self.tracker.get_unsynced_games(source, all_external_ids)
             unsynced_games = [g for g in final_games if g.external_id in unsynced_ids]
 
-            records_skipped = len(final_games) - len(unsynced_games)
+            # Get games that exist but need PBP
+            games_needing_pbp = []
+            if include_pbp:
+                games_needing_pbp = self.tracker.get_games_without_pbp(
+                    source, all_external_ids
+                )
+
+            records_skipped = (
+                len(final_games) - len(unsynced_games) - len(games_needing_pbp)
+            )
             records_processed = len(final_games)
+
+            # Sync PBP for existing games that don't have it
+            for ext_id, game in games_needing_pbp:
+                try:
+                    pbp_events = await adapter.get_game_pbp(ext_id)
+                    self.game_syncer.sync_pbp(pbp_events, game, source)
+                    records_updated += 1
+                    self.db.commit()
+                except Exception as e:
+                    self.db.rollback()
+                    print(f"Error syncing PBP for game {ext_id}: {e}")
 
             # Sync each unsynced game
             for raw_game in unsynced_games:
@@ -308,24 +328,58 @@ class SyncManager:
             unsynced_ids = self.tracker.get_unsynced_games(source, all_external_ids)
             unsynced_games = [g for g in final_games if g.external_id in unsynced_ids]
 
-            records_skipped = len(final_games) - len(unsynced_games)
+            # Get games that exist but need PBP
+            games_needing_pbp = []
+            if include_pbp:
+                games_needing_pbp = self.tracker.get_games_without_pbp(
+                    source, all_external_ids
+                )
+
+            records_skipped = (
+                len(final_games) - len(unsynced_games) - len(games_needing_pbp)
+            )
             records_processed = len(final_games)
+
+            total_to_sync = len(unsynced_games) + len(games_needing_pbp)
 
             # Emit start event
             yield {
                 "event": "start",
                 "phase": "games",
-                "total": len(unsynced_games),
+                "total": total_to_sync,
                 "skipped": records_skipped,
             }
 
+            current_idx = 0
+
+            # Sync PBP for existing games that don't have it
+            for ext_id, game in games_needing_pbp:
+                current_idx += 1
+                yield {
+                    "event": "progress",
+                    "current": current_idx,
+                    "total": total_to_sync,
+                    "game_id": ext_id,
+                    "status": "syncing_pbp",
+                }
+                try:
+                    pbp_events = await adapter.get_game_pbp(ext_id)
+                    self.game_syncer.sync_pbp(pbp_events, game, source)
+                    records_updated += 1
+                    self.db.commit()
+                    yield {"event": "synced", "game_id": ext_id}
+                except Exception as e:
+                    self.db.rollback()
+                    yield {"event": "error", "game_id": ext_id, "error": str(e)}
+
             # Sync each unsynced game
-            for idx, raw_game in enumerate(unsynced_games, start=1):
+            for raw_game in unsynced_games:
+                current_idx += 1
                 # Emit progress event
                 yield {
                     "event": "progress",
-                    "current": idx,
-                    "total": len(unsynced_games),
+                    "current": current_idx,
+                    "total": total_to_sync,
                     "game_id": raw_game.external_id,
                     "status": "syncing",
                 }
