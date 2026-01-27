@@ -248,9 +248,11 @@ export function Select({
 export function Badge({
   children,
   variant = 'default',
+  className = '',
 }: {
   children: ReactNode;
   variant?: 'default' | 'success' | 'warning' | 'error' | 'info';
+  className?: string;
 }) {
   const variantClasses = {
     default: 'bg-gray-100 text-gray-800',
@@ -261,7 +263,7 @@ export function Badge({
   };
 
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${variantClasses[variant]}`}>
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${variantClasses[variant]} ${className}`}>
       {children}
     </span>
   );
