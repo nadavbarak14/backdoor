@@ -262,8 +262,8 @@ class EuroleagueMapper:
             >>> game = mapper.map_game({
             ...     "gameCode": 1,
             ...     "gamecode": "E2024_1",
-            ...     "hometeam": "BER",
-            ...     "awayteam": "PAN",
+            ...     "homecode": "BER",
+            ...     "awaycode": "PAN",
             ...     "date": "Oct 03, 2024",
             ...     "homescore": 77,
             ...     "awayscore": 87
@@ -304,10 +304,10 @@ class EuroleagueMapper:
         return RawGame(
             external_id=external_id,
             home_team_external_id=str(
-                data.get("hometeam") or data.get("HomeTeam") or ""
+                data.get("homecode") or data.get("HomeCode") or ""
             ),
             away_team_external_id=str(
-                data.get("awayteam") or data.get("AwayTeam") or ""
+                data.get("awaycode") or data.get("AwayCode") or ""
             ),
             game_date=game_date,
             status=status,

@@ -223,8 +223,8 @@ class TestMapGame:
         """Test mapping a completed game."""
         data = {
             "gamecode": 1,
-            "hometeam": "BER",
-            "awayteam": "PAN",
+            "homecode": "BER",
+            "awaycode": "PAN",
             "date": "Oct 03, 2024",
             "homescore": 77,
             "awayscore": 87,
@@ -243,8 +243,8 @@ class TestMapGame:
         """Test mapping a scheduled game."""
         data = {
             "gamecode": 10,
-            "hometeam": "BER",
-            "awayteam": "PAN",
+            "homecode": "BER",
+            "awaycode": "PAN",
             "date": "Dec 15, 2024",
             "homescore": None,
             "awayscore": None,

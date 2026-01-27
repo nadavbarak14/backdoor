@@ -254,7 +254,8 @@ class EuroleagueAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         """
         Fetch the box score for a completed game.
 
-        Uses the live boxscore API for more complete data.
+        Uses the live boxscore API for more complete data, then looks up
+        the actual game date from the schedule.
 
         Args:
             game_id: External game identifier (e.g., "E2024_1").
@@ -275,9 +276,18 @@ class EuroleagueAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         # Use live boxscore for more complete data
         result = self.direct_client.fetch_live_boxscore(season, gamecode)
 
-        return self.mapper.map_boxscore_from_live(
+        boxscore = self.mapper.map_boxscore_from_live(
             result.data, gamecode, season, competition
         )
+
+        # Look up actual game date from schedule (live API doesn't include date)
+        schedule = await self.get_schedule(game_id.split("_")[0])
+        for game in schedule:
+            if game.external_id == game_id:
+                boxscore.game.game_date = game.game_date
+                break
+
+        return boxscore
 
     async def get_game_pbp(self, game_id: str) -> list[RawPBPEvent]:
         """
