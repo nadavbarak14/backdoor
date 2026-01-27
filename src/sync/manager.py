@@ -41,7 +41,7 @@ from src.models.league import Season
 from src.models.sync import SyncLog
 from src.services.stats_calculation import StatsCalculationService
 from src.services.sync_service import SyncLogService
-from src.sync.adapters.base import BaseLeagueAdapter
+from src.sync.adapters.base import BaseLeagueAdapter, BasePlayerInfoAdapter
 from src.sync.config import SyncConfig
 from src.sync.deduplication import PlayerDeduplicator, TeamMatcher
 from src.sync.entities import GameSyncer, TeamSyncer
@@ -1136,11 +1136,36 @@ class SyncManager:
         season: Season,
         source: str,
     ) -> None:
-        """Sync teams for a season before syncing games."""
+        """
+        Sync teams and their rosters for a season before syncing games.
+
+        This ensures players are created with proper names from the roster
+        before game boxscores are synced (which may not include player names).
+
+        Args:
+            adapter: League adapter that may also implement BasePlayerInfoAdapter.
+            season: The Season entity.
+            source: The data source name.
+        """
         teams = await adapter.get_teams(season.name)
 
         for raw_team in teams:
-            self.team_syncer.sync_team_season(raw_team, season.id, source)
+            team, _team_season = self.team_syncer.sync_team_season(
+                raw_team, season.id, source
+            )
+
+            # If adapter supports roster fetching, sync roster too
+            if isinstance(adapter, BasePlayerInfoAdapter):
+                try:
+                    roster = await adapter.get_team_roster(raw_team.external_id)
+                    if roster:
+                        self.team_syncer.sync_roster_from_info(
+                            roster, team, season, source
+                        )
+                except Exception:
+                    # Roster fetch failed, continue without it
+                    # Players will be created during boxscore sync (but may lack names)
+                    pass
 
         self.db.flush()
 
