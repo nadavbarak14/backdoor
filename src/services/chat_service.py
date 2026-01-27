@@ -29,8 +29,6 @@ from functools import wraps
 from typing import Any
 
 from langchain_core.chat_history import InMemoryChatMessageHistory
-
-logger = logging.getLogger(__name__)
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -46,6 +44,8 @@ from src.core.config import settings
 from src.core.database import SessionLocal
 from src.schemas.chat import ChatMessage
 from src.services.chat_tools import ALL_TOOLS
+
+logger = logging.getLogger(__name__)
 
 # System prompt that establishes the basketball analytics assistant context
 BASKETBALL_SYSTEM_PROMPT = """You are an expert basketball analytics assistant with deep knowledge of player statistics, team performance, and game analysis.
