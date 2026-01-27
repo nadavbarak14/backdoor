@@ -1373,4 +1373,5 @@ class WinnerMapper:
             birth_date=None,  # Not available from roster page
             height_cm=None,  # Not available from roster page without profile fetch
             position=roster_player.position,
+            jersey_number=roster_player.jersey_number,
         )

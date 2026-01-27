@@ -232,7 +232,8 @@ def get_team_roster(
             last_name=pth.player.last_name,
             full_name=pth.player.full_name,
             jersey_number=pth.jersey_number,
-            position=pth.position,
+            # Use PlayerTeamHistory.position if set, otherwise fall back to Player.position
+            position=pth.position or pth.player.position,
         )
         for pth in roster
     ]

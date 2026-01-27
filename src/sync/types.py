@@ -285,3 +285,4 @@ class RawPlayerInfo:
     birth_date: date | None = None
     height_cm: int | None = None
     position: str | None = None
+    jersey_number: str | None = None

@@ -311,3 +311,127 @@ class TestGetTeamRoster:
 
         assert response.status_code == 404
         assert "season" in response.json()["detail"].lower()
+
+    def test_get_team_roster_includes_position_and_jersey(
+        self, client, test_db: Session
+    ):
+        """Test roster returns position and jersey_number correctly.
+
+        Position should fall back to Player.position when PlayerTeamHistory.position
+        is null. This tests the fix for the bug where roster showed null positions
+        even though players had positions stored.
+        """
+        league_service = LeagueService(test_db)
+        season_service = SeasonService(test_db)
+        team_service = TeamService(test_db)
+        player_service = PlayerService(test_db)
+
+        # Create league and season
+        league = league_service.create_league(
+            LeagueCreate(name="NBA", code="NBA", country="USA")
+        )
+        season = season_service.create_season(
+            SeasonCreate(
+                league_id=league.id,
+                name="2023-24",
+                start_date=date(2023, 10, 24),
+                end_date=date(2024, 6, 17),
+                is_current=True,
+            )
+        )
+
+        # Create team
+        team = team_service.create_team(
+            TeamCreate(
+                name="Los Angeles Lakers",
+                short_name="LAL",
+                city="Los Angeles",
+                country="USA",
+            )
+        )
+
+        # Create player with position on Player model
+        player = player_service.create_player(
+            PlayerCreate(
+                first_name="LeBron",
+                last_name="James",
+                position="SF",  # Position stored on Player
+            )
+        )
+
+        # Add to team with jersey_number but NO position on PlayerTeamHistory
+        # This simulates what happens when boxscore sync creates the history
+        player_service.add_to_team(
+            player.id, team.id, season.id, jersey_number=23, position=None
+        )
+
+        response = client.get(f"/api/v1/teams/{team.id}/roster?season_id={season.id}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["players"]) == 1
+
+        roster_player = data["players"][0]
+        assert roster_player["full_name"] == "LeBron James"
+        # Jersey number should be returned
+        assert roster_player["jersey_number"] == 23
+        # Position should fall back to Player.position when PTH.position is null
+        assert roster_player["position"] == "SF"
+
+    def test_get_team_roster_prefers_history_position(self, client, test_db: Session):
+        """Test roster prefers PlayerTeamHistory.position over Player.position.
+
+        When a player has position on both PlayerTeamHistory and Player,
+        the PlayerTeamHistory position should be used as it's season-specific.
+        """
+        league_service = LeagueService(test_db)
+        season_service = SeasonService(test_db)
+        team_service = TeamService(test_db)
+        player_service = PlayerService(test_db)
+
+        # Create league and season
+        league = league_service.create_league(
+            LeagueCreate(name="NBA", code="NBA", country="USA")
+        )
+        season = season_service.create_season(
+            SeasonCreate(
+                league_id=league.id,
+                name="2023-24",
+                start_date=date(2023, 10, 24),
+                end_date=date(2024, 6, 17),
+                is_current=True,
+            )
+        )
+
+        # Create team
+        team = team_service.create_team(
+            TeamCreate(
+                name="Los Angeles Lakers",
+                short_name="LAL",
+                city="Los Angeles",
+                country="USA",
+            )
+        )
+
+        # Create player with position SF
+        player = player_service.create_player(
+            PlayerCreate(
+                first_name="Anthony",
+                last_name="Davis",
+                position="PF",  # Position on Player model
+            )
+        )
+
+        # Add to team with different position on PlayerTeamHistory
+        player_service.add_to_team(
+            player.id, team.id, season.id, jersey_number=3, position="C"  # Different!
+        )
+
+        response = client.get(f"/api/v1/teams/{team.id}/roster?season_id={season.id}")
+
+        assert response.status_code == 200
+        data = response.json()
+        roster_player = data["players"][0]
+
+        # Should use PlayerTeamHistory.position (C), not Player.position (PF)
+        assert roster_player["position"] == "C"
