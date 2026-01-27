@@ -39,6 +39,7 @@ from sqlalchemy.orm import Session
 
 from src.models.league import Season
 from src.models.sync import SyncLog
+from src.services.stats_calculation import StatsCalculationService
 from src.services.sync_service import SyncLogService
 from src.sync.adapters.base import BaseLeagueAdapter
 from src.sync.config import SyncConfig
@@ -250,6 +251,11 @@ class SyncManager:
                     # Could log individual failures here
                     print(f"Error syncing game {raw_game.external_id}: {e}")
 
+            # Calculate season stats for all players after sync
+            if records_created > 0 or records_updated > 0:
+                stats_service = StatsCalculationService(self.db)
+                stats_service.recalculate_all_for_season(season.id)
+
             # Complete sync log
             return self.sync_log_service.complete_sync(
                 sync_id=sync_log.id,
@@ -425,6 +431,11 @@ class SyncManager:
                         "error": str(e),
                     }
 
+            # Calculate season stats for all players after sync
+            if records_created > 0 or records_updated > 0:
+                stats_service = StatsCalculationService(self.db)
+                stats_service.recalculate_all_for_season(season.id)
+
             # Complete sync log
             final_sync_log = self.sync_log_service.complete_sync(
                 sync_id=sync_log.id,
@@ -558,6 +569,10 @@ class SyncManager:
             # Update sync log with game_id
             sync_log.game_id = game.id
             self.db.commit()
+
+            # Calculate season stats for players in this game
+            stats_service = StatsCalculationService(self.db)
+            stats_service.recalculate_all_for_season(season.id)
 
             return self.sync_log_service.complete_sync(
                 sync_id=sync_log.id,
