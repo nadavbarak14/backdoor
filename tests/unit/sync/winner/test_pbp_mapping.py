@@ -19,15 +19,17 @@ def pbp_fixture():
         "result": {
             "gameInfo": {
                 "homeTeam": {
+                    "id": 2,
                     "players": [
                         {"id": "1000", "firstName": "JAYLEN", "lastName": "HOARD"},
                         {"id": "1019", "firstName": "ROMAN", "lastName": "SORKIN"},
-                    ]
+                    ],
                 },
                 "awayTeam": {
+                    "id": 4,
                     "players": [
                         {"id": "1002", "firstName": "MARCUS", "lastName": "FOSTER"},
-                    ]
+                    ],
                 },
             },
             "actions": [
@@ -292,3 +294,25 @@ class TestEventSubtype:
     def test_foul_subtype(self, mapper, pbp_fixture):
         events = mapper.map_pbp_events(pbp_fixture)
         assert events[8].event_subtype == "personal"
+
+
+class TestTeamMapping:
+    """Test team ID mapping to home/away."""
+
+    def test_home_team_mapped(self, mapper, pbp_fixture):
+        events = mapper.map_pbp_events(pbp_fixture)
+        # teamId=2 is home team in fixture
+        home_events = [e for e in events if e.team_external_id == "home"]
+        assert len(home_events) > 0
+
+    def test_away_team_mapped(self, mapper, pbp_fixture):
+        events = mapper.map_pbp_events(pbp_fixture)
+        # teamId=4 is away team in fixture
+        away_events = [e for e in events if e.team_external_id == "away"]
+        assert len(away_events) > 0
+
+    def test_both_teams_have_events(self, mapper, pbp_fixture):
+        events = mapper.map_pbp_events(pbp_fixture)
+        team_ids = {e.team_external_id for e in events if e.team_external_id}
+        assert "home" in team_ids
+        assert "away" in team_ids

@@ -425,6 +425,13 @@ class GameSyncer:
     ) -> UUID:
         """Resolve team ID from external ID or game context."""
         if team_external_id:
+            # Handle "home"/"away" values from segevstats PBP
+            if team_external_id == "home":
+                return game.home_team_id
+            if team_external_id == "away":
+                return game.away_team_id
+
+            # Try to find by external ID
             team = self.team_syncer.get_by_external_id(source, team_external_id)
             if team:
                 return team.id

@@ -966,13 +966,23 @@ class WinnerMapper:
         # Extract player roster for name lookups
         roster = self.extract_player_roster(data)
 
-        # Get actions array
+        # Build team ID mapping (segevstats ID -> "home"/"away")
         result = data.get("result", {})
+        game_info = result.get("gameInfo", {})
+        team_mapping: dict[str, str] = {}
+        home_team = game_info.get("homeTeam", {})
+        away_team = game_info.get("awayTeam", {})
+        if home_team.get("id"):
+            team_mapping[str(home_team["id"])] = "home"
+        if away_team.get("id"):
+            team_mapping[str(away_team["id"])] = "away"
+
+        # Get actions array
         actions = result.get("actions", [])
 
         events = []
         for i, action in enumerate(actions, start=1):
-            event = self._map_segevstats_pbp_action(action, i, roster)
+            event = self._map_segevstats_pbp_action(action, i, roster, team_mapping)
             if event:
                 events.append(event)
 
@@ -980,7 +990,11 @@ class WinnerMapper:
         return self.infer_pbp_links(events)
 
     def _map_segevstats_pbp_action(
-        self, action: dict, event_num: int, roster: PlayerRoster
+        self,
+        action: dict,
+        event_num: int,
+        roster: PlayerRoster,
+        team_mapping: dict[str, str],
     ) -> RawPBPEvent | None:
         """
         Map a single segevstats action to RawPBPEvent.
@@ -1001,25 +1015,10 @@ class WinnerMapper:
             action: Single action dictionary from actions array.
             event_num: Event number to assign.
             roster: PlayerRoster for player name lookups.
+            team_mapping: Dict mapping segevstats team ID to "home"/"away".
 
         Returns:
             RawPBPEvent or None if action should be skipped (clock, game, quarter events).
-
-        Example:
-            >>> mapper = WinnerMapper()
-            >>> roster = mapper.extract_player_roster(pbp_data)
-            >>> event = mapper._map_segevstats_pbp_action({
-            ...     "type": "shot",
-            ...     "quarter": 1,
-            ...     "quarterTime": "09:42",
-            ...     "playerId": 1020,
-            ...     "teamId": 2,
-            ...     "parameters": {"made": "made", "type": "dunk", "coordX": 705.0, "coordY": 140.0}
-            ... }, 1, roster)
-            >>> event.event_type
-            'shot'
-            >>> event.success
-            True
         """
         action_type = action.get("type", "")
 
@@ -1049,9 +1048,9 @@ class WinnerMapper:
             roster.get_full_name(player_external_id) if player_external_id else None
         )
 
-        # Extract team info
+        # Extract team info - map to "home"/"away"
         team_id = action.get("teamId")
-        team_external_id = str(team_id) if team_id else None
+        team_external_id = team_mapping.get(str(team_id)) if team_id else None
 
         # Extract coordinates for shots
         coord_x = params.get("coordX")
