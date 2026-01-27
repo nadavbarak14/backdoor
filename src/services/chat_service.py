@@ -93,9 +93,7 @@ class ChatService:
         self.sessions: dict[str, list[BaseMessage]] = {}
         self.tools: list[Any] = []  # Will be populated in Ticket 5
 
-    def _to_langchain_messages(
-        self, messages: list[ChatMessage]
-    ) -> list[BaseMessage]:
+    def _to_langchain_messages(self, messages: list[ChatMessage]) -> list[BaseMessage]:
         """
         Convert ChatMessage objects to LangChain message format.
 
