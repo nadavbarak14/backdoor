@@ -315,6 +315,55 @@ class TestMatchPlayerByName:
         assert manager._normalize_name("John Smith") == "john smith"
         assert manager._normalize_name("JOHN SMITH") == "john smith"
 
+    def test_normalize_name_strips_position_patterns(self) -> None:
+        """Test normalization strips trailing position patterns from corrupted names."""
+        from src.sync.manager import SyncManager
+
+        manager = SyncManager.__new__(SyncManager)
+
+        # Test various position patterns that might be appended to names
+        assert manager._normalize_name("John Smith F-") == "john smith"
+        assert manager._normalize_name("John Smith G-") == "john smith"
+        assert manager._normalize_name("John Smith F-C") == "john smith"
+        assert manager._normalize_name("John Smith G-F") == "john smith"
+        assert manager._normalize_name("John Smith C") == "john smith"
+        assert manager._normalize_name("John Smith F") == "john smith"
+        assert manager._normalize_name("John Smith G") == "john smith"
+        assert manager._normalize_name("John Smith PG") == "john smith"
+        assert manager._normalize_name("John Smith SG") == "john smith"
+        assert manager._normalize_name("John Smith SF") == "john smith"
+        assert manager._normalize_name("John Smith PF") == "john smith"
+
+    def test_normalize_name_strips_captain_suffix(self) -> None:
+        """Test normalization strips Captain suffix from names."""
+        from src.sync.manager import SyncManager
+
+        manager = SyncManager.__new__(SyncManager)
+
+        assert manager._normalize_name("John Smith Captain|") == "john smith"
+        assert manager._normalize_name("John Smith captain|") == "john smith"
+        assert manager._normalize_name("John Smith CAPTAIN|") == "john smith"
+        assert manager._normalize_name("John Smith captain") == "john smith"
+
+    def test_normalize_name_compact(self) -> None:
+        """Test compact normalization removes spaces and punctuation."""
+        from src.sync.manager import SyncManager
+
+        manager = SyncManager.__new__(SyncManager)
+
+        # Test compact form removes spaces
+        assert manager._normalize_name_compact("John Smith") == "johnsmith"
+        assert manager._normalize_name_compact("DJ Kennedy") == "djkennedy"
+
+        # Test compact form removes punctuation
+        assert manager._normalize_name_compact("D.J. Kennedy") == "djkennedy"
+        assert manager._normalize_name_compact("O'Brien") == "obrien"
+        assert manager._normalize_name_compact("Al-Farouq") == "alfarouq"
+
+        # Test combined normalization
+        assert manager._normalize_name_compact("John Smith F-") == "johnsmith"
+        assert manager._normalize_name_compact("D.J. Kennedy G-") == "djkennedy"
+
 
 class TestMapperPlayerInfo:
     """Tests for mapping player profile to RawPlayerInfo."""
@@ -373,3 +422,77 @@ class TestMapperPlayerInfo:
         assert info.position == "Guard"
         assert info.birth_date is not None
         assert info.birth_date.year == 1995
+
+
+class TestMapRosterPlayerInfo:
+    """Tests for mapping roster player to RawPlayerInfo."""
+
+    def test_map_roster_player_info_basic(self, winner_mapper: WinnerMapper) -> None:
+        """Test mapping a roster player to RawPlayerInfo."""
+        from src.sync.winner.scraper import RosterPlayer
+
+        roster_player = RosterPlayer(
+            player_id="1001",
+            name="John Smith",
+            position="G",
+        )
+
+        info = winner_mapper.map_roster_player_info(roster_player)
+
+        assert info.external_id == "1001"
+        assert info.first_name == "John"
+        assert info.last_name == "Smith"
+        assert info.position == "G"
+        assert info.height_cm is None
+        assert info.birth_date is None
+
+    def test_map_roster_player_info_multiple_names(
+        self, winner_mapper: WinnerMapper
+    ) -> None:
+        """Test mapping roster player with multiple name parts."""
+        from src.sync.winner.scraper import RosterPlayer
+
+        roster_player = RosterPlayer(
+            player_id="1002",
+            name="Juan Carlos Rodriguez",
+            position="C",
+        )
+
+        info = winner_mapper.map_roster_player_info(roster_player)
+
+        assert info.first_name == "Juan"
+        assert info.last_name == "Carlos Rodriguez"
+
+    def test_map_roster_player_info_single_name(
+        self, winner_mapper: WinnerMapper
+    ) -> None:
+        """Test mapping roster player with single name."""
+        from src.sync.winner.scraper import RosterPlayer
+
+        roster_player = RosterPlayer(
+            player_id="1003",
+            name="Madonna",
+            position="F",
+        )
+
+        info = winner_mapper.map_roster_player_info(roster_player)
+
+        assert info.first_name == ""
+        assert info.last_name == "Madonna"
+
+    def test_map_roster_player_info_empty_name(
+        self, winner_mapper: WinnerMapper
+    ) -> None:
+        """Test mapping roster player with empty name."""
+        from src.sync.winner.scraper import RosterPlayer
+
+        roster_player = RosterPlayer(
+            player_id="1004",
+            name="",
+            position="",
+        )
+
+        info = winner_mapper.map_roster_player_info(roster_player)
+
+        assert info.first_name == ""
+        assert info.last_name == ""
