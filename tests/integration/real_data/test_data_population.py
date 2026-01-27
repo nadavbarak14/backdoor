@@ -2,7 +2,6 @@
 Tests verifying the database is properly populated with data.
 """
 
-import pytest
 from sqlalchemy.orm import Session
 
 
@@ -84,7 +83,7 @@ class TestRelationshipIntegrity:
 
     def test_seasons_have_valid_leagues(self, real_db: Session):
         """Verify all seasons reference valid leagues."""
-        from src.models.league import Season, League
+        from src.models.league import League, Season
 
         for season in real_db.query(Season).all():
             assert real_db.query(League).filter(League.id == season.league_id).first()

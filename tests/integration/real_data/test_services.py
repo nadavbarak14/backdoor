@@ -2,7 +2,6 @@
 Tests for services with real data.
 """
 
-import pytest
 from sqlalchemy.orm import Session
 
 
@@ -48,8 +47,8 @@ class TestGameService:
         assert len(games) >= 50
 
     def test_get_with_box_score(self, real_db: Session):
-        from src.services.game import GameService
         from src.models.game import Game
+        from src.services.game import GameService
         service = GameService(real_db)
         game = real_db.query(Game).first()
         result = service.get_with_box_score(game.id)
@@ -60,8 +59,8 @@ class TestPlayerGameStatsService:
     """Tests for PlayerGameStatsService."""
 
     def test_get_by_game(self, real_db: Session):
-        from src.services.stats import PlayerGameStatsService
         from src.models.game import Game
+        from src.services.stats import PlayerGameStatsService
         service = PlayerGameStatsService(real_db)
         game = real_db.query(Game).first()
         stats = service.get_by_game(game.id)
@@ -72,10 +71,10 @@ class TestAnalyticsService:
     """Tests for AnalyticsService."""
 
     def test_get_clutch_stats(self, real_db: Session):
-        from src.services.analytics import AnalyticsService
-        from src.models.team import Team
         from src.models.league import Season
+        from src.models.team import Team
         from src.schemas.analytics import ClutchFilter
+        from src.services.analytics import AnalyticsService
 
         team = real_db.query(Team).first()
         season = real_db.query(Season).first()
@@ -89,9 +88,9 @@ class TestAnalyticsService:
         assert hasattr(stats, 'games_in_clutch')
 
     def test_get_player_home_away_split(self, real_db: Session):
-        from src.services.analytics import AnalyticsService
-        from src.models.player import Player
         from src.models.league import Season
+        from src.models.player import Player
+        from src.services.analytics import AnalyticsService
 
         player = real_db.query(Player).first()
         season = real_db.query(Season).first()
