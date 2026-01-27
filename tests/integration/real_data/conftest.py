@@ -16,7 +16,6 @@ from sqlalchemy.orm import Session, sessionmaker
 from src.core.database import get_db
 from src.main import app
 
-
 REAL_DATABASE_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
     "basketball.db"
