@@ -33,7 +33,7 @@ from src.models.player import Player, PlayerTeamHistory
 from src.models.team import Team, TeamSeason
 from src.sync.deduplication import PlayerDeduplicator, TeamMatcher
 from src.sync.entities.player import PlayerSyncer
-from src.sync.types import RawPlayerStats, RawTeam
+from src.sync.types import RawPlayerInfo, RawPlayerStats, RawTeam
 
 
 class TeamSyncer:
@@ -223,6 +223,73 @@ class TeamSyncer:
             season_id=season_id,
             external_id=external_id,
         )
+
+    def sync_roster_from_info(
+        self,
+        roster: list[tuple[str, str, RawPlayerInfo | None]],
+        team: Team,
+        season: Season,
+        source: str,
+    ) -> list[Player]:
+        """
+        Sync roster entries for a team from roster player info.
+
+        Creates or updates players with their names and bio data from the
+        team roster. Also creates PlayerTeamHistory records linking players
+        to the team for the given season.
+
+        This method should be called BEFORE syncing game boxscores so that
+        players are created with proper names before stats are synced.
+
+        Args:
+            roster: List of (player_id, player_name, RawPlayerInfo or None).
+            team: The Team entity.
+            season: The Season entity.
+            source: The data source name.
+
+        Returns:
+            List of synced Player entities.
+
+        Example:
+            >>> roster = await adapter.get_team_roster("100")
+            >>> players = syncer.sync_roster_from_info(
+            ...     roster, team, season, "winner"
+            ... )
+        """
+        synced_players: list[Player] = []
+
+        for player_external_id, player_name, player_info in roster:
+            # If no player_info, create minimal one from name
+            if player_info is None:
+                name_parts = player_name.split(maxsplit=1)
+                first_name = name_parts[0] if name_parts else ""
+                last_name = name_parts[1] if len(name_parts) > 1 else ""
+                player_info = RawPlayerInfo(
+                    external_id=player_external_id,
+                    first_name=first_name,
+                    last_name=last_name,
+                    birth_date=None,
+                    height_cm=None,
+                    position=None,
+                )
+
+            # Find or create player with full info
+            player = self.player_syncer.sync_player(
+                raw=player_info,
+                team_id=team.id,
+                source=source,
+            )
+
+            # Create PlayerTeamHistory if not exists
+            self._ensure_team_history(
+                player_id=player.id,
+                team_id=team.id,
+                season_id=season.id,
+            )
+
+            synced_players.append(player)
+
+        return synced_players
 
     def _ensure_team_history(
         self,
