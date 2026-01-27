@@ -16,17 +16,14 @@ Usage:
 """
 
 from langchain_core.tools import tool
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from src.models.league import League, Season
-from src.models.player import Player
-from src.models.team import Team
 from src.schemas.player import PlayerFilter
 from src.schemas.team import TeamFilter
 from src.services.player import PlayerService
 from src.services.team import TeamService
-
 
 # =============================================================================
 # Player Search
@@ -258,7 +255,6 @@ def search_leagues(
 def search_seasons(
     league_id: str | None = None,
     query: str | None = None,
-    include_current: bool = True,
     limit: int = 10,
     db: Session | None = None,
 ) -> str:
@@ -271,7 +267,6 @@ def search_seasons(
     Args:
         league_id: Optional league UUID to filter seasons.
         query: Optional season name to search (e.g., "2024", "2024-25").
-        include_current: If True, marks the current season. Default True.
         limit: Maximum results to return (default 10).
         db: Database session (injected at runtime).
 
