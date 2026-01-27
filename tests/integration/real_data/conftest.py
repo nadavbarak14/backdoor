@@ -18,7 +18,7 @@ from src.main import app
 
 REAL_DATABASE_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-    "basketball.db"
+    "basketball.db",
 )
 REAL_DATABASE_URL = f"sqlite:///{REAL_DATABASE_PATH}"
 
@@ -49,6 +49,7 @@ def real_db(real_engine) -> Generator[Session, Any, None]:
 @pytest.fixture(scope="module")
 def real_client(real_db: Session) -> Generator[TestClient, Any, None]:
     """Create a FastAPI TestClient using the real database."""
+
     def override_get_db():
         try:
             yield real_db
