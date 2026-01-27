@@ -11,6 +11,7 @@ Business logic layer for the Basketball Analytics Platform. Services encapsulate
 | `__init__.py` | Public exports for all services |
 | `base.py` | Generic BaseService with reusable CRUD operations |
 | `chat_service.py` | ChatService for AI-powered chat with LangChain |
+| `chat_tools.py` | LangChain @tool wrappers for chat agent (14 tools) |
 | `league.py` | LeagueService and SeasonService |
 | `team.py` | TeamService with roster and filtering |
 | `player.py` | PlayerService with team history and filtering |
@@ -109,6 +110,56 @@ async for chunk in chat_service.stream(messages, session_id="abc123"):
 | `LLM_BASE_URL` | `https://api.openai.com/v1` | Base URL for API |
 | `LLM_TEMPERATURE` | `0.7` | Temperature for responses |
 | `LLM_MAX_TOKENS` | `4096` | Maximum tokens per response |
+
+### Chat Tools (LangChain)
+
+LangChain @tool wrappers around existing services for use with the chat agent. These tools accept human-friendly parameters (names, not UUIDs), resolve names to IDs internally, and return markdown-formatted strings optimized for LLM understanding.
+
+```python
+from src.services.chat_tools import search_players, get_player_stats, ALL_TOOLS
+
+# Tools are @tool decorated and can be passed to LangChain agents
+# The db parameter is injected at runtime
+result = search_players.invoke({"query": "Curry", "db": db_session})
+print(result)  # Markdown formatted player list
+```
+
+**Basic Lookup Tools:**
+
+| Tool | Description |
+|------|-------------|
+| `search_players` | Search for players by name with optional team/position filters |
+| `search_teams` | Search for teams by name with optional country filter |
+| `get_team_roster` | Get team roster for a season |
+| `get_game_details` | Get box score and top performers for a game |
+
+**Stats Tools:**
+
+| Tool | Description |
+|------|-------------|
+| `get_player_stats` | Get player's season averages and shooting percentages |
+| `get_player_games` | Get player's recent game log |
+| `get_league_leaders` | Get league leaders for a statistical category |
+
+**Advanced Analytics Tools:**
+
+| Tool | Description |
+|------|-------------|
+| `get_clutch_stats` | Clutch performance (last 5 min Q4/OT, within 5 pts) |
+| `get_quarter_splits` | Performance breakdown by quarter |
+| `get_trend` | Performance trend analysis over recent games |
+| `get_lineup_stats` | Stats when specific players are on court together |
+| `get_home_away_split` | Home vs away performance comparison |
+| `get_on_off_stats` | Team plus/minus with player on vs off court |
+| `get_vs_opponent` | Player stats against a specific opponent |
+
+**Helper Functions:**
+
+| Function | Description |
+|----------|-------------|
+| `_resolve_player_by_name` | Resolve player name to Player entity |
+| `_resolve_team_by_name` | Resolve team name to Team entity |
+| `_resolve_season` | Resolve season by name or get current season |
 
 ### LeagueService
 
