@@ -203,6 +203,230 @@ class TestQueryStatsResolution:
         assert result == mock_season
 
 
+class TestQueryHandlers:
+    """Tests for query handler functions."""
+
+    def test_query_player_stats_no_results(self):
+        """Test _query_player_stats when no stats found."""
+        from src.services.query_stats import _query_player_stats
+
+        with patch(
+            "src.services.query_stats.PlayerSeasonStatsService"
+        ) as mock_service_class:
+            mock_service = MagicMock()
+            mock_service.get_player_season.return_value = []
+            mock_service_class.return_value = mock_service
+
+            mock_db = MagicMock()
+            mock_player = MagicMock()
+            mock_player.id = "123"
+            mock_player.first_name = "Test"
+            mock_player.last_name = "Player"
+            mock_season = MagicMock()
+            mock_season.id = "456"
+            mock_season.name = "2024-25"
+
+            result = _query_player_stats(
+                mock_db, [mock_player], mock_season, ["points"], "game", 10
+            )
+
+            assert "No stats found" in result
+
+    def test_query_player_stats_with_results(self):
+        """Test _query_player_stats with valid stats."""
+        from src.services.query_stats import _query_player_stats
+
+        with patch(
+            "src.services.query_stats.PlayerSeasonStatsService"
+        ) as mock_service_class:
+            mock_service = MagicMock()
+            mock_stats = MagicMock()
+            mock_stats.team = MagicMock()
+            mock_stats.team.short_name = "TST"
+            mock_stats.avg_points = 15.5
+            mock_service.get_player_season.return_value = [mock_stats]
+            mock_service_class.return_value = mock_service
+
+            mock_db = MagicMock()
+            mock_player = MagicMock()
+            mock_player.id = "123"
+            mock_player.first_name = "Test"
+            mock_player.last_name = "Player"
+            mock_season = MagicMock()
+            mock_season.id = "456"
+            mock_season.name = "2024-25"
+
+            result = _query_player_stats(
+                mock_db, [mock_player], mock_season, ["points"], "game", 10
+            )
+
+            assert "Player Stats" in result
+            assert "Test Player" in result
+            assert "TST" in result
+
+    def test_query_team_stats_no_results(self):
+        """Test _query_team_stats when no stats found."""
+        from src.services.query_stats import _query_team_stats
+
+        mock_db = MagicMock()
+        mock_db.scalars.return_value.all.return_value = []
+
+        mock_team = MagicMock()
+        mock_team.id = "123"
+        mock_team.name = "Test Team"
+        mock_season = MagicMock()
+        mock_season.id = "456"
+        mock_season.name = "2024-25"
+
+        result = _query_team_stats(
+            mock_db, mock_team, mock_season, ["points"], "game", 10
+        )
+
+        assert "No stats found" in result
+
+    def test_query_team_stats_with_results(self):
+        """Test _query_team_stats with valid stats."""
+        from src.services.query_stats import _query_team_stats
+
+        mock_db = MagicMock()
+        mock_stats = MagicMock()
+        mock_stats.player = MagicMock()
+        mock_stats.player.first_name = "Test"
+        mock_stats.player.last_name = "Player"
+        mock_stats.avg_points = 15.5
+        mock_db.scalars.return_value.all.return_value = [mock_stats]
+
+        mock_team = MagicMock()
+        mock_team.id = "123"
+        mock_team.name = "Test Team"
+        mock_season = MagicMock()
+        mock_season.id = "456"
+        mock_season.name = "2024-25"
+
+        result = _query_team_stats(
+            mock_db, mock_team, mock_season, ["points"], "game", 10
+        )
+
+        assert "Test Team" in result
+        assert "2024-25" in result
+
+    def test_query_league_stats_no_results(self):
+        """Test _query_league_stats when no stats found."""
+        from src.services.query_stats import _query_league_stats
+
+        with patch(
+            "src.services.query_stats.PlayerSeasonStatsService"
+        ) as mock_service_class:
+            mock_service = MagicMock()
+            mock_service.get_league_leaders.return_value = []
+            mock_service_class.return_value = mock_service
+
+            mock_db = MagicMock()
+            mock_season = MagicMock()
+            mock_season.id = "456"
+            mock_season.name = "2024-25"
+
+            result = _query_league_stats(
+                mock_db, None, mock_season, ["points"], "game", 10
+            )
+
+            assert "No stats found" in result
+
+    def test_query_league_stats_with_results(self):
+        """Test _query_league_stats with valid stats."""
+        from src.services.query_stats import _query_league_stats
+
+        with patch(
+            "src.services.query_stats.PlayerSeasonStatsService"
+        ) as mock_service_class:
+            mock_service = MagicMock()
+            mock_stats = MagicMock()
+            mock_stats.player = MagicMock()
+            mock_stats.player.first_name = "Test"
+            mock_stats.player.last_name = "Player"
+            mock_stats.team = MagicMock()
+            mock_stats.team.short_name = "TST"
+            mock_stats.avg_points = 15.5
+            mock_service.get_league_leaders.return_value = [mock_stats]
+            mock_service_class.return_value = mock_service
+
+            mock_db = MagicMock()
+            mock_season = MagicMock()
+            mock_season.id = "456"
+            mock_season.name = "2024-25"
+
+            result = _query_league_stats(
+                mock_db, None, mock_season, ["points"], "game", 10
+            )
+
+            assert "Leaders" in result
+            assert "Test Player" in result
+
+    def test_query_league_stats_with_league(self):
+        """Test _query_league_stats with league specified."""
+        from src.services.query_stats import _query_league_stats
+
+        with patch(
+            "src.services.query_stats.PlayerSeasonStatsService"
+        ) as mock_service_class:
+            mock_service = MagicMock()
+            mock_stats = MagicMock()
+            mock_stats.player = MagicMock()
+            mock_stats.player.first_name = "Test"
+            mock_stats.player.last_name = "Player"
+            mock_stats.team = MagicMock()
+            mock_stats.team.short_name = "TST"
+            mock_stats.avg_points = 15.5
+            mock_service.get_league_leaders.return_value = [mock_stats]
+            mock_service_class.return_value = mock_service
+
+            mock_db = MagicMock()
+            mock_league = MagicMock()
+            mock_league.name = "Test League"
+            mock_season = MagicMock()
+            mock_season.id = "456"
+            mock_season.name = "2024-25"
+
+            result = _query_league_stats(
+                mock_db, mock_league, mock_season, ["points"], "game", 10
+            )
+
+            assert "Test League" in result
+
+    def test_query_league_stats_fallback_sort(self):
+        """Test _query_league_stats falls back to avg_points on invalid category."""
+        from src.services.query_stats import _query_league_stats
+
+        with patch(
+            "src.services.query_stats.PlayerSeasonStatsService"
+        ) as mock_service_class:
+            mock_service = MagicMock()
+            # First call raises ValueError, second call succeeds
+            mock_stats = MagicMock()
+            mock_stats.player = MagicMock()
+            mock_stats.player.first_name = "Test"
+            mock_stats.player.last_name = "Player"
+            mock_stats.team = MagicMock()
+            mock_stats.team.short_name = "TST"
+            mock_stats.avg_points = 15.5
+            mock_service.get_league_leaders.side_effect = [
+                ValueError("Invalid"),
+                [mock_stats],
+            ]
+            mock_service_class.return_value = mock_service
+
+            mock_db = MagicMock()
+            mock_season = MagicMock()
+            mock_season.id = "456"
+            mock_season.name = "2024-25"
+
+            result = _query_league_stats(
+                mock_db, None, mock_season, ["unknown_metric"], "game", 10
+            )
+
+            assert "Leaders" in result
+
+
 class TestQueryStatsTool:
     """Tests for the main query_stats tool.
 
