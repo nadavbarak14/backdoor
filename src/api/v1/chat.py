@@ -86,18 +86,22 @@ async def _generate_stream(
         yield f"0:{json.dumps(content)}\n"
 
     # Send finish event
-    finish_event = json.dumps({
-        "finishReason": "stop",
-        "usage": {"promptTokens": 0, "completionTokens": 0},
-        "isContinued": False,
-    })
+    finish_event = json.dumps(
+        {
+            "finishReason": "stop",
+            "usage": {"promptTokens": 0, "completionTokens": 0},
+            "isContinued": False,
+        }
+    )
     yield f"e:{finish_event}\n"
 
     # Send done event
-    done_event = json.dumps({
-        "finishReason": "stop",
-        "usage": {"promptTokens": 0, "completionTokens": 0},
-    })
+    done_event = json.dumps(
+        {
+            "finishReason": "stop",
+            "usage": {"promptTokens": 0, "completionTokens": 0},
+        }
+    )
     yield f"d:{done_event}\n"
 
 
