@@ -3,7 +3,7 @@ Universal Query Stats Tool Module
 
 Provides a flexible query_stats tool for complex basketball analytics queries.
 This tool supports filtering by league, season, team, and players with
-configurable metrics, time-based filters, and output controls.
+configurable metrics, time-based filters, location filters, and output controls.
 
 Usage:
     from src.services.query_stats import query_stats
@@ -20,6 +20,20 @@ Usage:
         "player_names": ["Jimmy Clark"],
         "quarter": 4,
         "clutch_only": True,
+        "db": db_session
+    })
+
+    # With location filters
+    result = query_stats.invoke({
+        "player_names": ["Jimmy Clark"],
+        "home_only": True,
+        "db": db_session
+    })
+
+    # With opponent filter
+    result = query_stats.invoke({
+        "player_names": ["Jimmy Clark"],
+        "opponent_team": "Hapoel Jerusalem",
         "db": db_session
     })
 """
@@ -188,6 +202,16 @@ def _validate_time_filters(
     return None
 
 
+def _validate_location_filters(
+    home_only: bool,
+    away_only: bool,
+) -> str | None:
+    """Validate location filter parameters. Returns error message or None."""
+    if home_only and away_only:
+        return "Error: 'home_only' and 'away_only' are mutually exclusive."
+    return None
+
+
 def _has_time_filters(
     quarter: int | None,
     quarters: list[int] | None,
@@ -203,29 +227,104 @@ def _has_time_filters(
     )
 
 
+def _has_location_filters(
+    home_only: bool,
+    away_only: bool,
+    opponent_team_id=None,
+) -> bool:
+    """Check if any location/opponent filters are active."""
+    return home_only or away_only or opponent_team_id is not None
+
+
 def _get_recent_games(
     db: Session,
     season: Season,
     player_id=None,
     team_id=None,
     last_n_games: int | None = None,
+    home_only: bool = False,
+    away_only: bool = False,
+    opponent_team_id=None,
 ) -> list[Game]:
-    """Get recent games for a player or team, optionally limited to N games."""
+    """
+    Get recent games for a player or team, optionally limited to N games.
+
+    Args:
+        db: Database session.
+        season: Season to filter games by.
+        player_id: Filter games where this player played.
+        team_id: Filter games involving this team.
+        last_n_games: Limit to most recent N games.
+        home_only: Only include home games (requires team_id or player with team).
+        away_only: Only include away games (requires team_id or player with team).
+        opponent_team_id: Only include games against this opponent.
+
+    Returns:
+        List of Game objects matching the criteria.
+    """
+    has_location_filters = home_only or away_only or opponent_team_id
+
     if player_id:
-        stmt = (
-            select(Game)
-            .join(PlayerGameStats, Game.id == PlayerGameStats.game_id)
-            .where(PlayerGameStats.player_id == player_id)
-            .where(Game.season_id == season.id)
-            .order_by(Game.game_date.desc())
-        )
+        # For player queries with location filters, we need post-query filtering
+        # because the player's team may vary per game
+        if has_location_filters:
+            stmt = (
+                select(Game, PlayerGameStats.team_id)
+                .join(PlayerGameStats, Game.id == PlayerGameStats.game_id)
+                .where(PlayerGameStats.player_id == player_id)
+                .where(Game.season_id == season.id)
+                .order_by(Game.game_date.desc())
+            )
+            if last_n_games:
+                stmt = stmt.limit(last_n_games)
+
+            result = db.execute(stmt).all()
+
+            # Post-filter based on location/opponent
+            filtered_games = []
+            for game, player_team_id in result:
+                # Check home/away based on player's team
+                if home_only and game.home_team_id != player_team_id:
+                    continue
+                if away_only and game.away_team_id != player_team_id:
+                    continue
+                # Check opponent filter
+                if opponent_team_id:
+                    game_opponent = (
+                        game.away_team_id
+                        if game.home_team_id == player_team_id
+                        else game.home_team_id
+                    )
+                    if game_opponent != opponent_team_id:
+                        continue
+                filtered_games.append(game)
+            return filtered_games
+        else:
+            # Simple player query without location filters
+            stmt = (
+                select(Game)
+                .join(PlayerGameStats, Game.id == PlayerGameStats.game_id)
+                .where(PlayerGameStats.player_id == player_id)
+                .where(Game.season_id == season.id)
+                .order_by(Game.game_date.desc())
+            )
     elif team_id:
         stmt = (
             select(Game)
             .where(Game.season_id == season.id)
             .where((Game.home_team_id == team_id) | (Game.away_team_id == team_id))
-            .order_by(Game.game_date.desc())
         )
+        # Apply location filters for team queries directly in WHERE clause
+        if home_only:
+            stmt = stmt.where(Game.home_team_id == team_id)
+        elif away_only:
+            stmt = stmt.where(Game.away_team_id == team_id)
+        if opponent_team_id:
+            stmt = stmt.where(
+                (Game.home_team_id == opponent_team_id)
+                | (Game.away_team_id == opponent_team_id)
+            )
+        stmt = stmt.order_by(Game.game_date.desc())
     else:
         stmt = (
             select(Game)
@@ -491,8 +590,11 @@ def _build_time_filter_label(
     clutch_only: bool,
     exclude_garbage_time: bool,
     last_n_games: int | None,
+    home_only: bool = False,
+    away_only: bool = False,
+    opponent_name: str | None = None,
 ) -> str:
-    """Build a human-readable label for active time filters."""
+    """Build a human-readable label for active time and location filters."""
     parts = []
     if quarter:
         parts.append(f"Q{quarter}")
@@ -509,6 +611,12 @@ def _build_time_filter_label(
         parts.append("No Garbage Time")
     if last_n_games:
         parts.append(f"Last {last_n_games} Games")
+    if home_only:
+        parts.append("Home")
+    if away_only:
+        parts.append("Away")
+    if opponent_name:
+        parts.append(f"vs {opponent_name}")
     return " | ".join(parts) if parts else ""
 
 
@@ -685,6 +793,10 @@ def query_stats(
     clutch_only: bool = False,
     exclude_garbage_time: bool = False,
     last_n_games: int | None = None,
+    # Location filters
+    home_only: bool = False,
+    away_only: bool = False,
+    opponent_team: str | None = None,
     db: Session | None = None,
 ) -> str:
     """
@@ -692,7 +804,7 @@ def query_stats(
 
     Use this tool for complex queries combining filters and metrics.
     Supports querying by league, season, team, or specific players.
-    Time-based filters allow analysis of specific game situations.
+    Time-based and location filters allow analysis of specific game situations.
 
     Args:
         league_name: Filter by league (e.g., "Israeli", "Winner League").
@@ -710,6 +822,9 @@ def query_stats(
         clutch_only: Only include clutch time (last 5 min Q4/OT, within 5 pts).
         exclude_garbage_time: Exclude when score differential > 20 points.
         last_n_games: Limit to most recent N games.
+        home_only: Only include home games. Mutually exclusive with away_only.
+        away_only: Only include away games. Mutually exclusive with home_only.
+        opponent_team: Only include games against this team (by name).
         db: Database session (injected at runtime).
 
     Returns:
@@ -721,6 +836,9 @@ def query_stats(
         - "First half shooting %" -> quarters=[1,2]
         - "Clutch performance" -> clutch_only=True
         - "Last 5 games trend" -> last_n_games=5
+        - "Home vs away split" -> home_only=True / away_only=True
+        - "Stats against Hapoel Jerusalem" -> opponent_team="Hapoel Jerusalem"
+        - "Home clutch stats" -> home_only=True, clutch_only=True
     """
     if db is None:
         return "Error: Database session not provided."
@@ -729,6 +847,11 @@ def query_stats(
     validation_error = _validate_time_filters(quarter, quarters)
     if validation_error:
         return validation_error
+
+    # Validate location filters
+    location_error = _validate_location_filters(home_only, away_only)
+    if location_error:
+        return location_error
 
     if metrics is None:
         metrics = ["points", "rebounds", "assists", "fg_pct"]
@@ -755,6 +878,13 @@ def query_stats(
         if not team:
             return f"Team '{team_name}' not found."
 
+    # Resolve opponent team
+    opponent = None
+    if opponent_team:
+        opponent = _resolve_team_by_name(db, opponent_team)
+        if not opponent:
+            return f"Opponent team '{opponent_team}' not found."
+
     # Resolve players
     players: list[Player] = []
     if player_names:
@@ -765,14 +895,17 @@ def query_stats(
             else:
                 return f"Player '{name}' not found."
 
-    # Check if time filters are active
+    # Check if time or location filters are active
     time_filters_active = (
         _has_time_filters(quarter, quarters, clutch_only, exclude_garbage_time)
         or last_n_games is not None
     )
+    location_filters_active = _has_location_filters(
+        home_only, away_only, opponent.id if opponent else None
+    )
 
     # Execute query based on mode
-    if time_filters_active:
+    if time_filters_active or location_filters_active:
         return _query_with_time_filters(
             db=db,
             season=season_obj,
@@ -786,6 +919,10 @@ def query_stats(
             clutch_only=clutch_only,
             exclude_garbage_time=exclude_garbage_time,
             last_n_games=last_n_games,
+            home_only=home_only,
+            away_only=away_only,
+            opponent_team_id=opponent.id if opponent else None,
+            opponent_name=opponent.name if opponent else None,
         )
     elif players:
         return _query_player_stats(db, players, season_obj, metrics, per, limit)
@@ -808,11 +945,22 @@ def _query_with_time_filters(
     clutch_only: bool,
     exclude_garbage_time: bool,
     last_n_games: int | None,
+    home_only: bool = False,
+    away_only: bool = False,
+    opponent_team_id=None,
+    opponent_name: str | None = None,
 ) -> str:
-    """Query stats with time-based filters applied."""
+    """Query stats with time-based and location filters applied."""
     # Build filter label for header
     filter_label = _build_time_filter_label(
-        quarter, quarters, clutch_only, exclude_garbage_time, last_n_games
+        quarter,
+        quarters,
+        clutch_only,
+        exclude_garbage_time,
+        last_n_games,
+        home_only,
+        away_only,
+        opponent_name,
     )
 
     if players:
@@ -830,7 +978,13 @@ def _query_with_time_filters(
         for player in players[:limit]:
             # Get games for this player
             games = _get_recent_games(
-                db, season, player_id=player.id, last_n_games=last_n_games
+                db,
+                season,
+                player_id=player.id,
+                last_n_games=last_n_games,
+                home_only=home_only,
+                away_only=away_only,
+                opponent_team_id=opponent_team_id,
             )
             if not games:
                 continue
@@ -873,12 +1027,19 @@ def _query_with_time_filters(
         return _truncate_response("\n".join(lines), row_count, len(players))
 
     elif team:
-        # Query team players with time filters
+        # Query team players with time and location filters
         games = _get_recent_games(
-            db, season, team_id=team.id, last_n_games=last_n_games
+            db,
+            season,
+            team_id=team.id,
+            last_n_games=last_n_games,
+            home_only=home_only,
+            away_only=away_only,
+            opponent_team_id=opponent_team_id,
         )
         if not games:
-            return f"No games found for {team.name} in {season.name}."
+            filter_desc = filter_label if filter_label else "filters"
+            return f"No games found for {team.name} with {filter_desc}."
 
         # Get all players who played for this team
         player_ids = set()
@@ -937,8 +1098,9 @@ def _query_with_time_filters(
         )
 
     else:
-        # League-wide query with time filters is not supported (too expensive)
+        # League-wide query with filters is not supported (too expensive)
         return (
-            "Error: Time filters (quarter, clutch, etc.) require specifying "
-            "a player or team. League-wide time-filtered queries are not supported."
+            "Error: Time filters (quarter, clutch, etc.) and location filters "
+            "(home_only, away_only, opponent_team) require specifying a player or team. "
+            "League-wide filtered queries are not supported."
         )
