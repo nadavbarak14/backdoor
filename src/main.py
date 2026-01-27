@@ -34,16 +34,21 @@ app = FastAPI(
     openapi_url="/openapi.json",
 )
 
-# CORS middleware for frontend development
+# CORS middleware for frontend development and production
+# Uses CORS_ORIGINS from settings, with localhost fallbacks for development
+cors_origins = settings.CORS_ORIGINS + [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # Vite dev server
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Session-ID"],  # Expose session ID header for frontend
 )
 
 

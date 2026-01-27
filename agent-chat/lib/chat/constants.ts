@@ -52,4 +52,4 @@ export const SIMULATED_AI_RESPONSE =
  * Backend API URL for chat streaming endpoint.
  * Defaults to localhost:8000 for local development.
  */
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
