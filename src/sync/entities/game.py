@@ -236,7 +236,12 @@ class GameSyncer:
         for raw_event in events:
             # Get team and player IDs
             team_id = self._resolve_team_id(raw_event.team_external_id, game, source)
-            player_id = self._resolve_player_id(raw_event.player_name, team_id, source)
+            player_id = self._resolve_player_id(
+                raw_event.player_external_id,
+                raw_event.player_name,
+                team_id,
+                source,
+            )
 
             event = PlayByPlayEvent(
                 game_id=game.id,
@@ -244,6 +249,7 @@ class GameSyncer:
                 period=raw_event.period,
                 clock=raw_event.clock,
                 event_type=raw_event.event_type.upper(),
+                event_subtype=raw_event.event_subtype,
                 player_id=player_id,
                 team_id=team_id,
                 success=raw_event.success,
@@ -428,15 +434,27 @@ class GameSyncer:
 
     def _resolve_player_id(
         self,
+        player_external_id: str | None,
         player_name: str | None,
         team_id: UUID,
-        source: str,  # noqa: ARG002
+        source: str,
     ) -> UUID | None:
-        """Resolve player ID from name."""
+        """Resolve player ID from external ID or name."""
+        from src.models.player import Player
+
+        # First try by external ID
+        if player_external_id:
+            stmt = select(Player).where(
+                Player.external_ids[source].as_string() == player_external_id
+            )
+            player = self.db.scalars(stmt).first()
+            if player:
+                return player.id
+
+        # Fall back to name matching
         if not player_name:
             return None
 
-        # Try to find player on team by name
         from src.sync.deduplication.normalizer import normalize_name
 
         stmt = (
@@ -449,10 +467,8 @@ class GameSyncer:
         if not player_ids:
             return None
 
-        from src.models.player import Player
-
-        for player_id in player_ids:
-            stmt = select(Player).where(Player.id == player_id)
+        for pid in player_ids:
+            stmt = select(Player).where(Player.id == pid)
             player = self.db.scalars(stmt).first()
             if player and normalize_name(player.full_name) == normalize_name(
                 player_name
