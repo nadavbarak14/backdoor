@@ -6,6 +6,7 @@ Services encapsulate all business rules, validation, and orchestration.
 
 This package exports:
     - BaseService: Generic base class with CRUD operations
+    - ChatService: AI-powered chat with LangChain streaming
     - LeagueService: League business logic
     - SeasonService: Season business logic
     - TeamService: Team business logic
@@ -51,6 +52,7 @@ data models, providing a clean separation of concerns.
 
 from src.services.analytics import AnalyticsService
 from src.services.base import BaseService
+from src.services.chat_service import ChatService
 from src.services.game import GameService
 from src.services.league import LeagueService, SeasonService
 from src.services.play_by_play import PlayByPlayService
@@ -64,6 +66,7 @@ from src.services.team import TeamService
 __all__ = [
     "AnalyticsService",
     "BaseService",
+    "ChatService",
     "LeagueService",
     "SeasonService",
     "TeamService",

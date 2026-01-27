@@ -7,11 +7,53 @@ Tests:
     - Error handling for invalid requests
 """
 
+from collections.abc import AsyncGenerator
+from unittest.mock import patch
+
+import pytest
+
+
+class MockChatService:
+    """Mock chat service for testing without real LLM calls."""
+
+    def __init__(self):
+        self.sessions = {}
+        self.tools = []
+
+    async def stream(
+        self,
+        messages: list,
+        session_id: str,
+    ) -> AsyncGenerator[str, None]:
+        """Mock stream that yields test response."""
+        # Get the last user message for echoing
+        last_user_message = ""
+        for msg in reversed(messages):
+            if msg.role == "user":
+                last_user_message = msg.content
+                break
+
+        # Yield a mock response word by word
+        response = f"Mock response to: {last_user_message}"
+        for word in response.split():
+            yield word + " "
+
+    def clear_session(self, session_id: str) -> bool:
+        return session_id in self.sessions
+
+
+@pytest.fixture
+def mock_chat_service():
+    """Fixture to mock the chat service."""
+    mock_service = MockChatService()
+    with patch("src.api.v1.chat.get_chat_service", return_value=mock_service):
+        yield mock_service
+
 
 class TestChatStream:
     """Tests for the chat streaming endpoint."""
 
-    def test_chat_stream_returns_200(self, client):
+    def test_chat_stream_returns_200(self, client, mock_chat_service):
         """Test that chat stream endpoint returns 200 OK."""
         response = client.post(
             "/api/v1/chat/stream",
@@ -20,7 +62,7 @@ class TestChatStream:
 
         assert response.status_code == 200
 
-    def test_chat_stream_returns_sse_content_type(self, client):
+    def test_chat_stream_returns_sse_content_type(self, client, mock_chat_service):
         """Test that chat stream returns text/event-stream content type."""
         response = client.post(
             "/api/v1/chat/stream",
@@ -29,7 +71,7 @@ class TestChatStream:
 
         assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
 
-    def test_chat_stream_has_correct_headers(self, client):
+    def test_chat_stream_has_correct_headers(self, client, mock_chat_service):
         """Test that chat stream has proper SSE headers."""
         response = client.post(
             "/api/v1/chat/stream",
@@ -38,7 +80,7 @@ class TestChatStream:
 
         assert response.headers["cache-control"] == "no-cache"
 
-    def test_chat_stream_returns_data_chunks(self, client):
+    def test_chat_stream_returns_data_chunks(self, client, mock_chat_service):
         """Test that chat stream returns data: prefixed chunks."""
         response = client.post(
             "/api/v1/chat/stream",
@@ -49,7 +91,7 @@ class TestChatStream:
         # Should contain data: prefixed lines
         assert "data:" in content
 
-    def test_chat_stream_ends_with_done(self, client):
+    def test_chat_stream_ends_with_done(self, client, mock_chat_service):
         """Test that chat stream ends with [DONE] signal."""
         response = client.post(
             "/api/v1/chat/stream",
@@ -59,18 +101,18 @@ class TestChatStream:
         content = response.text
         assert "data: [DONE]" in content
 
-    def test_chat_stream_echoes_user_message(self, client):
-        """Test that placeholder echoes back user message."""
+    def test_chat_stream_echoes_user_message(self, client, mock_chat_service):
+        """Test that response includes user message context."""
         response = client.post(
             "/api/v1/chat/stream",
             json={"messages": [{"role": "user", "content": "test message"}]},
         )
 
         content = response.text
-        # Placeholder should echo back the user message
+        # Mock response should include the user message
         assert "test" in content or "message" in content
 
-    def test_chat_stream_with_system_message(self, client):
+    def test_chat_stream_with_system_message(self, client, mock_chat_service):
         """Test that chat stream accepts system messages."""
         response = client.post(
             "/api/v1/chat/stream",
@@ -84,7 +126,7 @@ class TestChatStream:
 
         assert response.status_code == 200
 
-    def test_chat_stream_with_conversation_history(self, client):
+    def test_chat_stream_with_conversation_history(self, client, mock_chat_service):
         """Test that chat stream accepts conversation history."""
         response = client.post(
             "/api/v1/chat/stream",
@@ -94,6 +136,18 @@ class TestChatStream:
                     {"role": "assistant", "content": "Hi there!"},
                     {"role": "user", "content": "How are you?"},
                 ]
+            },
+        )
+
+        assert response.status_code == 200
+
+    def test_chat_stream_with_session_id(self, client, mock_chat_service):
+        """Test that chat stream accepts session_id parameter."""
+        response = client.post(
+            "/api/v1/chat/stream",
+            json={
+                "messages": [{"role": "user", "content": "Hello"}],
+                "session_id": "test-session-123",
             },
         )
 

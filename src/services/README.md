@@ -10,6 +10,7 @@ Business logic layer for the Basketball Analytics Platform. Services encapsulate
 |------|-------------|
 | `__init__.py` | Public exports for all services |
 | `base.py` | Generic BaseService with reusable CRUD operations |
+| `chat_service.py` | ChatService for AI-powered chat with LangChain |
 | `league.py` | LeagueService and SeasonService |
 | `team.py` | TeamService with roster and filtering |
 | `player.py` | PlayerService with team history and filtering |
@@ -76,6 +77,38 @@ class PlayerService(BaseService[Player]):
 | `create` | `(data: dict) -> ModelT` | Create new entity from dict |
 | `update` | `(id: UUID, data: dict) -> ModelT \| None` | Update entity, returns None if not found |
 | `delete` | `(id: UUID) -> bool` | Delete entity, returns success status |
+
+### ChatService
+
+AI-powered chat service using LangChain with GPT-5 nano. Provides streaming responses compatible with Vercel AI SDK and manages conversation history per session.
+
+```python
+from src.services.chat_service import ChatService
+from src.schemas.chat import ChatMessage
+
+chat_service = ChatService()
+
+# Stream a response
+messages = [ChatMessage(role="user", content="What are LeBron's stats?")]
+async for chunk in chat_service.stream(messages, session_id="abc123"):
+    print(chunk, end="")
+```
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `stream` | `async (messages: list[ChatMessage], session_id: str) -> AsyncGenerator[str]` | Stream LLM response for messages |
+| `clear_session` | `(session_id: str) -> bool` | Clear conversation history for session |
+| `get_session_message_count` | `(session_id: str) -> int` | Get message count for session |
+
+**Configuration (environment variables):**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LLM_API_KEY` | (required) | API key for the LLM provider |
+| `LLM_MODEL` | `gpt-5-nano` | Model name to use |
+| `LLM_BASE_URL` | `https://api.openai.com/v1` | Base URL for API |
+| `LLM_TEMPERATURE` | `0.7` | Temperature for responses |
+| `LLM_MAX_TOKENS` | `4096` | Maximum tokens per response |
 
 ### LeagueService
 
