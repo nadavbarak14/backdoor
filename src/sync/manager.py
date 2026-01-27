@@ -46,7 +46,7 @@ from src.sync.deduplication import PlayerDeduplicator, TeamMatcher
 from src.sync.entities import GameSyncer, TeamSyncer
 from src.sync.player_info import PlayerInfoService
 from src.sync.tracking import SyncTracker
-from src.sync.types import RawTeam
+from src.sync.types import RawPlayerInfo, RawTeam
 
 
 class SyncManager:
@@ -927,7 +927,7 @@ class SyncManager:
         """
         from src.models.team import Team, TeamSeason
 
-        adapter = self._get_adapter(source)
+        self._get_adapter(source)
 
         # Start sync log
         sync_log = self.sync_log_service.start_sync(

@@ -15,10 +15,8 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-
-from sqlalchemy import func
 
 from src.models.league import League, Season
 from src.models.player import Player, PlayerTeamHistory
@@ -91,7 +89,7 @@ def team_season(test_db: Session, team: Team, season: Season) -> TeamSeason:
 def players_without_bio(test_db: Session, team: Team, season: Season) -> list[Player]:
     """Create players without bio data (as they would be from PBP sync)."""
     players = []
-    for i, name in enumerate(["John Smith", "David Cohen", "Michael Brown"]):
+    for _i, name in enumerate(["John Smith", "David Cohen", "Michael Brown"]):
         first, last = name.split(" ", 1)
         player = Player(
             id=uuid4(),
