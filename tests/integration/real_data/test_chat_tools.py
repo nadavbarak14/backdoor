@@ -381,3 +381,81 @@ class TestQueryStats:
         # Non-existent league
         result = query_stats.invoke({"league_name": "XXXNONEXISTENT", "db": real_db})
         assert "not found" in result
+
+    def test_time_filter_validation(self, real_db: Session):
+        """Test time filter validation."""
+        from src.services.query_stats import query_stats
+
+        # Invalid quarter
+        result = query_stats.invoke({"quarter": 5, "db": real_db})
+        assert "Error" in result
+
+        # Mutually exclusive
+        result = query_stats.invoke({"quarter": 4, "quarters": [1, 2], "db": real_db})
+        assert "mutually exclusive" in result
+
+    def test_quarter_filter_player(self, real_db: Session):
+        """Test quarter filter for a player."""
+        from src.models.game import PlayerGameStats
+        from src.services.query_stats import query_stats
+
+        # Get a player with games
+        stat = real_db.query(PlayerGameStats).first()
+        if not stat:
+            pytest.skip("No player game stats")
+
+        name = f"{stat.player.first_name} {stat.player.last_name}"
+        result = query_stats.invoke(
+            {"player_names": [name], "quarter": 4, "db": real_db}
+        )
+        # Should have Q4 in header and return stats or no stats message
+        assert "Q4" in result or "No stats" in result or "not found" in result
+
+    def test_last_n_games_player(self, real_db: Session):
+        """Test last_n_games filter for a player."""
+        from src.models.game import PlayerGameStats
+        from src.services.query_stats import query_stats
+
+        stat = real_db.query(PlayerGameStats).first()
+        if not stat:
+            pytest.skip("No player game stats")
+
+        name = f"{stat.player.first_name} {stat.player.last_name}"
+        result = query_stats.invoke(
+            {"player_names": [name], "last_n_games": 3, "db": real_db}
+        )
+        assert "Last 3 Games" in result or "No stats" in result or "not found" in result
+
+    def test_quarter_filter_team(self, real_db: Session):
+        """Test quarter filter for a team."""
+        from src.services.query_stats import query_stats
+
+        result = query_stats.invoke(
+            {"team_name": "Maccabi Tel-Aviv", "quarter": 4, "db": real_db}
+        )
+        assert "Q4" in result or "No stats" in result or "not found" in result
+
+    def test_clutch_filter_team(self, real_db: Session):
+        """Test clutch_only filter for a team."""
+        from src.services.query_stats import query_stats
+
+        result = query_stats.invoke(
+            {"team_name": "Maccabi Tel-Aviv", "clutch_only": True, "db": real_db}
+        )
+        assert "Clutch" in result or "No stats" in result or "not found" in result
+
+    def test_first_half_filter(self, real_db: Session):
+        """Test quarters filter for first half."""
+        from src.services.query_stats import query_stats
+
+        result = query_stats.invoke(
+            {"team_name": "Maccabi Tel-Aviv", "quarters": [1, 2], "db": real_db}
+        )
+        assert "1st Half" in result or "No stats" in result or "not found" in result
+
+    def test_time_filter_requires_entity(self, real_db: Session):
+        """Test that time filters require player or team."""
+        from src.services.query_stats import query_stats
+
+        result = query_stats.invoke({"quarter": 4, "db": real_db})
+        assert "require specifying" in result

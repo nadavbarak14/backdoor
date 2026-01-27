@@ -515,3 +515,224 @@ class TestQueryStatsTool:
             # Verify limit was capped
             call_args = mock_query_league.call_args
             assert call_args[0][5] <= MAX_RESPONSE_ROWS  # limit argument
+
+
+class TestTimeFilterValidation:
+    """Tests for time filter validation functions."""
+
+    def test_validate_time_filters_valid(self):
+        """Test validation passes for valid filters."""
+        from src.services.query_stats import _validate_time_filters
+
+        assert _validate_time_filters(None, None) is None
+        assert _validate_time_filters(1, None) is None
+        assert _validate_time_filters(4, None) is None
+        assert _validate_time_filters(None, [1, 2]) is None
+
+    def test_validate_time_filters_mutually_exclusive(self):
+        """Test validation fails when quarter and quarters both set."""
+        from src.services.query_stats import _validate_time_filters
+
+        result = _validate_time_filters(1, [1, 2])
+        assert "mutually exclusive" in result
+
+    def test_validate_time_filters_invalid_quarter(self):
+        """Test validation fails for invalid quarter values."""
+        from src.services.query_stats import _validate_time_filters
+
+        assert "between 1 and 4" in _validate_time_filters(0, None)
+        assert "between 1 and 4" in _validate_time_filters(5, None)
+
+    def test_validate_time_filters_invalid_quarters(self):
+        """Test validation fails for invalid quarters list values."""
+        from src.services.query_stats import _validate_time_filters
+
+        assert "Quarter 0" in _validate_time_filters(None, [0, 1])
+        assert "Quarter 5" in _validate_time_filters(None, [1, 5])
+
+    def test_has_time_filters_none(self):
+        """Test has_time_filters returns False when no filters active."""
+        from src.services.query_stats import _has_time_filters
+
+        assert _has_time_filters(None, None, False, False) is False
+
+    def test_has_time_filters_quarter(self):
+        """Test has_time_filters returns True when quarter is set."""
+        from src.services.query_stats import _has_time_filters
+
+        assert _has_time_filters(4, None, False, False) is True
+
+    def test_has_time_filters_quarters(self):
+        """Test has_time_filters returns True when quarters is set."""
+        from src.services.query_stats import _has_time_filters
+
+        assert _has_time_filters(None, [1, 2], False, False) is True
+
+    def test_has_time_filters_clutch(self):
+        """Test has_time_filters returns True when clutch_only is True."""
+        from src.services.query_stats import _has_time_filters
+
+        assert _has_time_filters(None, None, True, False) is True
+
+    def test_has_time_filters_garbage_time(self):
+        """Test has_time_filters returns True when exclude_garbage_time is True."""
+        from src.services.query_stats import _has_time_filters
+
+        assert _has_time_filters(None, None, False, True) is True
+
+
+class TestTimeFilterLabel:
+    """Tests for time filter label building."""
+
+    def test_build_time_filter_label_empty(self):
+        """Test empty label when no filters."""
+        from src.services.query_stats import _build_time_filter_label
+
+        assert _build_time_filter_label(None, None, False, False, None) == ""
+
+    def test_build_time_filter_label_quarter(self):
+        """Test label for single quarter."""
+        from src.services.query_stats import _build_time_filter_label
+
+        assert "Q4" in _build_time_filter_label(4, None, False, False, None)
+
+    def test_build_time_filter_label_first_half(self):
+        """Test label for first half."""
+        from src.services.query_stats import _build_time_filter_label
+
+        assert "1st Half" in _build_time_filter_label(None, [1, 2], False, False, None)
+
+    def test_build_time_filter_label_second_half(self):
+        """Test label for second half."""
+        from src.services.query_stats import _build_time_filter_label
+
+        assert "2nd Half" in _build_time_filter_label(None, [3, 4], False, False, None)
+
+    def test_build_time_filter_label_clutch(self):
+        """Test label for clutch."""
+        from src.services.query_stats import _build_time_filter_label
+
+        assert "Clutch" in _build_time_filter_label(None, None, True, False, None)
+
+    def test_build_time_filter_label_last_n(self):
+        """Test label for last_n_games."""
+        from src.services.query_stats import _build_time_filter_label
+
+        assert "Last 5 Games" in _build_time_filter_label(None, None, False, False, 5)
+
+    def test_build_time_filter_label_combined(self):
+        """Test label with multiple filters."""
+        from src.services.query_stats import _build_time_filter_label
+
+        label = _build_time_filter_label(4, None, True, False, 5)
+        assert "Q4" in label
+        assert "Clutch" in label
+        assert "Last 5 Games" in label
+
+
+class TestGameStatsFormatting:
+    """Tests for game stats value formatting."""
+
+    def test_format_game_stats_value_no_games(self):
+        """Test formatting when no games."""
+        from src.services.query_stats import _format_game_stats_value
+
+        totals = {"games": 0, "points": 0}
+        assert _format_game_stats_value(totals, "points", "game") == "N/A"
+
+    def test_format_game_stats_value_games(self):
+        """Test formatting games count."""
+        from src.services.query_stats import _format_game_stats_value
+
+        totals = {"games": 10}
+        assert _format_game_stats_value(totals, "games", "game") == "10"
+
+    def test_format_game_stats_value_points_avg(self):
+        """Test formatting points per game."""
+        from src.services.query_stats import _format_game_stats_value
+
+        totals = {"games": 10, "points": 150}
+        assert _format_game_stats_value(totals, "points", "game") == "15.0"
+
+    def test_format_game_stats_value_points_total(self):
+        """Test formatting total points."""
+        from src.services.query_stats import _format_game_stats_value
+
+        totals = {"games": 10, "points": 150}
+        assert _format_game_stats_value(totals, "points", "total") == "150"
+
+    def test_format_game_stats_value_fg_pct(self):
+        """Test formatting field goal percentage."""
+        from src.services.query_stats import _format_game_stats_value
+
+        totals = {"games": 10, "fgm": 45, "fga": 100}
+        assert _format_game_stats_value(totals, "fg_pct", "game") == "45.0%"
+
+    def test_format_game_stats_value_plus_minus_avg(self):
+        """Test formatting plus/minus per game."""
+        from src.services.query_stats import _format_game_stats_value
+
+        totals = {"games": 10, "plus_minus": 50}
+        assert _format_game_stats_value(totals, "plus_minus", "game") == "+5.0"
+
+    def test_format_game_stats_value_plus_minus_total(self):
+        """Test formatting total plus/minus."""
+        from src.services.query_stats import _format_game_stats_value
+
+        totals = {"games": 10, "plus_minus": 50}
+        assert _format_game_stats_value(totals, "plus_minus", "total") == "+50"
+
+
+class TestQueryStatsWithTimeFilters:
+    """Tests for query_stats with time filters."""
+
+    def test_query_stats_invalid_quarter(self):
+        """Test query_stats returns error for invalid quarter."""
+        from src.services.query_stats import query_stats
+
+        mock_db = MagicMock()
+        result = query_stats.func(quarter=5, db=mock_db)
+        assert "Error" in result
+        assert "between 1 and 4" in result
+
+    def test_query_stats_mutually_exclusive_quarters(self):
+        """Test query_stats returns error when quarter and quarters both set."""
+        from src.services.query_stats import query_stats
+
+        mock_db = MagicMock()
+        result = query_stats.func(quarter=4, quarters=[1, 2], db=mock_db)
+        assert "Error" in result
+        assert "mutually exclusive" in result
+
+    def test_query_stats_time_filter_requires_entity(self):
+        """Test time filters require player or team (not league-wide)."""
+        from src.services.query_stats import query_stats
+
+        with patch("src.services.query_stats._resolve_season") as mock_season:
+            mock_season.return_value = MagicMock()
+
+            mock_db = MagicMock()
+            result = query_stats.func(quarter=4, db=mock_db)
+
+            assert "Error" in result
+            assert "require specifying" in result
+
+    def test_query_stats_last_n_games_triggers_time_filter(self):
+        """Test last_n_games triggers time filter path."""
+        from src.services.query_stats import query_stats
+
+        with (
+            patch("src.services.query_stats._resolve_season") as mock_season,
+            patch(
+                "src.services.query_stats._query_with_time_filters"
+            ) as mock_time_filters,
+        ):
+            mock_season.return_value = MagicMock()
+            mock_time_filters.return_value = "Time filtered results"
+
+            mock_db = MagicMock()
+            result = query_stats.func(last_n_games=5, db=mock_db)
+
+            # Should call time filter path, not league stats
+            mock_time_filters.assert_called_once()
+            assert result == "Time filtered results"
