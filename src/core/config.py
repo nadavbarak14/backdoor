@@ -73,7 +73,7 @@ class Settings(BaseSettings):
 
     # LLM Configuration
     LLM_API_KEY: str = ""
-    LLM_MODEL: str = "gpt-5-nano"
+    LLM_MODEL: str = "gpt-5"
     LLM_BASE_URL: str = "https://api.openai.com/v1"
     LLM_TEMPERATURE: float = 0.7
     LLM_MAX_TOKENS: int = 4096

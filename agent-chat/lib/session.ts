@@ -11,6 +11,22 @@
 const SESSION_STORAGE_KEY = "chat-session-id";
 
 /**
+ * Generate a UUID v4.
+ * Uses crypto.randomUUID if available, otherwise falls back to a manual implementation.
+ */
+const generateUUID = (): string => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  // Fallback for environments without crypto.randomUUID
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
+/**
  * Get or create a session ID.
  *
  * Retrieves the existing session ID from sessionStorage, or generates
@@ -30,7 +46,7 @@ export const getSessionId = (): string => {
 
   let sessionId = sessionStorage.getItem(SESSION_STORAGE_KEY);
   if (!sessionId) {
-    sessionId = crypto.randomUUID();
+    sessionId = generateUUID();
     sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
   }
   return sessionId;

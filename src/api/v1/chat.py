@@ -14,13 +14,14 @@ Usage:
     app.include_router(router, prefix="/api/v1")
 """
 
+import json
 import uuid
 from collections.abc import AsyncGenerator
 
 from fastapi import APIRouter, Header, status
 from fastapi.responses import StreamingResponse
 
-from src.schemas.chat import ChatChunk, ChatRequest
+from src.schemas.chat import ChatRequest
 from src.services.chat_service import ChatService
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -55,32 +56,49 @@ async def _generate_stream(
     """
     Generate streaming response from the LLM.
 
-    Wraps the ChatService stream method to format output as SSE events
-    compatible with Vercel AI SDK.
+    Wraps the ChatService stream method to format output compatible with
+    Vercel AI SDK's Data Stream Protocol v1.
+
+    Format:
+        - Text chunks: 0:"text content"\\n
+        - Finish: e:{"finishReason":"stop",...}\\n
+        - Done: d:{"finishReason":"stop",...}\\n
 
     Args:
         request: The chat request containing conversation messages.
         session_id: Unique session identifier from X-Session-ID header or request body.
 
     Yields:
-        SSE-formatted string chunks.
+        Stream chunks in Vercel AI SDK Data Stream Protocol format.
 
     Example:
         >>> async for chunk in _generate_stream(request, "session-123"):
         ...     print(chunk)
-        data: {"content": "Hello"}
-        data: {"content": " there"}
+        0:"Hello"
+        0:" world"
         ...
     """
     chat_service = get_chat_service()
 
-    # Stream response from LLM
+    # Stream response from LLM as text chunks (0: prefix)
     async for content in chat_service.stream(request.messages, session_id):
-        chunk = ChatChunk(content=content)
-        yield f"data: {chunk.model_dump_json()}\n\n"
+        # Format: 0:"text"\n where text is JSON-encoded
+        yield f"0:{json.dumps(content)}\n"
 
-    # Signal stream completion
-    yield "data: [DONE]\n\n"
+    # Send finish event
+    finish_event = json.dumps({
+        "finishReason": "stop",
+        "usage": {"promptTokens": 0, "completionTokens": 0},
+        "isContinued": False,
+    })
+    yield f"e:{finish_event}\n"
+
+    # Send done event
+    done_event = json.dumps({
+        "finishReason": "stop",
+        "usage": {"promptTokens": 0, "completionTokens": 0},
+    })
+    yield f"d:{done_event}\n"
 
 
 @router.post(
@@ -158,10 +176,11 @@ async def chat_stream(
 
     return StreamingResponse(
         _generate_stream(request, session_id),
-        media_type="text/event-stream",
+        media_type="text/plain; charset=utf-8",
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",  # Disable nginx buffering
+            "X-Vercel-AI-Data-Stream": "v1",  # Required for Vercel AI SDK
         },
     )
