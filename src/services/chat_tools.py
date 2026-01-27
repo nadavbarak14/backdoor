@@ -35,6 +35,7 @@ from src.services.game import GameService
 from src.services.league import SeasonService
 from src.services.player import PlayerService
 from src.services.player_stats import PlayerSeasonStatsService
+from src.services.query_stats import query_stats
 from src.services.stats import PlayerGameStatsService
 from src.services.team import TeamService
 
@@ -1489,4 +1490,6 @@ ALL_TOOLS = [
     get_home_away_split,
     get_on_off_stats,
     get_vs_opponent,
+    # Universal Query
+    query_stats,
 ]
