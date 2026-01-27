@@ -63,7 +63,7 @@ async def run_sync(source: str, season_id: str, include_pbp: bool):
             include_pbp=include_pbp,
         )
 
-        log(f"Sync completed!")
+        log("Sync completed!")
         log(f"  Status: {sync_log.status}")
         log(f"  Records processed: {sync_log.records_processed}")
         log(f"  Records created: {sync_log.records_created}")
