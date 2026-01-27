@@ -14,6 +14,7 @@ This package provides:
 - Play-by-Play schemas
 - Player Stats schemas (PlayerSeasonStats, LeagueLeaders)
 - Sync schemas (SyncLog, SyncStatus)
+- Chat schemas (ChatMessage, ChatRequest, ChatChunk)
 
 Usage:
     from src.schemas import PlayerCreate, PlayerResponse, LeagueResponse
@@ -28,6 +29,11 @@ from src.schemas.analytics import (
     TimeFilter,
 )
 from src.schemas.base import OrmBase, PaginatedResponse
+from src.schemas.chat import (
+    ChatChunk,
+    ChatMessage,
+    ChatRequest,
+)
 from src.schemas.game import (
     EventType,
     GameCreate,
@@ -105,6 +111,10 @@ __all__ = [
     "OpponentFilter",
     "SituationalFilter",
     "TimeFilter",
+    # Chat schemas
+    "ChatChunk",
+    "ChatMessage",
+    "ChatRequest",
     # Base utilities
     "OrmBase",
     "PaginatedResponse",
