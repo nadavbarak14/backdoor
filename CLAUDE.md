@@ -384,9 +384,11 @@ When working on sync features across multiple branches, use the template databas
 
 | File | Purpose |
 |------|---------|
-| `data/template.db` | Shared template database (gitignored) |
+| `/root/data/basketball-template.db` | Shared template database (outside repo) |
 | `basketball.db` | Working database for current branch (gitignored) |
 | `DB_TEMPLATE_PATH` | Environment variable pointing to template |
+
+The template is stored **outside the repo** so multiple projects can access it.
 
 ### Commands
 

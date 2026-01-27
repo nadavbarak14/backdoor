@@ -15,9 +15,13 @@ When working on sync features, multiple branches often need access to the same b
 
 | File | Purpose |
 |------|---------|
-| `data/template.db` | Shared template database (not in git) |
+| `/root/data/basketball-template.db` | Shared template database (outside repo) |
 | `basketball.db` | Working database for current branch (not in git) |
-| `data/.gitkeep` | Keeps the data directory in git |
+
+The template is stored **outside the repo** at `/root/data/` so that:
+- Multiple projects/branches can access the same template
+- It's not accidentally committed to git
+- It persists across repo clones
 
 ## Environment Configuration
 
@@ -27,8 +31,8 @@ Add to your `.env` file:
 # Working database (default)
 DATABASE_URL="sqlite:///./basketball.db"
 
-# Template database location
-DB_TEMPLATE_PATH="data/template.db"
+# Template database location (outside repo)
+DB_TEMPLATE_PATH="/root/data/basketball-template.db"
 ```
 
 ## Commands
