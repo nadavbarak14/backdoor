@@ -921,6 +921,212 @@ def _query_league_stats(
 
 
 # =============================================================================
+# Lineup Mode Handlers
+# =============================================================================
+
+
+def _query_lineup_stats(
+    db: Session,
+    players: list[Player],
+    season: Season,
+) -> str:
+    """
+    Query stats for when all specified players are on court together.
+
+    Uses play-by-play data to find intervals where all players in the lineup
+    are on court simultaneously.
+
+    Args:
+        db: Database session.
+        players: List of Player entities (2+ players).
+        season: Season to query.
+
+    Returns:
+        Markdown-formatted lineup stats (minutes together, +/-).
+    """
+    if len(players) < 2:
+        return "Error: Lineup mode requires at least 2 players."
+
+    analytics = AnalyticsService(db)
+    player_ids = [p.id for p in players]
+    player_names = [f"{p.first_name} {p.last_name}" for p in players]
+
+    # Get lineup stats for the season
+    lineup_stats = analytics.get_lineup_stats_for_season(player_ids, season.id)
+
+    return _format_lineup_stats(lineup_stats, player_names, season.name)
+
+
+def _query_discover_lineups(
+    db: Session,
+    team: Team,
+    season: Season,
+    lineup_size: int,
+    min_minutes: float,
+    limit: int,
+) -> str:
+    """
+    Discover best performing lineups for a team.
+
+    Aggregates lineup performance across all games in the season.
+
+    Args:
+        db: Database session.
+        team: Team entity.
+        season: Season to query.
+        lineup_size: Number of players in lineup (2-5).
+        min_minutes: Minimum minutes threshold.
+        limit: Maximum lineups to return.
+
+    Returns:
+        Markdown-formatted table of best lineups.
+    """
+    analytics = AnalyticsService(db)
+
+    # Get all games for this team in the season
+    games = _get_recent_games(db, season, team_id=team.id)
+
+    if not games:
+        return f"No games found for {team.name} in {season.name}."
+
+    # Aggregate lineups across all games
+    lineup_totals: dict[tuple, dict] = {}
+
+    for game in games:
+        game_lineups = analytics.get_best_lineups(
+            team_id=team.id,
+            game_id=game.id,
+            lineup_size=lineup_size,
+            min_minutes=0.5,  # Low threshold per game, filter later
+        )
+
+        for lineup in game_lineups:
+            # Use frozenset of player_ids as key (order doesn't matter)
+            key = tuple(sorted(str(pid) for pid in lineup["player_ids"]))
+
+            if key not in lineup_totals:
+                lineup_totals[key] = {
+                    "player_ids": lineup["player_ids"],
+                    "team_pts": 0,
+                    "opp_pts": 0,
+                    "plus_minus": 0,
+                    "minutes": 0.0,
+                    "games": 0,
+                }
+
+            lineup_totals[key]["team_pts"] += lineup["team_pts"]
+            lineup_totals[key]["opp_pts"] += lineup["opp_pts"]
+            lineup_totals[key]["plus_minus"] += lineup["plus_minus"]
+            lineup_totals[key]["minutes"] += lineup["minutes"]
+            lineup_totals[key]["games"] += 1
+
+    # Filter by minimum minutes and sort by plus_minus
+    qualified_lineups = [
+        lup for lup in lineup_totals.values() if lup["minutes"] >= min_minutes
+    ]
+    qualified_lineups.sort(key=lambda x: x["plus_minus"], reverse=True)
+
+    # Limit results
+    qualified_lineups = qualified_lineups[:limit]
+
+    return _format_best_lineups(
+        qualified_lineups, db, team.name, season.name, lineup_size
+    )
+
+
+def _query_leaderboard(
+    db: Session,
+    league: League | None,
+    season: Season,
+    order_by: str,
+    order: str,
+    min_games: int,
+    metrics: list[str],
+    per: str,
+    limit: int,
+) -> str:
+    """
+    Query leaderboard of top players sorted by a specific metric.
+
+    Args:
+        db: Database session.
+        league: Optional league filter.
+        season: Season to query.
+        order_by: Metric to sort by.
+        order: Sort direction ("asc" or "desc").
+        min_games: Minimum games to qualify.
+        metrics: Stats to display.
+        per: "game" or "total".
+        limit: Maximum players to return.
+
+    Returns:
+        Markdown-formatted leaderboard table.
+    """
+    service = PlayerSeasonStatsService(db)
+
+    # Map order_by to service category name
+    category_map = {
+        "points": "avg_points",
+        "rebounds": "avg_rebounds",
+        "assists": "avg_assists",
+        "steals": "avg_steals",
+        "blocks": "avg_blocks",
+        "fg_pct": "field_goal_pct",
+        "three_pct": "three_point_pct",
+        "ft_pct": "free_throw_pct",
+        "plus_minus": "avg_plus_minus",
+        "minutes": "avg_minutes",
+    }
+
+    category = category_map.get(order_by, "avg_points")
+
+    try:
+        leaders = service.get_league_leaders(
+            season.id, category=category, limit=limit, min_games=min_games
+        )
+    except ValueError:
+        # Fallback to points if category not supported
+        leaders = service.get_league_leaders(
+            season.id, category="avg_points", limit=limit, min_games=min_games
+        )
+
+    if not leaders:
+        league_str = f" in {league.name}" if league else ""
+        return f"No stats found for {season.name}{league_str} (min {min_games} games)."
+
+    # Handle ascending order by reversing the list
+    if order == "asc":
+        leaders = list(reversed(leaders))
+
+    league_str = f"{league.name} - " if league else ""
+    direction = "ascending" if order == "asc" else "descending"
+    lines = [
+        f"## {league_str}{season.name} Leaderboard",
+        f"*Sorted by {_format_metric_header(order_by)} ({direction}), min {min_games} games*",
+        "",
+    ]
+
+    header = "| # | Player | Team |"
+    separator = "|---|--------|------|"
+    for metric in metrics:
+        header += f" {_format_metric_header(metric)} |"
+        separator += "------|"
+    lines.extend([header, separator])
+
+    for i, stats in enumerate(leaders, 1):
+        player = stats.player
+        player_name = f"{player.first_name} {player.last_name}"
+        team_name = stats.team.short_name if stats.team else "N/A"
+
+        row = f"| {i} | {player_name} | {team_name} |"
+        for metric in metrics:
+            row += f" {_get_metric_value(stats, metric, per)} |"
+        lines.append(row)
+
+    return _truncate_response("\n".join(lines), len(leaders), len(leaders))
+
+
+# =============================================================================
 # Main Tool
 # =============================================================================
 
