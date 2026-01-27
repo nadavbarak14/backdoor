@@ -91,6 +91,23 @@ class WinnerMapper:
         "SUBSTITUTION": "substitution",
     }
 
+    # Event type mappings from segevstats format to normalized format
+    SEGEVSTATS_EVENT_TYPE_MAP = {
+        "shot": "shot",
+        "freeThrow": "free_throw",
+        "rebound": "rebound",
+        "assist": "assist",
+        "turnover": "turnover",
+        "steal": "steal",
+        "block": "block",
+        "foul": "foul",
+        "substitution": "substitution",
+        "timeout": "timeout",
+        "game": "game",
+        "quarter": "quarter",
+        "clock": "clock",
+    }
+
     def parse_minutes_to_seconds(self, minutes_str: str) -> int:
         """
         Parse a minutes string like "32:15" to total seconds.
@@ -824,18 +841,32 @@ class WinnerMapper:
         """
         Map all play-by-play events from PBP response.
 
+        Handles both formats:
+        - Legacy format: {"Events": [...]}
+        - Segevstats JSON-RPC format: {"result": {"actions": [...]}}
+
         Args:
-            data: Full PBP response with Events list.
+            data: Full PBP response in either format.
 
         Returns:
             List of RawPBPEvent objects with inferred links.
 
         Example:
             >>> mapper = WinnerMapper()
+            >>> # Legacy format
             >>> events = mapper.map_pbp_events({"Events": [...]})
+            >>> # Segevstats format
+            >>> events = mapper.map_pbp_events({"result": {"actions": [...]}})
             >>> len(events)
             245
         """
+        # Check for segevstats JSON-RPC format
+        if "result" in data and isinstance(data.get("result"), dict):
+            result = data["result"]
+            if "actions" in result:
+                return self.map_segevstats_pbp_events(data)
+
+        # Legacy format handling
         events = []
         for i, event_data in enumerate(data.get("Events", []), start=1):
             event = self.map_pbp_event(event_data, i)
@@ -890,6 +921,154 @@ class WinnerMapper:
                 players[player_id] = (first_name, last_name)
 
         return PlayerRoster(players=players)
+
+    def map_segevstats_pbp_events(self, data: dict) -> list[RawPBPEvent]:
+        """
+        Map play-by-play events from segevstats JSON-RPC format.
+
+        Parses the segevstats format with result.actions array and extracts
+        player names from result.gameInfo roster.
+
+        The segevstats format:
+        {
+            "result": {
+                "gameInfo": {
+                    "homeTeam": {"players": [{"id": "1000", "firstName": "JAYLEN", "lastName": "HOARD"}]},
+                    "awayTeam": {"players": [...]}
+                },
+                "actions": [
+                    {
+                        "type": "shot",
+                        "quarter": 1,
+                        "quarterTime": "09:45",
+                        "playerId": 1000,
+                        "teamId": 2,
+                        "parameters": {"made": "made", "type": "lay-up", "coordX": 50, "coordY": 30}
+                    }
+                ]
+            }
+        }
+
+        Args:
+            data: Full JSON-RPC response from segevstats PBP API.
+
+        Returns:
+            List of RawPBPEvent objects with inferred links.
+
+        Example:
+            >>> mapper = WinnerMapper()
+            >>> events = mapper.map_segevstats_pbp_events(pbp_data)
+            >>> len(events)
+            800
+            >>> events[0].event_type
+            'shot'
+        """
+        # Extract player roster for name lookups
+        roster = self.extract_player_roster(data)
+
+        # Get actions array
+        result = data.get("result", {})
+        actions = result.get("actions", [])
+
+        events = []
+        for i, action in enumerate(actions, start=1):
+            event = self._map_segevstats_pbp_action(action, i, roster)
+            if event:
+                events.append(event)
+
+        # Infer links between related events
+        return self.infer_pbp_links(events)
+
+    def _map_segevstats_pbp_action(
+        self, action: dict, event_num: int, roster: PlayerRoster
+    ) -> RawPBPEvent | None:
+        """
+        Map a single segevstats action to RawPBPEvent.
+
+        Handles all segevstats action types:
+        - shot: Field goal attempt (success from parameters.made)
+        - freeThrow: Free throw attempt (success from parameters.made)
+        - rebound: Rebound (subtype from parameters.type: offensive/defensive)
+        - assist: Assist
+        - turnover: Turnover
+        - steal: Steal
+        - block: Block
+        - foul: Foul
+        - substitution: Player substitution
+        - timeout: Timeout
+
+        Args:
+            action: Single action dictionary from actions array.
+            event_num: Event number to assign.
+            roster: PlayerRoster for player name lookups.
+
+        Returns:
+            RawPBPEvent or None if action should be skipped (clock, game, quarter events).
+
+        Example:
+            >>> mapper = WinnerMapper()
+            >>> roster = mapper.extract_player_roster(pbp_data)
+            >>> event = mapper._map_segevstats_pbp_action({
+            ...     "type": "shot",
+            ...     "quarter": 1,
+            ...     "quarterTime": "09:42",
+            ...     "playerId": 1020,
+            ...     "teamId": 2,
+            ...     "parameters": {"made": "made", "type": "dunk", "coordX": 705.0, "coordY": 140.0}
+            ... }, 1, roster)
+            >>> event.event_type
+            'shot'
+            >>> event.success
+            True
+        """
+        action_type = action.get("type", "")
+
+        # Skip non-game-event types (clock updates, game start, quarter start)
+        if action_type in ("clock", "game", "quarter"):
+            return None
+
+        # Map event type
+        event_type = self.SEGEVSTATS_EVENT_TYPE_MAP.get(action_type, action_type)
+
+        # Extract parameters
+        params = action.get("parameters", {})
+
+        # Determine success for shot/free throw events
+        success = None
+        if action_type in ("shot", "freeThrow"):
+            made_value = params.get("made", "")
+            success = made_value == "made"
+
+        # Extract subtype
+        event_subtype = params.get("type")
+
+        # Extract player info
+        player_id = action.get("playerId")
+        player_external_id = str(player_id) if player_id else None
+        player_name = roster.get_full_name(player_external_id) if player_external_id else None
+
+        # Extract team info
+        team_id = action.get("teamId")
+        team_external_id = str(team_id) if team_id else None
+
+        # Extract coordinates for shots
+        coord_x = params.get("coordX")
+        coord_y = params.get("coordY")
+
+        return RawPBPEvent(
+            event_number=event_num,
+            period=action.get("quarter", 1),
+            clock=action.get("quarterTime", ""),
+            event_type=event_type,
+            event_subtype=event_subtype,
+            player_name=player_name,
+            player_external_id=player_external_id,
+            team_external_id=team_external_id,
+            success=success,
+            coord_x=coord_x,
+            coord_y=coord_y,
+            related_event_numbers=None,
+        )
 
     def enrich_boxscore_with_names(
         self, boxscore: RawBoxScore, roster: PlayerRoster
