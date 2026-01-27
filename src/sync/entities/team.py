@@ -280,11 +280,12 @@ class TeamSyncer:
                 source=source,
             )
 
-            # Create PlayerTeamHistory if not exists
+            # Create PlayerTeamHistory if not exists, with jersey_number
             self._ensure_team_history(
                 player_id=player.id,
                 team_id=team.id,
                 season_id=season.id,
+                jersey_number=player_info.jersey_number,
             )
 
             synced_players.append(player)
@@ -296,16 +297,19 @@ class TeamSyncer:
         player_id: UUID,
         team_id: UUID,
         season_id: UUID,
+        jersey_number: str | None = None,
     ) -> PlayerTeamHistory:
         """
         Ensure a PlayerTeamHistory record exists.
 
         Creates the record if it doesn't exist, otherwise returns existing.
+        Updates jersey_number if provided and currently null.
 
         Args:
             player_id: UUID of the player.
             team_id: UUID of the team.
             season_id: UUID of the season.
+            jersey_number: Optional jersey number to set.
 
         Returns:
             The found or created PlayerTeamHistory.
@@ -318,12 +322,16 @@ class TeamSyncer:
         history = self.db.scalars(stmt).first()
 
         if history:
+            # Update jersey_number if provided and currently null
+            if jersey_number and not history.jersey_number:
+                history.jersey_number = jersey_number
             return history
 
         history = PlayerTeamHistory(
             player_id=player_id,
             team_id=team_id,
             season_id=season_id,
+            jersey_number=jersey_number,
         )
         self.db.add(history)
         self.db.flush()
