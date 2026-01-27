@@ -200,10 +200,13 @@ class TestChatServiceStreaming:
 
     @pytest.fixture
     def chat_service(self):
-        """Create a ChatService with mocked LLM."""
-        with patch("src.services.chat_service.ChatOpenAI") as mock_llm_class:
+        """Create a ChatService with mocked LLM and tools."""
+        with patch("src.services.chat_service.ChatOpenAI") as mock_llm_class, \
+             patch("src.services.chat_service.SessionLocal") as mock_session, \
+             patch("src.services.chat_service.ALL_TOOLS", []):  # Empty tools for testing
             mock_llm = MagicMock()
             mock_llm_class.return_value = mock_llm
+            mock_session.return_value = MagicMock()
             service = ChatService()
             service.llm = mock_llm
             return service
@@ -211,15 +214,16 @@ class TestChatServiceStreaming:
     @pytest.mark.asyncio
     async def test_stream_yields_content_chunks(self, chat_service):
         """Test that stream yields content from LLM."""
+        from langchain_core.messages import AIMessageChunk
 
-        # Mock the astream method
+        # Mock the bind_tools().astream() chain with real AIMessageChunks
         async def mock_astream(messages):
             for content in ["Hello", " ", "World"]:
-                chunk = MagicMock()
-                chunk.content = content
-                yield chunk
+                yield AIMessageChunk(content=content)
 
-        chat_service.llm.astream = mock_astream
+        mock_llm_with_tools = MagicMock()
+        mock_llm_with_tools.astream = mock_astream
+        chat_service.llm.bind_tools = MagicMock(return_value=mock_llm_with_tools)
 
         messages = [ChatMessage(role="user", content="Hi")]
         chunks = []
@@ -231,18 +235,16 @@ class TestChatServiceStreaming:
     @pytest.mark.asyncio
     async def test_stream_handles_empty_content(self, chat_service):
         """Test that stream handles chunks with empty content."""
+        from langchain_core.messages import AIMessageChunk
 
         async def mock_astream(messages):
-            chunks = [
-                MagicMock(content="Hello"),
-                MagicMock(content=""),  # Empty content
-                MagicMock(content=None),  # None content
-                MagicMock(content="World"),
-            ]
-            for chunk in chunks:
-                yield chunk
+            contents = ["Hello", "", "World"]  # Empty content filtered out
+            for content in contents:
+                yield AIMessageChunk(content=content)
 
-        chat_service.llm.astream = mock_astream
+        mock_llm_with_tools = MagicMock()
+        mock_llm_with_tools.astream = mock_astream
+        chat_service.llm.bind_tools = MagicMock(return_value=mock_llm_with_tools)
 
         messages = [ChatMessage(role="user", content="Hi")]
         chunks = []
@@ -254,14 +256,15 @@ class TestChatServiceStreaming:
     @pytest.mark.asyncio
     async def test_stream_updates_session_after_completion(self, chat_service):
         """Test that session is updated after streaming completes."""
+        from langchain_core.messages import AIMessageChunk
 
         async def mock_astream(messages):
             for content in ["Hello ", "World"]:
-                chunk = MagicMock()
-                chunk.content = content
-                yield chunk
+                yield AIMessageChunk(content=content)
 
-        chat_service.llm.astream = mock_astream
+        mock_llm_with_tools = MagicMock()
+        mock_llm_with_tools.astream = mock_astream
+        chat_service.llm.bind_tools = MagicMock(return_value=mock_llm_with_tools)
 
         messages = [ChatMessage(role="user", content="Hi")]
         async for _ in chat_service.stream(messages, "test-session"):
@@ -282,7 +285,9 @@ class TestChatServiceStreaming:
             raise Exception("LLM Error")
             yield  # Make it an async generator
 
-        chat_service.llm.astream = mock_astream
+        mock_llm_with_tools = MagicMock()
+        mock_llm_with_tools.astream = mock_astream
+        chat_service.llm.bind_tools = MagicMock(return_value=mock_llm_with_tools)
 
         messages = [ChatMessage(role="user", content="Hi")]
         chunks = []
