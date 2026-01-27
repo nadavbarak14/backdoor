@@ -5,43 +5,57 @@ Provides a flexible query_stats tool for complex basketball analytics queries.
 This tool supports filtering by league, season, team, and players with
 configurable metrics, time-based filters, location filters, and output controls.
 
+Additionally supports:
+- Lineup mode: Get stats when 2+ players are on court together
+- Lineup discovery: Find best performing lineups for a team
+- Leaderboard mode: Rank players by a specific metric
+
 Usage:
     from src.services.query_stats import query_stats
 
-    # Basic query
+    # Basic query (use search tools to get IDs first)
     result = query_stats.invoke({
-        "team_name": "Maccabi Tel-Aviv",
+        "team_id": "uuid-of-team",
         "metrics": ["points", "rebounds", "assists"],
         "db": db_session
     })
 
     # With time filters
     result = query_stats.invoke({
-        "player_names": ["Jimmy Clark"],
+        "player_ids": ["uuid-of-player"],
         "quarter": 4,
         "clutch_only": True,
         "db": db_session
     })
 
-    # With location filters
+    # Lineup mode (2+ players together)
     result = query_stats.invoke({
-        "player_names": ["Jimmy Clark"],
-        "home_only": True,
+        "player_ids": ["uuid-player-1", "uuid-player-2"],
         "db": db_session
     })
 
-    # With opponent filter
+    # Lineup discovery
     result = query_stats.invoke({
-        "player_names": ["Jimmy Clark"],
-        "opponent_team": "Hapoel Jerusalem",
+        "team_id": "uuid-of-team",
+        "discover_lineups": True,
+        "lineup_size": 2,
+        "db": db_session
+    })
+
+    # Leaderboard mode
+    result = query_stats.invoke({
+        "order_by": "points",
+        "min_games": 10,
+        "limit": 10,
         "db": db_session
     })
 """
 
 import logging
+from uuid import UUID
 
 from langchain_core.tools import tool
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.models.game import Game, PlayerGameStats
@@ -50,13 +64,9 @@ from src.models.player import Player
 from src.models.stats import PlayerSeasonStats
 from src.models.team import Team
 from src.schemas.analytics import ClutchFilter, TimeFilter
-from src.schemas.player import PlayerFilter
-from src.schemas.team import TeamFilter
 from src.services.analytics import AnalyticsService
 from src.services.league import SeasonService
-from src.services.player import PlayerService
 from src.services.player_stats import PlayerSeasonStatsService
-from src.services.team import TeamService
 
 # Response size constants to prevent context blowup
 MAX_RESPONSE_ROWS = 20
@@ -70,46 +80,37 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 
-def _resolve_league_by_name(db: Session, name: str) -> League | None:
-    """Resolve a league name to a League entity."""
-    stmt = select(League).where(
-        or_(
-            League.name.ilike(f"%{name}%"),
-            League.code.ilike(f"%{name}%"),
-        )
-    )
-    return db.scalars(stmt).first()
+def _parse_uuid(id_str: str | None) -> UUID | None:
+    """Parse a string to UUID, returning None if invalid or empty."""
+    if not id_str:
+        return None
+    try:
+        return UUID(id_str)
+    except (ValueError, TypeError):
+        return None
 
 
-def _resolve_team_by_name(db: Session, name: str) -> Team | None:
-    """Resolve a team name to a Team entity."""
-    service = TeamService(db)
-    teams, _ = service.get_filtered(TeamFilter(search=name), limit=10)
-    return teams[0] if teams else None
-
-
-def _resolve_player_by_name(db: Session, name: str) -> Player | None:
-    """Resolve a player name to a Player entity."""
-    service = PlayerService(db)
-    players, _ = service.get_filtered(PlayerFilter(search=name), limit=10)
-    return players[0] if players else None
+def _get_entity_by_id(db: Session, model, entity_id: str | None):
+    """Get an entity by ID string, returning None if not found or invalid."""
+    uuid = _parse_uuid(entity_id)
+    if uuid is None:
+        return None
+    return db.get(model, uuid)
 
 
 def _resolve_season(
     db: Session,
-    season_name: str | None = None,
-    league_id=None,
+    season_id: str | None = None,
+    league_id: str | None = None,
 ) -> Season | None:
-    """Resolve a season by name or get current season."""
+    """Resolve a season by ID or get current season for a league."""
     season_service = SeasonService(db)
 
-    if season_name:
-        stmt = select(Season).where(Season.name.ilike(f"%{season_name}%"))
-        if league_id:
-            stmt = stmt.where(Season.league_id == league_id)
-        return db.scalars(stmt).first()
+    if season_id:
+        return _get_entity_by_id(db, Season, season_id)
 
-    return season_service.get_current(league_id)
+    league_uuid = _parse_uuid(league_id)
+    return season_service.get_current(league_uuid)
 
 
 # =============================================================================
@@ -191,6 +192,140 @@ def _truncate_response(response: str, shown: int, total: int) -> str:
         f"~{token_estimate} tokens, {shown}/{total} rows"
     )
     return response
+
+
+# =============================================================================
+# Lineup Mode Helpers
+# =============================================================================
+
+
+def _validate_lineup_params(
+    discover_lineups: bool,
+    lineup_size: int,
+    min_minutes: float,
+    player_ids: list[str] | None,
+    team_id: str | None,
+) -> str | None:
+    """Validate lineup discovery parameters. Returns error message or None."""
+    if discover_lineups:
+        if not team_id and not player_ids:
+            return "Error: 'discover_lineups' requires 'team_id' to be specified."
+        if not (2 <= lineup_size <= 5):
+            return "Error: 'lineup_size' must be between 2 and 5."
+        if min_minutes < 0:
+            return "Error: 'min_minutes' must be non-negative."
+    return None
+
+
+def _validate_leaderboard_params(
+    order_by: str | None,
+    order: str,
+    min_games: int,
+) -> str | None:
+    """Validate leaderboard parameters. Returns error message or None."""
+    valid_order_by = {
+        "points",
+        "rebounds",
+        "assists",
+        "steals",
+        "blocks",
+        "fg_pct",
+        "three_pct",
+        "ft_pct",
+        "plus_minus",
+        "minutes",
+    }
+    if order_by and order_by not in valid_order_by:
+        return f"Error: 'order_by' must be one of: {', '.join(sorted(valid_order_by))}."
+    if order not in ("asc", "desc"):
+        return "Error: 'order' must be 'asc' or 'desc'."
+    if min_games < 1:
+        return "Error: 'min_games' must be at least 1."
+    return None
+
+
+def _format_lineup_stats(
+    lineup_stats: dict,
+    player_names: list[str],
+    season_name: str,
+) -> str:
+    """Format lineup stats as markdown."""
+    lines = [
+        f"## Lineup Stats - {season_name}",
+        f"**Players:** {', '.join(player_names)}",
+        "",
+    ]
+
+    games = lineup_stats.get("games", 0)
+    if games == 0:
+        return f"No games found where {', '.join(player_names)} played together."
+
+    minutes = lineup_stats.get("minutes", 0)
+    team_pts = lineup_stats.get("team_pts", 0)
+    opp_pts = lineup_stats.get("opp_pts", 0)
+    plus_minus = lineup_stats.get("plus_minus", 0)
+
+    lines.extend(
+        [
+            "| Stat | Value |",
+            "|------|-------|",
+            f"| Games Together | {games} |",
+            f"| Minutes Together | {minutes:.1f} |",
+            f"| Team Points | {team_pts} |",
+            f"| Opponent Points | {opp_pts} |",
+            f"| Plus/Minus | {plus_minus:+d} |",
+        ]
+    )
+
+    if minutes > 0:
+        per_minute_pm = plus_minus / minutes
+        lines.append(f"| +/- Per Minute | {per_minute_pm:+.2f} |")
+
+    return "\n".join(lines)
+
+
+def _format_best_lineups(
+    lineups: list[dict],
+    db: "Session",
+    team_name: str,
+    season_name: str,
+    lineup_size: int,
+) -> str:
+    """Format best lineups as markdown table."""
+    from src.models.player import Player
+
+    if not lineups:
+        return f"No lineups found for {team_name} with sufficient minutes."
+
+    lines = [
+        f"## Best {lineup_size}-Player Lineups - {team_name}",
+        f"*{season_name}*",
+        "",
+        "| Lineup | MIN | +/- | Team Pts | Opp Pts |",
+        "|--------|-----|-----|----------|---------|",
+    ]
+
+    for lineup in lineups[:10]:  # Limit to top 10
+        # Get player names
+        player_names = []
+        for pid in lineup["player_ids"]:
+            player = db.get(Player, pid)
+            if player:
+                player_names.append(f"{player.first_name[0]}. {player.last_name}")
+            else:
+                player_names.append("Unknown")
+
+        lineup_str = ", ".join(player_names)
+        minutes = lineup.get("minutes", 0)
+        plus_minus = lineup.get("plus_minus", 0)
+        team_pts = lineup.get("team_pts", 0)
+        opp_pts = lineup.get("opp_pts", 0)
+
+        lines.append(
+            f"| {lineup_str} | {minutes:.1f} | {plus_minus:+d} | {team_pts} | {opp_pts} |"
+        )
+
+    return "\n".join(lines)
 
 
 # =============================================================================
@@ -792,10 +927,10 @@ def _query_league_stats(
 
 @tool
 def query_stats(
-    league_name: str | None = None,
-    season: str | None = None,
-    team_name: str | None = None,
-    player_names: list[str] | None = None,
+    league_id: str | None = None,
+    season_id: str | None = None,
+    team_id: str | None = None,
+    player_ids: list[str] | None = None,
     metrics: list[str] | None = None,
     limit: int = 10,
     per: str = "game",
@@ -808,21 +943,40 @@ def query_stats(
     # Location filters
     home_only: bool = False,
     away_only: bool = False,
-    opponent_team: str | None = None,
+    opponent_team_id: str | None = None,
+    # Lineup mode
+    discover_lineups: bool = False,
+    lineup_size: int = 5,
+    min_minutes: float = 10.0,
+    # Leaderboard mode
+    order_by: str | None = None,
+    order: str = "desc",
+    min_games: int = 5,
     db: Session | None = None,
 ) -> str:
     """
     Universal stats query tool for flexible basketball analytics.
 
     Use this tool for complex queries combining filters and metrics.
-    Supports querying by league, season, team, or specific players.
+    Supports querying by league, season, team, or specific players using IDs.
     Time-based and location filters allow analysis of specific game situations.
 
+    IMPORTANT: This tool requires entity IDs, not names. Use the search tools
+    (search_players, search_teams, search_leagues) to find IDs first.
+
+    Additional modes:
+    - Lineup mode: When player_ids has 2+ players, returns stats when ALL
+      players are on court together (time shared, +/-).
+    - Lineup discovery: With discover_lineups=True, finds best performing
+      lineups for a team.
+    - Leaderboard mode: With order_by specified (and no specific entity),
+      returns ranked player leaders.
+
     Args:
-        league_name: Filter by league (e.g., "Israeli", "Winner League").
-        season: Filter by season (e.g., "2024-25"). Defaults to current.
-        team_name: Filter by team (e.g., "Maccabi Tel-Aviv").
-        player_names: Specific player(s) to query.
+        league_id: UUID of the league to filter by.
+        season_id: UUID of the season. Defaults to current season.
+        team_id: UUID of the team to query.
+        player_ids: List of player UUIDs. If 2+ players, returns lineup stats.
         metrics: Stats to return. Options: points, rebounds, assists,
             steals, blocks, turnovers, fg_pct, three_pct, ft_pct,
             plus_minus, minutes, games. Defaults to basic stats.
@@ -836,21 +990,24 @@ def query_stats(
         last_n_games: Limit to most recent N games.
         home_only: Only include home games. Mutually exclusive with away_only.
         away_only: Only include away games. Mutually exclusive with home_only.
-        opponent_team: Only include games against this team (by name).
+        opponent_team_id: UUID of opponent team to filter games against.
+        discover_lineups: Find best performing lineups for the team.
+        lineup_size: Size of lineups to discover (2-5). Default 5.
+        min_minutes: Minimum minutes threshold for lineup discovery. Default 10.0.
+        order_by: Metric to sort by for leaderboard (points, rebounds, etc.).
+        order: Sort direction for leaderboard ("asc" or "desc"). Default "desc".
+        min_games: Minimum games to qualify for leaderboard. Default 5.
         db: Database session (injected at runtime).
 
     Returns:
         Markdown-formatted stats table. Truncated if too large.
 
-    Example queries:
-        - "Get Maccabi's stats this season"
-        - "Jimmy Clark's 4th quarter scoring" -> quarter=4
-        - "First half shooting %" -> quarters=[1,2]
-        - "Clutch performance" -> clutch_only=True
-        - "Last 5 games trend" -> last_n_games=5
-        - "Home vs away split" -> home_only=True / away_only=True
-        - "Stats against Hapoel Jerusalem" -> opponent_team="Hapoel Jerusalem"
-        - "Home clutch stats" -> home_only=True, clutch_only=True
+    Example usage (after getting IDs from search tools):
+        - Player stats: player_ids=["uuid-1"]
+        - Team stats: team_id="uuid-2"
+        - Lineup stats: player_ids=["uuid-1", "uuid-2"]
+        - Leaderboard: order_by="points", min_games=10
+        - With filters: player_ids=["uuid-1"], quarter=4, clutch_only=True
     """
     if db is None:
         return "Error: Database session not provided."
@@ -865,47 +1022,58 @@ def query_stats(
     if location_error:
         return location_error
 
+    # Validate lineup params
+    lineup_error = _validate_lineup_params(
+        discover_lineups, lineup_size, min_minutes, player_ids, team_id
+    )
+    if lineup_error:
+        return lineup_error
+
+    # Validate leaderboard params
+    leaderboard_error = _validate_leaderboard_params(order_by, order, min_games)
+    if leaderboard_error:
+        return leaderboard_error
+
     if metrics is None:
         metrics = ["points", "rebounds", "assists", "fg_pct"]
 
     limit = min(limit, MAX_RESPONSE_ROWS)
 
-    # Resolve league
+    # Resolve league by ID
     league = None
-    if league_name:
-        league = _resolve_league_by_name(db, league_name)
+    if league_id:
+        league = _get_entity_by_id(db, League, league_id)
         if not league:
-            return f"League '{league_name}' not found."
+            return f"Error: League with ID '{league_id}' not found."
 
-    # Resolve season
-    league_id = league.id if league else None
-    season_obj = _resolve_season(db, season, league_id)
+    # Resolve season by ID or get current
+    season_obj = _resolve_season(db, season_id, league_id)
     if not season_obj:
-        return "No season found. Please specify a season."
+        return "Error: No season found. Please specify a season_id."
 
-    # Resolve team
+    # Resolve team by ID
     team = None
-    if team_name:
-        team = _resolve_team_by_name(db, team_name)
+    if team_id:
+        team = _get_entity_by_id(db, Team, team_id)
         if not team:
-            return f"Team '{team_name}' not found."
+            return f"Error: Team with ID '{team_id}' not found."
 
-    # Resolve opponent team
+    # Resolve opponent team by ID
     opponent = None
-    if opponent_team:
-        opponent = _resolve_team_by_name(db, opponent_team)
+    if opponent_team_id:
+        opponent = _get_entity_by_id(db, Team, opponent_team_id)
         if not opponent:
-            return f"Opponent team '{opponent_team}' not found."
+            return f"Error: Opponent team with ID '{opponent_team_id}' not found."
 
-    # Resolve players
+    # Resolve players by IDs
     players: list[Player] = []
-    if player_names:
-        for name in player_names:
-            player = _resolve_player_by_name(db, name)
+    if player_ids:
+        for pid in player_ids:
+            player = _get_entity_by_id(db, Player, pid)
             if player:
                 players.append(player)
             else:
-                return f"Player '{name}' not found."
+                return f"Error: Player with ID '{pid}' not found."
 
     # Check if time or location filters are active
     time_filters_active = (
@@ -916,7 +1084,42 @@ def query_stats(
         home_only, away_only, opponent.id if opponent else None
     )
 
-    # Execute query based on mode
+    # Execute query based on mode (priority order)
+
+    # 1. Lineup discovery mode
+    if discover_lineups and team:
+        return _query_discover_lineups(
+            db=db,
+            team=team,
+            season=season_obj,
+            lineup_size=lineup_size,
+            min_minutes=min_minutes,
+            limit=limit,
+        )
+
+    # 2. Lineup mode (2+ players together)
+    if players and len(players) >= 2:
+        return _query_lineup_stats(
+            db=db,
+            players=players,
+            season=season_obj,
+        )
+
+    # 3. Leaderboard mode (order_by specified, no specific entity)
+    if order_by and not players and not team:
+        return _query_leaderboard(
+            db=db,
+            league=league,
+            season=season_obj,
+            order_by=order_by,
+            order=order,
+            min_games=min_games,
+            metrics=metrics,
+            per=per,
+            limit=limit,
+        )
+
+    # 4. Time/location filters
     if time_filters_active or location_filters_active:
         return _query_with_time_filters(
             db=db,
@@ -936,10 +1139,16 @@ def query_stats(
             opponent_team_id=opponent.id if opponent else None,
             opponent_name=opponent.name if opponent else None,
         )
+
+    # 5. Player stats
     elif players:
         return _query_player_stats(db, players, season_obj, metrics, per, limit)
+
+    # 6. Team stats
     elif team:
         return _query_team_stats(db, team, season_obj, metrics, per, limit)
+
+    # 7. League stats (default)
     else:
         return _query_league_stats(db, league, season_obj, metrics, per, limit)
 
@@ -1113,6 +1322,6 @@ def _query_with_time_filters(
         # League-wide query with filters is not supported (too expensive)
         return (
             "Error: Time filters (quarter, clutch, etc.) and location filters "
-            "(home_only, away_only, opponent_team) require specifying a player or team. "
+            "(home_only, away_only, opponent_team_id) require specifying player_ids or team_id."
             "League-wide filtered queries are not supported."
         )

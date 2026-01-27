@@ -280,17 +280,22 @@ class TestGetVsOpponent:
 
 
 class TestQueryStats:
-    """Tests for query_stats universal tool."""
+    """Tests for query_stats universal tool (uses IDs, not names)."""
 
     def test_team_stats(self, real_db: Session):
-        """Test querying team stats."""
+        """Test querying team stats by ID."""
+        from src.models.team import Team
         from src.services.query_stats import query_stats
 
-        result = query_stats.invoke({"team_name": "Maccabi", "limit": 5, "db": real_db})
-        assert "Maccabi" in result or "not found" in result
+        team = real_db.query(Team).filter(Team.name.ilike("%Maccabi%")).first()
+        if not team:
+            pytest.skip("No Maccabi team in database")
+
+        result = query_stats.invoke({"team_id": str(team.id), "limit": 5, "db": real_db})
+        assert "Maccabi" in result or "No stats" in result
 
     def test_player_stats(self, real_db: Session):
-        """Test querying specific player stats."""
+        """Test querying specific player stats by ID."""
         from src.models.player import Player
         from src.services.query_stats import query_stats
 
@@ -298,8 +303,8 @@ class TestQueryStats:
         if not player:
             pytest.skip("No players in database")
 
-        result = query_stats.invoke({"player_names": [player.last_name], "db": real_db})
-        assert "Player Stats" in result or "not found" in result or "No stats" in result
+        result = query_stats.invoke({"player_ids": [str(player.id)], "db": real_db})
+        assert "Player Stats" in result or "No stats" in result
 
     def test_league_leaders(self, real_db: Session):
         """Test league leaders / leaderboard mode."""
@@ -312,27 +317,37 @@ class TestQueryStats:
 
     def test_custom_metrics(self, real_db: Session):
         """Test with custom metrics selection."""
+        from src.models.team import Team
         from src.services.query_stats import query_stats
+
+        team = real_db.query(Team).filter(Team.name.ilike("%Maccabi%")).first()
+        if not team:
+            pytest.skip("No Maccabi team in database")
 
         result = query_stats.invoke(
             {
-                "team_name": "Maccabi",
+                "team_id": str(team.id),
                 "metrics": ["points", "fg_pct", "three_pct"],
                 "limit": 3,
                 "db": real_db,
             }
         )
-        assert "FG%" in result or "not found" in result
+        assert "FG%" in result or "No stats" in result
 
     def test_per_total(self, real_db: Session):
         """Test total stats instead of per-game averages."""
+        from src.models.team import Team
         from src.services.query_stats import query_stats
 
+        team = real_db.query(Team).filter(Team.name.ilike("%Maccabi%")).first()
+        if not team:
+            pytest.skip("No Maccabi team in database")
+
         result = query_stats.invoke(
-            {"team_name": "Maccabi", "per": "total", "limit": 3, "db": real_db}
+            {"team_id": str(team.id), "per": "total", "limit": 3, "db": real_db}
         )
         # Totals should be larger integers
-        assert "Maccabi" in result or "not found" in result
+        assert "Maccabi" in result or "No stats" in result
 
     def test_response_size_limit(self, real_db: Session):
         """Test that response is truncated appropriately."""
@@ -351,35 +366,46 @@ class TestQueryStats:
         assert len(lines) <= 22
 
     def test_league_filter(self, real_db: Session):
-        """Test filtering by league name."""
+        """Test filtering by league ID."""
+        from src.models.league import League
         from src.services.query_stats import query_stats
 
+        league = real_db.query(League).filter(League.name.ilike("%Winner%")).first()
+        if not league:
+            pytest.skip("No Winner league in database")
+
         result = query_stats.invoke(
-            {"league_name": "Winner", "limit": 5, "db": real_db}
+            {"league_id": str(league.id), "limit": 5, "db": real_db}
         )
         assert isinstance(result, str)
 
     def test_season_filter(self, real_db: Session):
-        """Test filtering by season."""
+        """Test filtering by season ID."""
+        from src.models.league import Season
         from src.services.query_stats import query_stats
 
-        result = query_stats.invoke({"season": "2025", "limit": 5, "db": real_db})
+        season = real_db.query(Season).filter(Season.name.ilike("%2024%")).first()
+        if not season:
+            pytest.skip("No 2024 season in database")
+
+        result = query_stats.invoke({"season_id": str(season.id), "limit": 5, "db": real_db})
         assert isinstance(result, str)
 
     def test_not_found_errors(self, real_db: Session):
-        """Test error handling for non-existent entities."""
+        """Test error handling for non-existent entity IDs."""
         from src.services.query_stats import query_stats
 
-        # Non-existent team
-        result = query_stats.invoke({"team_name": "XXXNONEXISTENT", "db": real_db})
+        # Non-existent team (valid UUID format but doesn't exist)
+        fake_uuid = "00000000-0000-0000-0000-000000000000"
+        result = query_stats.invoke({"team_id": fake_uuid, "db": real_db})
         assert "not found" in result
 
         # Non-existent player
-        result = query_stats.invoke({"player_names": ["XXXNONEXISTENT"], "db": real_db})
+        result = query_stats.invoke({"player_ids": [fake_uuid], "db": real_db})
         assert "not found" in result
 
         # Non-existent league
-        result = query_stats.invoke({"league_name": "XXXNONEXISTENT", "db": real_db})
+        result = query_stats.invoke({"league_id": fake_uuid, "db": real_db})
         assert "not found" in result
 
     def test_time_filter_validation(self, real_db: Session):
@@ -404,12 +430,11 @@ class TestQueryStats:
         if not stat:
             pytest.skip("No player game stats")
 
-        name = f"{stat.player.first_name} {stat.player.last_name}"
         result = query_stats.invoke(
-            {"player_names": [name], "quarter": 4, "db": real_db}
+            {"player_ids": [str(stat.player_id)], "quarter": 4, "db": real_db}
         )
         # Should have Q4 in header and return stats or no stats message
-        assert "Q4" in result or "No stats" in result or "not found" in result
+        assert "Q4" in result or "No stats" in result
 
     def test_last_n_games_player(self, real_db: Session):
         """Test last_n_games filter for a player."""
@@ -420,38 +445,52 @@ class TestQueryStats:
         if not stat:
             pytest.skip("No player game stats")
 
-        name = f"{stat.player.first_name} {stat.player.last_name}"
         result = query_stats.invoke(
-            {"player_names": [name], "last_n_games": 3, "db": real_db}
+            {"player_ids": [str(stat.player_id)], "last_n_games": 3, "db": real_db}
         )
-        assert "Last 3 Games" in result or "No stats" in result or "not found" in result
+        assert "Last 3 Games" in result or "No stats" in result
 
     def test_quarter_filter_team(self, real_db: Session):
         """Test quarter filter for a team."""
+        from src.models.team import Team
         from src.services.query_stats import query_stats
 
+        team = real_db.query(Team).filter(Team.name.ilike("%Maccabi%Tel%")).first()
+        if not team:
+            pytest.skip("No Maccabi Tel-Aviv team in database")
+
         result = query_stats.invoke(
-            {"team_name": "Maccabi Tel-Aviv", "quarter": 4, "db": real_db}
+            {"team_id": str(team.id), "quarter": 4, "db": real_db}
         )
-        assert "Q4" in result or "No stats" in result or "not found" in result
+        assert "Q4" in result or "No stats" in result or "No games" in result
 
     def test_clutch_filter_team(self, real_db: Session):
         """Test clutch_only filter for a team."""
+        from src.models.team import Team
         from src.services.query_stats import query_stats
 
+        team = real_db.query(Team).filter(Team.name.ilike("%Maccabi%Tel%")).first()
+        if not team:
+            pytest.skip("No Maccabi Tel-Aviv team in database")
+
         result = query_stats.invoke(
-            {"team_name": "Maccabi Tel-Aviv", "clutch_only": True, "db": real_db}
+            {"team_id": str(team.id), "clutch_only": True, "db": real_db}
         )
-        assert "Clutch" in result or "No stats" in result or "not found" in result
+        assert "Clutch" in result or "No stats" in result or "No games" in result
 
     def test_first_half_filter(self, real_db: Session):
         """Test quarters filter for first half."""
+        from src.models.team import Team
         from src.services.query_stats import query_stats
 
+        team = real_db.query(Team).filter(Team.name.ilike("%Maccabi%Tel%")).first()
+        if not team:
+            pytest.skip("No Maccabi Tel-Aviv team in database")
+
         result = query_stats.invoke(
-            {"team_name": "Maccabi Tel-Aviv", "quarters": [1, 2], "db": real_db}
+            {"team_id": str(team.id), "quarters": [1, 2], "db": real_db}
         )
-        assert "1st Half" in result or "No stats" in result or "not found" in result
+        assert "1st Half" in result or "No stats" in result or "No games" in result
 
     def test_time_filter_requires_entity(self, real_db: Session):
         """Test that time filters require player or team."""
