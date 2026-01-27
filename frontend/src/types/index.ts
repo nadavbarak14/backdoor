@@ -198,6 +198,35 @@ export interface Game {
   external_ids: Record<string, string>;
   created_at: string;
   updated_at: string;
+  // Box score data (included in game detail response)
+  home_players?: PlayerGameStats[];
+  away_players?: PlayerGameStats[];
+  home_team_stats?: TeamStats;
+  away_team_stats?: TeamStats;
+}
+
+export interface TeamStats {
+  team_id: string;
+  team_name: string;
+  is_home: boolean;
+  points: number;
+  field_goals_made: number;
+  field_goals_attempted: number;
+  field_goal_pct: number;
+  three_pointers_made: number;
+  three_pointers_attempted: number;
+  three_point_pct: number;
+  free_throws_made: number;
+  free_throws_attempted: number;
+  free_throw_pct: number;
+  offensive_rebounds: number;
+  defensive_rebounds: number;
+  total_rebounds: number;
+  assists: number;
+  turnovers: number;
+  steals: number;
+  blocks: number;
+  personal_fouls: number;
 }
 
 export interface GameBoxScore {
