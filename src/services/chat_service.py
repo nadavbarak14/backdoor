@@ -23,11 +23,14 @@ Usage:
 """
 
 import inspect
+import logging
 from collections.abc import AsyncGenerator
 from functools import wraps
 from typing import Any
 
 from langchain_core.chat_history import InMemoryChatMessageHistory
+
+logger = logging.getLogger(__name__)
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -377,6 +380,18 @@ class ChatService:
 
             for iteration in range(max_tool_iterations):
                 try:
+                    # Log context size before LLM call
+                    total_chars = sum(
+                        len(m.content) if isinstance(m.content, str) else 0
+                        for m in full_messages
+                    )
+                    token_estimate = total_chars // 4
+                    logger.info(
+                        f"[LLM_CONTEXT] session={session_id} iteration={iteration} "
+                        f"messages={len(full_messages)} chars={total_chars} "
+                        f"~tokens={token_estimate}"
+                    )
+
                     # Stream response and collect chunks for tool call aggregation
                     collected_chunks: list[Any] = []
 
@@ -421,6 +436,14 @@ class ChatService:
 
                         # Execute the tool
                         result = self._execute_tool(tool_name, tool_args, tools)
+
+                        # Log tool result size
+                        result_chars = len(result)
+                        result_tokens = result_chars // 4
+                        logger.info(
+                            f"[TOOL_RESULT] {tool_name}: {result_chars} chars "
+                            f"~{result_tokens} tokens args={tool_args}"
+                        )
 
                         # Add tool result to messages
                         tool_message = ToolMessage(

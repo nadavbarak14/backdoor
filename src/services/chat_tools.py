@@ -19,6 +19,8 @@ The tools are designed to be used with LangChain agents for natural language
 basketball analytics queries.
 """
 
+import json
+import logging
 from uuid import UUID
 
 from langchain_core.tools import tool
@@ -38,6 +40,24 @@ from src.services.player_stats import PlayerSeasonStatsService
 from src.services.query_stats import query_stats
 from src.services.stats import PlayerGameStatsService
 from src.services.team import TeamService
+
+# Response size limits to prevent context blowup
+MAX_ROWS = 30  # Hard limit for any tool response
+
+logger = logging.getLogger(__name__)
+
+
+def _log_response(tool_name: str, response: str) -> str:
+    """Log tool response size for debugging token usage."""
+    char_count = len(response)
+    line_count = response.count("\n") + 1
+    # Rough token estimate: ~4 chars per token
+    token_estimate = char_count // 4
+    logger.info(
+        f"[TOOL_RESPONSE] {tool_name}: {char_count} chars, "
+        f"{line_count} lines, ~{token_estimate} tokens"
+    )
+    return response
 
 # =============================================================================
 # Helper Functions for Name Resolution
@@ -200,6 +220,8 @@ def search_players(
         if team:
             filter_params.team_id = team.id
 
+    # Enforce hard limit
+    limit = min(limit, MAX_ROWS)
     players, total = service.get_filtered(filter_params, limit=limit)
 
     if not players:
@@ -219,7 +241,7 @@ def search_players(
         lines.append(f"  - Team: {current_team}")
         lines.append("")
 
-    return "\n".join(lines)
+    return _log_response("search_players", "\n".join(lines))
 
 
 @tool
@@ -255,6 +277,8 @@ def search_teams(
     service = TeamService(db)
     filter_params = TeamFilter(search=query, country=country)
 
+    # Enforce hard limit
+    limit = min(limit, MAX_ROWS)
     teams, total = service.get_filtered(filter_params, limit=limit)
 
     if not teams:
@@ -268,7 +292,7 @@ def search_teams(
         lines.append(f"  - Country: {team.country or 'N/A'}")
         lines.append("")
 
-    return "\n".join(lines)
+    return _log_response("search_teams", "\n".join(lines))
 
 
 @tool
@@ -315,6 +339,10 @@ def get_team_roster(
     if not roster:
         return f"No roster found for {team.name} in {season_obj.name}."
 
+    # Apply hard limit
+    total_count = len(roster)
+    roster = roster[:MAX_ROWS]
+
     lines = [
         f"## {team.name} Roster",
         f"Season: {season_obj.name}",
@@ -331,9 +359,12 @@ def get_team_roster(
         lines.append(f"| {jersey} | {name} | {position} |")
 
     lines.append("")
-    lines.append(f"*Total: {len(roster)} players*")
+    if len(roster) < total_count:
+        lines.append(f"*Showing {len(roster)} of {total_count} players*")
+    else:
+        lines.append(f"*Total: {total_count} players*")
 
-    return "\n".join(lines)
+    return _log_response("get_team_roster", "\n".join(lines))
 
 
 @tool
@@ -444,7 +475,7 @@ def get_game_details(
             )
             lines.append(f"- {name}: {stat_line}")
 
-    return "\n".join(lines)
+    return _log_response("get_game_details", "\n".join(lines))
 
 
 # =============================================================================
@@ -532,7 +563,7 @@ def get_player_stats(
         lines.append("")
         lines.append(f"*Note: Player was on {len(stats_list)} teams this season.*")
 
-    return "\n".join(lines)
+    return _log_response("get_player_stats", "\n".join(lines))
 
 
 @tool
@@ -616,7 +647,7 @@ def get_player_games(
     lines.append("")
     lines.append(f"*Showing {len(game_log)} of {total} games*")
 
-    return "\n".join(lines)
+    return _log_response("get_player_games", "\n".join(lines))
 
 
 @tool
@@ -676,6 +707,8 @@ def get_league_leaders(
 
     display_name = category_display.get(category, category.replace("_", " ").title())
 
+    # Enforce hard limit
+    limit = min(limit, MAX_ROWS)
     service = PlayerSeasonStatsService(db)
 
     try:
@@ -724,7 +757,7 @@ def get_league_leaders(
 
         lines.append(f"| {i} | {name} | {team} | {value_str} |")
 
-    return "\n".join(lines)
+    return _log_response("get_league_leaders", "\n".join(lines))
 
 
 # =============================================================================
@@ -855,7 +888,7 @@ def get_clutch_stats(
         ]
     )
 
-    return "\n".join(lines)
+    return _log_response("get_clutch_stats", "\n".join(lines))
 
 
 @tool
@@ -976,7 +1009,7 @@ def get_quarter_splits(
             f"**Weakest quarter:** {worst_q} ({splits[worst_q].points:.1f} PPG)"
         )
 
-    return "\n".join(lines)
+    return _log_response("get_quarter_splits", "\n".join(lines))
 
 
 @tool
@@ -1092,7 +1125,7 @@ def get_trend(
         value_str = f"{value * 100:.1f}%" if is_pct_stat else f"{value:.1f}"
         lines.append(f"- {game}: {value_str}")
 
-    return "\n".join(lines)
+    return _log_response("get_trend", "\n".join(lines))
 
 
 @tool
@@ -1172,7 +1205,7 @@ def get_lineup_stats(
         pts_per_min = stats["team_pts"] / stats["minutes"]
         lines.append(f"- Points/Minute: {pts_per_min:.2f}")
 
-    return "\n".join(lines)
+    return _log_response("get_lineup_stats", "\n".join(lines))
 
 
 @tool
@@ -1264,7 +1297,7 @@ def get_home_away_split(
     else:
         lines.append(f"➡️ {name} performs **consistently** regardless of location")
 
-    return "\n".join(lines)
+    return _log_response("get_home_away_split", "\n".join(lines))
 
 
 @tool
@@ -1352,7 +1385,7 @@ def get_on_off_stats(
     else:
         lines.append(f"➡️ {name}'s on/off impact is **neutral**")
 
-    return "\n".join(lines)
+    return _log_response("get_on_off_stats", "\n".join(lines))
 
 
 @tool
@@ -1464,7 +1497,7 @@ def get_vs_opponent(
         )
         lines.append(f"- {date_str}: {stat_line}")
 
-    return "\n".join(lines)
+    return _log_response("get_vs_opponent", "\n".join(lines))
 
 
 # =============================================================================

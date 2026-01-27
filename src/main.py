@@ -18,7 +18,18 @@ Endpoints:
     - /api/v1/* - API version 1 endpoints
 """
 
+import logging
+
 from fastapi import FastAPI
+
+# Configure logging for token debugging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+)
+# Set our service loggers to INFO
+logging.getLogger("src.services.chat_service").setLevel(logging.INFO)
+logging.getLogger("src.services.chat_tools").setLevel(logging.INFO)
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.v1.router import router as api_v1_router

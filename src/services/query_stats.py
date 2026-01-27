@@ -38,6 +38,8 @@ Usage:
     })
 """
 
+import logging
+
 from langchain_core.tools import tool
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
@@ -59,6 +61,8 @@ from src.services.team import TeamService
 # Response size constants to prevent context blowup
 MAX_RESPONSE_ROWS = 20
 MAX_RESPONSE_CHARS = 2500
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -178,6 +182,14 @@ def _truncate_response(response: str, shown: int, total: int) -> str:
             response += "\n\n*... truncated. Showing partial results.*"
     elif shown < total:
         response += f"\n\n*Showing {shown} of {total} results.*"
+
+    # Log response size for debugging
+    char_count = len(response)
+    token_estimate = char_count // 4
+    logger.info(
+        f"[TOOL_RESPONSE] query_stats: {char_count} chars, "
+        f"~{token_estimate} tokens, {shown}/{total} rows"
+    )
     return response
 
 
