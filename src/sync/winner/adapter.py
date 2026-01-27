@@ -124,6 +124,7 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
             else:
                 # Default to current year
                 from datetime import date
+
                 year = date.today().year
                 self._current_season_id = f"{year}-{str(year + 1)[-2:]}"
         return self._current_season_id
@@ -155,6 +156,7 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
             return start_year + 1
         except (ValueError, IndexError):
             from datetime import date
+
             return date.today().year
 
     def _get_games_data(self, force: bool = False) -> dict:
@@ -341,12 +343,18 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
                     away_team_info = game_info.get("awayTeam", {})
 
                     # Cache team info for later use in get_teams
-                    if home_team_id and home_team_id not in self._historical_teams_cache:
+                    if (
+                        home_team_id
+                        and home_team_id not in self._historical_teams_cache
+                    ):
                         self._historical_teams_cache[home_team_id] = RawTeam(
                             external_id=home_team_id,
                             name=home_team_info.get("name", f"Team {home_team_id}"),
                         )
-                    if away_team_id and away_team_id not in self._historical_teams_cache:
+                    if (
+                        away_team_id
+                        and away_team_id not in self._historical_teams_cache
+                    ):
                         self._historical_teams_cache[away_team_id] = RawTeam(
                             external_id=away_team_id,
                             name=away_team_info.get("name", f"Team {away_team_id}"),

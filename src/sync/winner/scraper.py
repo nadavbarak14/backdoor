@@ -898,7 +898,7 @@ class WinnerScraper:
         import re
 
         # Look for game_id parameter in segevstats URLs
-        match = re.search(r'game_id=(\d+)', html)
+        match = re.search(r"game_id=(\d+)", html)
         if match:
             return match.group(1)
         return None
