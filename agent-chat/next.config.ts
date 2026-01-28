@@ -8,16 +8,9 @@ const nextConfig: NextConfig = {
     "http://46.225.22.208",
   ],
 
-  async rewrites() {
-    return [
-      {
-        // Rewrite non-streaming API requests to backend
-        // Note: /api/v1/chat/stream is handled by route handler, not this rewrite
-        source: "/api/:path*",
-        destination: "http://localhost:9000/api/:path*",
-      },
-    ];
-  },
+  // Note: API routes are handled by Next.js route handlers in app/api/
+  // which proxy to the backend and transform responses as needed.
+  // No rewrites needed since all routes have explicit handlers.
 };
 
 export default nextConfig;

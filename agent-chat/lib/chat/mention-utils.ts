@@ -14,18 +14,20 @@ import type { Mention, MentionEntity } from "./types";
  *
  * @param text - Full input text
  * @param cursorPosition - Current cursor position
+ * @param existingMentions - Already completed mentions to exclude
  * @returns The mention query (text after @) or null
  *
  * @example
  * ```ts
- * detectMentionTrigger("Hello @ste", 10) // "ste"
- * detectMentionTrigger("Hello @stephen curry is", 16) // "stephen curry"
- * detectMentionTrigger("Hello world", 5) // null
+ * detectMentionTrigger("Hello @ste", 10, []) // "ste"
+ * detectMentionTrigger("Hello @stephen curry is", 16, []) // "stephen curry"
+ * detectMentionTrigger("Hello world", 5, []) // null
  * ```
  */
 export function detectMentionTrigger(
   text: string,
-  cursorPosition: number
+  cursorPosition: number,
+  existingMentions: Mention[] = []
 ): string | null {
   // Look backwards from cursor for @
   const textBeforeCursor = text.slice(0, cursorPosition);
@@ -42,12 +44,32 @@ export function detectMentionTrigger(
     return null;
   }
 
+  // Check if this @ is the start of an existing completed mention
+  for (const mention of existingMentions) {
+    if (mention.startIndex === lastAtIndex) {
+      // This @ is part of a completed mention
+      // Only trigger if cursor is inside the mention text (editing it)
+      // If cursor is after the mention, don't trigger
+      if (cursorPosition > mention.endIndex) {
+        return null;
+      }
+    }
+  }
+
   // Extract query (text between @ and cursor)
   const query = textBeforeCursor.slice(lastAtIndex + 1);
 
   // If query contains certain characters, it's not a mention trigger
   if (query.includes("@") || query.includes("\n")) {
     return null;
+  }
+
+  // If query ends with space and matches a completed mention, don't trigger
+  // This handles the case right after inserting a mention
+  for (const mention of existingMentions) {
+    if (query.trim() === mention.displayName) {
+      return null;
+    }
   }
 
   return query;
@@ -135,19 +157,14 @@ export function transformForSend(text: string, mentions: Mention[]): string {
     return text;
   }
 
-  // Sort mentions by startIndex in descending order to replace from end
-  const sortedMentions = [...mentions].sort(
-    (a, b) => b.startIndex - a.startIndex
-  );
-
   let result = text;
 
-  for (const mention of sortedMentions) {
-    const before = result.slice(0, mention.startIndex);
-    const after = result.slice(mention.endIndex);
+  // Replace each @DisplayName with @type:id using string matching
+  // This is more robust than using indices which can get out of sync
+  for (const mention of mentions) {
+    const mentionText = `@${mention.displayName}`;
     const replacement = `@${mention.type}:${mention.id}`;
-
-    result = before + replacement + after;
+    result = result.replace(mentionText, replacement);
   }
 
   return result;
