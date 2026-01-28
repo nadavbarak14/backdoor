@@ -16,7 +16,7 @@ import type {
   BrowseResponse,
   EntityType,
 } from "@/lib/chat/types";
-import { API_URL } from "@/lib/chat/constants";
+import { BACKEND_BACKEND_API_URL } from "@/lib/chat/constants";
 
 /** Navigation path entry */
 interface NavigationEntry {
@@ -87,16 +87,16 @@ export function useBrowse(): UseBrowseResult {
 
       if (lastEntry.type === "root") {
         // Fetch leagues (root level)
-        url = `${API_URL}/api/v1/browse/leagues`;
+        url = `${BACKEND_API_URL}/api/v1/browse/leagues`;
       } else if (lastEntry.type === "league") {
         // Fetch seasons for this league
-        url = `${API_URL}/api/v1/browse/leagues/${lastEntry.id}/seasons`;
+        url = `${BACKEND_API_URL}/api/v1/browse/leagues/${lastEntry.id}/seasons`;
       } else if (lastEntry.type === "season") {
         // Fetch teams for this season
-        url = `${API_URL}/api/v1/browse/seasons/${lastEntry.id}/teams`;
+        url = `${BACKEND_API_URL}/api/v1/browse/seasons/${lastEntry.id}/teams`;
       } else if (lastEntry.type === "team") {
         // Fetch players for this team
-        url = `${API_URL}/api/v1/browse/teams/${lastEntry.id}/players`;
+        url = `${BACKEND_API_URL}/api/v1/browse/teams/${lastEntry.id}/players`;
       } else {
         // Player is a leaf node, no children
         setItems([]);

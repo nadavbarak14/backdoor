@@ -50,6 +50,13 @@ export const SIMULATED_AI_RESPONSE =
 
 /**
  * Backend API URL for chat streaming endpoint.
- * Defaults to localhost:8000 for local development.
+ * Uses the Next.js proxy for chat (empty means relative URL).
  */
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+
+/**
+ * Direct backend API URL for search/browse endpoints.
+ * These don't go through the Next.js proxy.
+ */
+export const BACKEND_API_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:9000";
