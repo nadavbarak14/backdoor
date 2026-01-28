@@ -1597,7 +1597,7 @@ class TestValidationErrors:
     def test_no_db_session_errors(self):
         """Missing db session should return error."""
         result = query_stats.invoke({})
-        assert "Error" in result
+        assert "error" in result
         assert "Database session" in result
 
     def test_nonexistent_player_id(self, real_db: Session):
@@ -1628,22 +1628,22 @@ class TestValidationErrors:
         """Quarter must be 1-4."""
         for invalid_q in [0, 5, -1]:
             result = query_stats.invoke({"quarter": invalid_q, "db": real_db})
-            assert "Error" in result, f"Quarter {invalid_q} should be invalid"
+            assert "error" in result, f"Quarter {invalid_q} should be invalid"
 
     def test_invalid_order_by_metric(self, real_db: Session):
         """Invalid order_by should return error."""
         result = query_stats.invoke({"order_by": "invalid_metric", "db": real_db})
-        assert "Error" in result
+        assert "error" in result
 
     def test_invalid_shot_type(self, real_db: Session):
         """Invalid shot type should return error."""
         result = query_stats.invoke({"shot_type": "INVALID", "db": real_db})
-        assert "Error" in result
+        assert "error" in result
 
     def test_negative_min_rest_days(self, real_db: Session):
         """Negative min_rest_days should return error."""
         result = query_stats.invoke({"min_rest_days": -1, "db": real_db})
-        assert "Error" in result
+        assert "error" in result
 
     def test_back_to_back_conflicts_with_min_rest(self, real_db: Session):
         """back_to_back=True conflicts with min_rest_days > 1."""
@@ -1667,10 +1667,10 @@ class TestValidationErrors:
                     "db": real_db,
                 }
             )
-            assert "Error" in result, f"lineup_size {invalid_size} should be invalid"
+            assert "error" in result, f"lineup_size {invalid_size} should be invalid"
 
     def test_discover_lineups_requires_team(self, real_db: Session):
         """discover_lineups without team_id should error."""
         result = query_stats.invoke({"discover_lineups": True, "db": real_db})
-        assert "Error" in result
+        assert "error" in result
         assert "team_id" in result
