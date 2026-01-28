@@ -118,6 +118,11 @@ class TestSyncPbpEventTypes:
         event_types = {e.event_type for e in events}
 
         # Should have common basketball event types
-        expected_types = {EventType.SHOT, EventType.FREE_THROW, EventType.REBOUND, EventType.FOUL}
+        expected_types = {
+            EventType.SHOT,
+            EventType.FREE_THROW,
+            EventType.REBOUND,
+            EventType.FOUL,
+        }
         for expected in expected_types:
             assert expected in event_types, f"Missing event type: {expected}"
