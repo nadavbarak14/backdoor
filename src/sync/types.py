@@ -13,7 +13,8 @@ Usage:
 
     season = RawSeason(
         external_id="2024-25",
-        name="2024-25 Season",
+        name="2024-25",
+        source_id="E2024",  # Optional: original source-specific ID
         start_date=date(2024, 10, 1),
         end_date=date(2025, 6, 30),
         is_current=True
@@ -23,23 +24,35 @@ Usage:
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
+from src.sync.season import SeasonFormatError, validate_season_format
+
 
 @dataclass
 class RawSeason:
     """
     Raw season data from an external source.
 
+    The name field MUST be in standardized YYYY-YY format (e.g., "2024-25").
+    Use normalize_season_name() to convert from year to this format.
+    Source-specific identifiers (like "E2024" for Euroleague) should be
+    stored in the source_id field.
+
     Attributes:
-        external_id: Provider-specific season identifier
-        name: Display name of the season (e.g., "2024-25")
+        external_id: Provider-specific season identifier (for backward compat)
+        name: Season name in YYYY-YY format (e.g., "2024-25")
+        source_id: Original source-specific identifier (e.g., "E2024")
         start_date: Season start date, if available
         end_date: Season end date, if available
         is_current: Whether this is the current active season
 
+    Raises:
+        SeasonFormatError: If name is not in valid YYYY-YY format.
+
     Example:
         >>> season = RawSeason(
         ...     external_id="2024-25",
-        ...     name="2024-25 Regular Season",
+        ...     name="2024-25",
+        ...     source_id="E2024",
         ...     start_date=date(2024, 10, 1),
         ...     end_date=date(2025, 6, 30),
         ...     is_current=True
@@ -48,9 +61,15 @@ class RawSeason:
 
     external_id: str
     name: str
+    source_id: str | None = None
     start_date: date | None = None
     end_date: date | None = None
     is_current: bool = False
+
+    def __post_init__(self):
+        """Validate that the season name is in YYYY-YY format."""
+        if not validate_season_format(self.name):
+            raise SeasonFormatError(self.name)
 
 
 @dataclass

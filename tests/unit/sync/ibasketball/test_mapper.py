@@ -88,7 +88,7 @@ class TestIBasketballMapper:
         """Tests for season mapping."""
 
         def test_map_season_with_events(self, mapper):
-            """Test mapping season from events data."""
+            """Test mapping season from events data with normalized name."""
             events = [
                 {"date": "2024-10-15T19:30:00"},
                 {"date": "2024-11-20T19:30:00"},
@@ -97,19 +97,24 @@ class TestIBasketballMapper:
 
             season = mapper.map_season("liga_leumit", "Liga Leumit", events)
 
-            assert "liga_leumit" in season.external_id
-            assert "2024-25" in season.external_id
-            assert "Liga Leumit" in season.name
+            # Name should be normalized YYYY-YY format
+            assert season.name == "2024-25"
+            assert season.external_id == "2024-25"
+            # Source-specific ID should include league key
+            assert "liga_leumit" in season.source_id
+            assert "2024-25" in season.source_id
             assert season.start_date == date(2024, 10, 15)
             assert season.end_date == date(2025, 1, 15)
             assert season.is_current is True
 
         def test_map_season_without_events(self, mapper):
-            """Test mapping season without events data."""
+            """Test mapping season without events data uses current year."""
             season = mapper.map_season("liga_al", "Liga Alef", None)
 
-            assert "liga_al" in season.external_id
-            assert "Liga Alef" in season.name
+            # Name should be normalized YYYY-YY format
+            assert season.name  # Will be current season
+            assert "-" in season.name  # Has YYYY-YY format
+            assert "liga_al" in season.source_id
             assert season.is_current is True
 
     class TestMapTeam:

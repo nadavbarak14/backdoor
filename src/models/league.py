@@ -24,7 +24,7 @@ Usage:
 from datetime import date
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Date, ForeignKey, String, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, TimestampMixin, UUIDMixin
@@ -88,17 +88,19 @@ class Season(UUIDMixin, TimestampMixin, Base):
     Season entity representing a season within a league.
 
     Stores information about individual seasons including date ranges
-    and whether the season is currently active.
+    and whether the season is currently active. The external_ids field
+    stores source-specific season identifiers.
 
     Attributes:
         id: UUID primary key (from UUIDMixin)
         created_at: Creation timestamp (from TimestampMixin)
         updated_at: Last update timestamp (from TimestampMixin)
         league_id: Foreign key to the parent League
-        name: Season name (e.g., "2023-24")
+        name: Season name in YYYY-YY format (e.g., "2023-24")
         start_date: Date the season starts
         end_date: Date the season ends
         is_current: Whether this is the current active season
+        external_ids: JSON mapping of source names to source-specific IDs
 
     Relationships:
         league: The League this season belongs to
@@ -112,7 +114,8 @@ class Season(UUIDMixin, TimestampMixin, Base):
         ...     name="2023-24",
         ...     start_date=date(2023, 10, 24),
         ...     end_date=date(2024, 6, 20),
-        ...     is_current=True
+        ...     is_current=True,
+        ...     external_ids={"euroleague": "E2023"}
         ... )
         >>> session.add(season)
         >>> session.commit()
@@ -128,6 +131,7 @@ class Season(UUIDMixin, TimestampMixin, Base):
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
     is_current: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    external_ids: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
 
     # Relationships
     league: Mapped["League"] = relationship("League", back_populates="seasons")

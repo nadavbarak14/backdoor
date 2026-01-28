@@ -95,7 +95,7 @@ class TestIBasketballAdapter:
 
         @pytest.mark.asyncio
         async def test_get_seasons(self, adapter, mock_client):
-            """Test getting seasons."""
+            """Test getting seasons with normalized name format."""
             mock_client.fetch_all_events.return_value = CacheResult(
                 data=[
                     {"date": "2024-10-15T19:30:00"},
@@ -109,7 +109,11 @@ class TestIBasketballAdapter:
             seasons = await adapter.get_seasons()
 
             assert len(seasons) == 1
-            assert "liga_leumit" in seasons[0].external_id
+            # Name and external_id are normalized YYYY-YY format
+            assert seasons[0].name == "2024-25"
+            assert seasons[0].external_id == "2024-25"
+            # Source-specific ID includes league key
+            assert "liga_leumit" in seasons[0].source_id
             assert seasons[0].is_current is True
 
     class TestGetTeams:

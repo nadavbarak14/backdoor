@@ -105,12 +105,15 @@ class TestNBAMapperSeason:
     """Tests for season mapping."""
 
     def test_map_season(self):
-        """Test mapping a season."""
+        """Test mapping a season with normalized name."""
         mapper = NBAMapper()
         season = mapper.map_season("2023-24")
 
-        assert season.external_id == "NBA2023-24"
-        assert season.name == "2023-24 NBA Season"
+        # Name is normalized YYYY-YY format
+        assert season.name == "2023-24"
+        assert season.external_id == "2023-24"
+        # Source-specific ID preserves NBA prefix
+        assert season.source_id == "NBA2023-24"
         assert season.start_date == date(2023, 10, 1)
         assert season.end_date == date(2024, 6, 30)
         assert season.is_current is False
@@ -120,8 +123,9 @@ class TestNBAMapperSeason:
         mapper = NBAMapper()
         season = mapper.map_season("2022-23")
 
-        assert season.external_id == "NBA2022-23"
-        assert season.name == "2022-23 NBA Season"
+        assert season.name == "2022-23"
+        assert season.external_id == "2022-23"
+        assert season.source_id == "NBA2022-23"
         assert season.start_date == date(2022, 10, 1)
 
 

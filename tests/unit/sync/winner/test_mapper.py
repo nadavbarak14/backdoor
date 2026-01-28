@@ -245,12 +245,13 @@ class TestMapSeason:
     """Tests for map_season method."""
 
     def test_basic_season(self, mapper, sample_games_all_data):
-        """Test basic season mapping."""
+        """Test basic season mapping with normalized name."""
         season = mapper.map_season("2023-24", sample_games_all_data)
 
         assert isinstance(season, RawSeason)
         assert season.external_id == "2023-24"
-        assert season.name == "2023-24 Winner League"
+        assert season.name == "2023-24"  # Normalized YYYY-YY format
+        assert season.source_id == "2023-24"  # Original input preserved
         assert season.is_current is True
 
     def test_date_extraction(self, mapper, sample_games_all_data):
@@ -260,6 +261,28 @@ class TestMapSeason:
         assert season.start_date is not None
         assert season.end_date is not None
         assert season.start_date <= season.end_date
+
+    def test_season_name_normalized_format(self, mapper):
+        """Test that season name is always in YYYY-YY format."""
+        # Test with real API format (inferring from game_year)
+        games_data = {"games": [{"game_year": 2026}]}
+        season = mapper.map_season("", games_data)
+
+        assert season.name == "2025-26"
+        assert season.external_id == "2025-26"
+
+    def test_season_source_id_preserved(self, mapper, sample_games_all_data):
+        """Test that original season string is stored in source_id."""
+        season = mapper.map_season("2023-24", sample_games_all_data)
+        assert season.source_id == "2023-24"
+
+    def test_season_inferred_from_game_year(self, mapper):
+        """Test season inference from game_year field."""
+        games_data = {"games": [{"game_year": 2026, "game_date_txt": "21/09/2025"}]}
+        season = mapper.map_season("", games_data)
+
+        assert season.name == "2025-26"
+        assert season.source_id is None  # No original string provided
 
 
 class TestMapTeam:

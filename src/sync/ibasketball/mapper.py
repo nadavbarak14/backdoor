@@ -17,6 +17,7 @@ Usage:
 
 from datetime import date, datetime
 
+from src.sync.season import normalize_season_name
 from src.sync.types import (
     RawBoxScore,
     RawGame,
@@ -199,7 +200,7 @@ class IBasketballMapper:
     def map_season(
         self,
         league_key: str,
-        league_name: str,
+        league_name: str,  # noqa: ARG002
         events_data: list[dict] | None = None,
     ) -> RawSeason:
         """
@@ -207,6 +208,7 @@ class IBasketballMapper:
 
         iBasketball doesn't expose explicit season data, so we infer
         the season from the league and optionally from event dates.
+        The season name is normalized to YYYY-YY format.
 
         Args:
             league_key: League key identifier (e.g., "liga_leumit").
@@ -214,12 +216,14 @@ class IBasketballMapper:
             events_data: Optional list of events to infer date range.
 
         Returns:
-            RawSeason with extracted information.
+            RawSeason with normalized name in YYYY-YY format.
 
         Example:
             >>> mapper = IBasketballMapper()
-            >>> season = mapper.map_season("liga_leumit", "Liga Leumit", events)
-            >>> season.external_id
+            >>> s = mapper.map_season("liga_leumit", "Liga Leumit", events)
+            >>> s.name
+            '2024-25'
+            >>> s.source_id
             'ibasketball_liga_leumit_2024-25'
         """
         # Determine season string from current date or event dates
@@ -249,13 +253,15 @@ class IBasketballMapper:
                 else:
                     season_year = first_date.year - 1
 
-        # Season string format: 2024-25
-        season_str = f"{season_year}-{str(season_year + 1)[-2:]}"
-        external_id = f"ibasketball_{league_key}_{season_str}"
+        # Normalize to standard YYYY-YY format
+        normalized_name = normalize_season_name(season_year)
+        # Store source-specific ID for external reference
+        source_id = f"ibasketball_{league_key}_{normalized_name}"
 
         return RawSeason(
-            external_id=external_id,
-            name=f"{season_str} {league_name}",
+            external_id=normalized_name,
+            name=normalized_name,
+            source_id=source_id,
             start_date=start_date,
             end_date=end_date,
             is_current=True,

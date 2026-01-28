@@ -17,6 +17,7 @@ Usage:
 
 from datetime import date, datetime
 
+from src.sync.season import normalize_season_name
 from src.sync.types import (
     RawBoxScore,
     RawGame,
@@ -193,24 +194,33 @@ class EuroleagueMapper:
         """
         Create a RawSeason for a Euroleague season.
 
+        The season name is normalized to YYYY-YY format (e.g., "2024-25").
+        The source-specific identifier (e.g., "E2024") is stored in source_id.
+
         Args:
             season: Season year (e.g., 2024).
             competition: Competition code ("E" for Euroleague, "U" for EuroCup).
 
         Returns:
-            RawSeason with season information.
+            RawSeason with normalized name in YYYY-YY format.
 
         Example:
             >>> mapper = EuroleagueMapper()
-            >>> season = mapper.map_season(2024, "E")
-            >>> season.external_id
+            >>> s = mapper.map_season(2024, "E")
+            >>> s.name
+            '2024-25'
+            >>> s.source_id
             'E2024'
         """
-        competition_name = "Euroleague" if competition == "E" else "EuroCup"
+        # Normalize to standard YYYY-YY format
+        normalized_name = normalize_season_name(season)
+        # Store source-specific ID (e.g., "E2024") for external reference
+        source_id = f"{competition}{season}"
 
         return RawSeason(
-            external_id=f"{competition}{season}",
-            name=f"{season}-{str(season + 1)[-2:]} {competition_name}",
+            external_id=normalized_name,
+            name=normalized_name,
+            source_id=source_id,
             start_date=date(season, 10, 1),  # Season typically starts in October
             end_date=date(season + 1, 5, 31),  # Season ends in May
             is_current=False,  # Set by adapter based on configured seasons

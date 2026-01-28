@@ -49,6 +49,7 @@ Usage:
 
 from datetime import date, datetime
 
+from src.sync.season import normalize_season_name
 from src.sync.types import (
     RawBoxScore,
     RawGame,
@@ -220,16 +221,21 @@ class NBAMapper:
         """
         Create a RawSeason for an NBA season.
 
+        The season name is normalized to YYYY-YY format (e.g., "2023-24").
+        The source-specific identifier (e.g., "NBA2023-24") is stored in source_id.
+
         Args:
             season: Season string (e.g., "2023-24").
 
         Returns:
-            RawSeason with season information.
+            RawSeason with normalized name in YYYY-YY format.
 
         Example:
             >>> mapper = NBAMapper()
-            >>> season = mapper.map_season("2023-24")
-            >>> season.external_id
+            >>> s = mapper.map_season("2023-24")
+            >>> s.name
+            '2023-24'
+            >>> s.source_id
             'NBA2023-24'
         """
         parts = season.split("-")
@@ -237,9 +243,15 @@ class NBAMapper:
         end_year_short = int(parts[1]) if len(parts) > 1 else (start_year + 1) % 100
         end_year = start_year // 100 * 100 + end_year_short
 
+        # Normalize to standard YYYY-YY format
+        normalized_name = normalize_season_name(start_year)
+        # Store source-specific ID for external reference
+        source_id = f"NBA{season}"
+
         return RawSeason(
-            external_id=f"NBA{season}",
-            name=f"{season} NBA Season",
+            external_id=normalized_name,
+            name=normalized_name,
+            source_id=source_id,
             start_date=date(start_year, 10, 1),
             end_date=date(end_year, 6, 30),
             is_current=False,
