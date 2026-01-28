@@ -697,6 +697,9 @@ class EuroleagueMapper:
         # Map position
         position = data.get("position")
 
+        # Map nationality (country field from API)
+        nationality = data.get("country")
+
         return RawPlayerInfo(
             external_id=data.get("code", data.get("player_code", "")),
             first_name=first_name,
@@ -704,6 +707,7 @@ class EuroleagueMapper:
             birth_date=birth_date,
             height_cm=height_cm,
             position=position,
+            nationality=nationality,
         )
 
     def map_player_from_roster(

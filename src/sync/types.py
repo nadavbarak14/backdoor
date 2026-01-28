@@ -287,3 +287,4 @@ class RawPlayerInfo:
     height_cm: int | None = None
     position: str | None = None
     jersey_number: str | None = None
+    nationality: str | None = None
