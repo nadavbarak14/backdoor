@@ -444,3 +444,61 @@ class EuroleagueAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
                         )
 
         return results
+
+    async def get_team_roster(
+        self, team_external_id: str
+    ) -> list[tuple[str, str, RawPlayerInfo | None]]:
+        """
+        Fetch team roster with player IDs, names, and jersey numbers.
+
+        Returns list of tuples: (player_id, player_name, RawPlayerInfo).
+        The RawPlayerInfo includes jersey_number from roster data.
+
+        Args:
+            team_external_id: External team identifier (team code like "IST").
+
+        Returns:
+            List of (player_id, player_name, player_info) tuples.
+
+        Example:
+            >>> roster = await adapter.get_team_roster("IST")
+            >>> for player_id, name, info in roster:
+            ...     print(f"{name}: #{info.jersey_number if info else 'N/A'}")
+        """
+        result: list[tuple[str, str, RawPlayerInfo | None]] = []
+
+        # Get current season
+        current_season = max(self.configured_seasons)
+        season_id = f"{self.competition}{current_season}"
+
+        # Get teams data with rosters
+        if season_id not in self._teams_cache:
+            teams_result = self.direct_client.fetch_teams(current_season)
+            self._teams_cache[season_id] = teams_result.data
+
+        teams_data = self._teams_cache[season_id]
+
+        # Find the team
+        for team_data in teams_data:
+            team_code = team_data.get("code", "")
+            if team_code != team_external_id:
+                continue
+
+            players = team_data.get("players", [])
+            for player_data in players:
+                player_code = player_data.get("code", "")
+                player_name = player_data.get("name", "")
+
+                if not player_code:
+                    continue
+
+                # Map from roster (includes jersey_number/dorsal)
+                player_info = self.mapper.map_player_from_roster(
+                    player_data, team_code
+                )
+
+                result.append((player_code, player_name, player_info))
+
+            break  # Found the team, no need to continue
+
+        return result

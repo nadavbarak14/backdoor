@@ -616,8 +616,9 @@ class EuroleagueDirectClient:
             if isinstance(arena, dict):
                 team["arena_name"] = arena.get("@name")
 
-            # Parse players
-            players = club.get("player", [])
+            # Parse players (nested inside <roster> tag)
+            roster = club.get("roster", {})
+            players = roster.get("player", []) if isinstance(roster, dict) else []
             if isinstance(players, dict):
                 players = [players]
 
