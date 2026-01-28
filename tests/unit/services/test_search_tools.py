@@ -2,41 +2,46 @@
 Unit tests for search tools.
 
 Tests the search tools that help find entity IDs for use with query_stats.
+All search tools return JSON format.
 """
 
+import json
 from unittest.mock import MagicMock, patch
 from uuid import UUID
 
 
 class TestSearchPlayers:
-    """Tests for search_players tool."""
+    """Tests for search_players tool (returns JSON)."""
 
     def test_search_players_no_db(self):
-        """Test search_players returns error when no db provided."""
+        """Test search_players returns JSON error when no db provided."""
         from src.services.search_tools import search_players
 
         result = search_players.func(query="Clark", db=None)
-        assert "Error" in result
+        data = json.loads(result)
+        assert "error" in data
 
     def test_search_players_empty_query(self):
-        """Test search_players returns error for empty query."""
+        """Test search_players returns JSON error for empty query."""
         from src.services.search_tools import search_players
 
         mock_db = MagicMock()
         result = search_players.func(query="", db=mock_db)
-        assert "Error" in result
-        assert "at least 2 characters" in result
+        data = json.loads(result)
+        assert "error" in data
+        assert "at least 2 characters" in data["error"]
 
     def test_search_players_short_query(self):
-        """Test search_players returns error for too short query."""
+        """Test search_players returns JSON error for too short query."""
         from src.services.search_tools import search_players
 
         mock_db = MagicMock()
         result = search_players.func(query="A", db=mock_db)
-        assert "Error" in result
+        data = json.loads(result)
+        assert "error" in data
 
     def test_search_players_no_results(self):
-        """Test search_players when no players found."""
+        """Test search_players returns empty list when no players found."""
         from src.services.search_tools import search_players
 
         with patch("src.services.search_tools.PlayerService") as mock_service_class:
@@ -46,8 +51,11 @@ class TestSearchPlayers:
 
             mock_db = MagicMock()
             result = search_players.func(query="NonExistent", db=mock_db)
+            data = json.loads(result)
 
-            assert "No players found" in result
+            assert data["query"] == "NonExistent"
+            assert data["total"] == 0
+            assert data["players"] == []
 
     def test_search_players_with_results(self):
         """Test search_players with matching players."""
@@ -70,14 +78,19 @@ class TestSearchPlayers:
 
             mock_db = MagicMock()
             result = search_players.func(query="Clark", db=mock_db)
+            data = json.loads(result)
 
-            assert "Jimmy Clark" in result
-            assert "12345678-1234-5678-1234-567812345678" in result
-            assert "MAC" in result
-            assert "PG" in result
+            assert data["query"] == "Clark"
+            assert data["total"] == 1
+            assert len(data["players"]) == 1
+            player = data["players"][0]
+            assert player["name"] == "Jimmy Clark"
+            assert player["id"] == "12345678-1234-5678-1234-567812345678"
+            assert player["team"] == "MAC"
+            assert player["position"] == "PG"
 
     def test_search_players_returns_id(self):
-        """Test search_players result contains usable ID."""
+        """Test search_players result contains usable ID in JSON."""
         from src.services.search_tools import search_players
 
         with patch("src.services.search_tools.PlayerService") as mock_service_class:
@@ -95,10 +108,11 @@ class TestSearchPlayers:
 
             mock_db = MagicMock()
             result = search_players.func(query="Test", db=mock_db)
+            data = json.loads(result)
 
-            # Should include guidance for using the ID
-            assert "query_stats" in result
-            assert "player_ids" in result
+            # ID should be directly accessible
+            assert "id" in data["players"][0]
+            assert data["players"][0]["id"] == "12345678-1234-5678-1234-567812345678"
 
     def test_search_players_with_team_filter(self):
         """Test search_players with team_id filter."""
@@ -124,31 +138,34 @@ class TestSearchPlayers:
 
         mock_db = MagicMock()
         result = search_players.func(query="Test", team_id="invalid-uuid", db=mock_db)
+        data = json.loads(result)
 
-        assert "Error" in result
-        assert "Invalid team_id" in result
+        assert "error" in data
+        assert "Invalid team_id" in data["error"]
 
 
 class TestSearchTeams:
-    """Tests for search_teams tool."""
+    """Tests for search_teams tool (returns JSON)."""
 
     def test_search_teams_no_db(self):
-        """Test search_teams returns error when no db provided."""
+        """Test search_teams returns JSON error when no db provided."""
         from src.services.search_tools import search_teams
 
         result = search_teams.func(query="Maccabi", db=None)
-        assert "Error" in result
+        data = json.loads(result)
+        assert "error" in data
 
     def test_search_teams_empty_query(self):
-        """Test search_teams returns error for empty query."""
+        """Test search_teams returns JSON error for empty query."""
         from src.services.search_tools import search_teams
 
         mock_db = MagicMock()
         result = search_teams.func(query="", db=mock_db)
-        assert "Error" in result
+        data = json.loads(result)
+        assert "error" in data
 
     def test_search_teams_no_results(self):
-        """Test search_teams when no teams found."""
+        """Test search_teams returns empty list when no teams found."""
         from src.services.search_tools import search_teams
 
         with patch("src.services.search_tools.TeamService") as mock_service_class:
@@ -158,8 +175,11 @@ class TestSearchTeams:
 
             mock_db = MagicMock()
             result = search_teams.func(query="NonExistent", db=mock_db)
+            data = json.loads(result)
 
-            assert "No teams found" in result
+            assert data["query"] == "NonExistent"
+            assert data["total"] == 0
+            assert data["teams"] == []
 
     def test_search_teams_with_results(self):
         """Test search_teams with matching teams."""
@@ -180,14 +200,18 @@ class TestSearchTeams:
 
             mock_db = MagicMock()
             result = search_teams.func(query="Maccabi", db=mock_db)
+            data = json.loads(result)
 
-            assert "Maccabi Tel-Aviv" in result
-            assert "12345678-1234-5678-1234-567812345678" in result
-            assert "MAC" in result
-            assert "Tel-Aviv" in result
+            assert data["query"] == "Maccabi"
+            assert data["total"] == 1
+            team = data["teams"][0]
+            assert team["name"] == "Maccabi Tel-Aviv"
+            assert team["id"] == "12345678-1234-5678-1234-567812345678"
+            assert team["short_name"] == "MAC"
+            assert team["city"] == "Tel-Aviv"
 
     def test_search_teams_returns_id(self):
-        """Test search_teams result contains usable ID."""
+        """Test search_teams result contains usable ID in JSON."""
         from src.services.search_tools import search_teams
 
         with patch("src.services.search_tools.TeamService") as mock_service_class:
@@ -205,32 +229,36 @@ class TestSearchTeams:
 
             mock_db = MagicMock()
             result = search_teams.func(query="Test", db=mock_db)
+            data = json.loads(result)
 
-            # Should include guidance for using the ID
-            assert "query_stats" in result
-            assert "team_id" in result
+            # ID should be directly accessible
+            assert "id" in data["teams"][0]
+            assert data["teams"][0]["id"] == "12345678-1234-5678-1234-567812345678"
 
 
 class TestSearchLeagues:
-    """Tests for search_leagues tool."""
+    """Tests for search_leagues tool (returns JSON)."""
 
     def test_search_leagues_no_db(self):
-        """Test search_leagues returns error when no db provided."""
+        """Test search_leagues returns JSON error when no db provided."""
         from src.services.search_tools import search_leagues
 
         result = search_leagues.func(db=None)
-        assert "Error" in result
+        data = json.loads(result)
+        assert "error" in data
 
     def test_search_leagues_no_results(self):
-        """Test search_leagues when no leagues found."""
+        """Test search_leagues returns empty list when no leagues found."""
         from src.services.search_tools import search_leagues
 
         mock_db = MagicMock()
         mock_db.scalars.return_value.all.return_value = []
 
         result = search_leagues.func(query="NonExistent", db=mock_db)
+        data = json.loads(result)
 
-        assert "No leagues found" in result
+        assert data["query"] == "NonExistent"
+        assert data["leagues"] == []
 
     def test_search_leagues_with_results(self):
         """Test search_leagues with matching leagues."""
@@ -246,10 +274,13 @@ class TestSearchLeagues:
         mock_db.scalars.return_value.all.return_value = [mock_league]
 
         result = search_leagues.func(query="Israeli", db=mock_db)
+        data = json.loads(result)
 
-        assert "Israeli Winner League" in result
-        assert "12345678-1234-5678-1234-567812345678" in result
-        assert "ISRWL" in result
+        assert data["query"] == "Israeli"
+        league = data["leagues"][0]
+        assert league["name"] == "Israeli Winner League"
+        assert league["id"] == "12345678-1234-5678-1234-567812345678"
+        assert league["code"] == "ISRWL"
 
     def test_search_leagues_list_all(self):
         """Test search_leagues lists all when no query."""
@@ -265,12 +296,14 @@ class TestSearchLeagues:
         mock_db.scalars.return_value.all.return_value = [mock_league]
 
         result = search_leagues.func(db=mock_db)
+        data = json.loads(result)
 
-        assert "Available Leagues" in result
-        assert "Test League" in result
+        assert data["query"] is None
+        assert len(data["leagues"]) == 1
+        assert data["leagues"][0]["name"] == "Test League"
 
     def test_search_leagues_returns_id(self):
-        """Test search_leagues result contains usable ID."""
+        """Test search_leagues result contains usable ID in JSON."""
         from src.services.search_tools import search_leagues
 
         mock_db = MagicMock()
@@ -283,32 +316,36 @@ class TestSearchLeagues:
         mock_db.scalars.return_value.all.return_value = [mock_league]
 
         result = search_leagues.func(db=mock_db)
+        data = json.loads(result)
 
-        # Should include guidance for using the ID
-        assert "query_stats" in result
-        assert "league_id" in result
+        # ID should be directly accessible
+        assert "id" in data["leagues"][0]
+        assert data["leagues"][0]["id"] == "12345678-1234-5678-1234-567812345678"
 
 
 class TestSearchSeasons:
-    """Tests for search_seasons tool."""
+    """Tests for search_seasons tool (returns JSON)."""
 
     def test_search_seasons_no_db(self):
-        """Test search_seasons returns error when no db provided."""
+        """Test search_seasons returns JSON error when no db provided."""
         from src.services.search_tools import search_seasons
 
         result = search_seasons.func(db=None)
-        assert "Error" in result
+        data = json.loads(result)
+        assert "error" in data
 
     def test_search_seasons_no_results(self):
-        """Test search_seasons when no seasons found."""
+        """Test search_seasons returns empty list when no seasons found."""
         from src.services.search_tools import search_seasons
 
         mock_db = MagicMock()
         mock_db.scalars.return_value.all.return_value = []
 
         result = search_seasons.func(query="2099", db=mock_db)
+        data = json.loads(result)
 
-        assert "No seasons found" in result
+        assert data["query"] == "2099"
+        assert data["seasons"] == []
 
     def test_search_seasons_with_results(self):
         """Test search_seasons with matching seasons."""
@@ -328,11 +365,14 @@ class TestSearchSeasons:
         mock_db.scalars.return_value.all.return_value = [mock_season]
 
         result = search_seasons.func(query="2024", db=mock_db)
+        data = json.loads(result)
 
-        assert "2024-25" in result
-        assert "12345678-1234-5678-1234-567812345678" in result
-        assert "Israeli League" in result
-        assert "Yes" in result  # is_current
+        assert data["query"] == "2024"
+        season = data["seasons"][0]
+        assert season["name"] == "2024-25"
+        assert season["id"] == "12345678-1234-5678-1234-567812345678"
+        assert season["league"] == "Israeli League"
+        assert season["is_current"] is True
 
     def test_search_seasons_with_league_filter(self):
         """Test search_seasons with league_id filter."""
@@ -353,12 +393,13 @@ class TestSearchSeasons:
 
         mock_db = MagicMock()
         result = search_seasons.func(league_id="invalid-uuid", db=mock_db)
+        data = json.loads(result)
 
-        assert "Error" in result
-        assert "Invalid league_id" in result
+        assert "error" in data
+        assert "Invalid league_id" in data["error"]
 
     def test_search_seasons_returns_id(self):
-        """Test search_seasons result contains usable ID."""
+        """Test search_seasons result contains usable ID in JSON."""
         from src.services.search_tools import search_seasons
 
         mock_db = MagicMock()
@@ -373,10 +414,11 @@ class TestSearchSeasons:
         mock_db.scalars.return_value.all.return_value = [mock_season]
 
         result = search_seasons.func(db=mock_db)
+        data = json.loads(result)
 
-        # Should include guidance for using the ID
-        assert "query_stats" in result
-        assert "season_id" in result
+        # ID should be directly accessible
+        assert "id" in data["seasons"][0]
+        assert data["seasons"][0]["id"] == "12345678-1234-5678-1234-567812345678"
 
 
 class TestSearchToolsExport:
