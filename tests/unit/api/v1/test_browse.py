@@ -11,7 +11,6 @@ Tests hierarchical navigation:
 import uuid
 from datetime import date
 
-import pytest
 from sqlalchemy.orm import Session
 
 from src.models import League, Player, PlayerTeamHistory, Season, Team, TeamSeason
