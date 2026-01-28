@@ -206,16 +206,16 @@ def get_team_roster(
         season_service = SeasonService(db)
         # Get seasons this team has participated in (via TeamSeason)
         team_seasons = team_service.get_team_seasons(team_id)
+        current_season = None
         if team_seasons:
             # Use the most recent season (last in list or find current)
-            current_season = None
             for ts in team_seasons:
                 season = season_service.get_by_id(ts.season_id)
                 if season and season.is_current:
                     current_season = season
                     break
             # Fall back to the most recent season
-            if current_season is None and team_seasons:
+            if current_season is None:
                 current_season = season_service.get_by_id(team_seasons[-1].season_id)
 
         if current_season is None:
