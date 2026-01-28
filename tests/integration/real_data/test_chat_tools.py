@@ -27,7 +27,6 @@ class TestSearchPlayers:
 
         result = search_players.invoke({"query": "Clark", "db": real_db})
         data = json.loads(result)
-        assert data["query"] == "Clark"
         assert "players" in data
         # Either found players or empty list
         if data["total"] > 0:
@@ -57,7 +56,6 @@ class TestSearchTeams:
 
         result = search_teams.invoke({"query": "Maccabi", "db": real_db})
         data = json.loads(result)
-        assert data["query"] == "Maccabi"
         if data["total"] > 0:
             assert any("Maccabi" in t["name"] for t in data["teams"])
 

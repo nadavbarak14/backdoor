@@ -54,7 +54,7 @@ def search_players(
         db: Database session (injected at runtime).
 
     Returns:
-        JSON object with query, total count, and list of matching players.
+        JSON object with total count and list of matching players.
         Each player includes id, name, team, and position.
 
     Example:
@@ -82,7 +82,7 @@ def search_players(
     players, total = service.get_filtered(filter_params, limit=limit)
 
     if not players:
-        return json.dumps({"query": query, "total": 0, "players": []})
+        return json.dumps({"total": 0, "players": []})
 
     # Build JSON response
     player_list = []
@@ -102,7 +102,6 @@ def search_players(
         )
 
     result = {
-        "query": query,
         "total": total,
         "players": player_list,
     }
@@ -135,7 +134,7 @@ def search_teams(
         db: Database session (injected at runtime).
 
     Returns:
-        JSON object with query, total count, and list of matching teams.
+        JSON object with total count and list of matching teams.
         Each team includes id, name, short_name, city, and country.
 
     Example:
@@ -154,7 +153,7 @@ def search_teams(
     teams, total = service.get_filtered(filter_params, limit=limit)
 
     if not teams:
-        return json.dumps({"query": query, "total": 0, "teams": []})
+        return json.dumps({"total": 0, "teams": []})
 
     # Build JSON response
     team_list = []
@@ -170,7 +169,6 @@ def search_teams(
         )
 
     result = {
-        "query": query,
         "total": total,
         "teams": team_list,
     }
@@ -227,7 +225,7 @@ def search_leagues(
     leagues = list(db.scalars(stmt).all())
 
     if not leagues:
-        return json.dumps({"query": query, "leagues": []})
+        return json.dumps({"leagues": []})
 
     # Build JSON response
     league_list = []
@@ -241,7 +239,6 @@ def search_leagues(
         )
 
     result = {
-        "query": query,
         "leagues": league_list,
     }
 
@@ -303,7 +300,7 @@ def search_seasons(
     seasons = list(db.scalars(stmt).all())
 
     if not seasons:
-        return json.dumps({"query": query, "league_id": league_id, "seasons": []})
+        return json.dumps({"seasons": []})
 
     # Build JSON response
     season_list = []
@@ -319,8 +316,6 @@ def search_seasons(
         )
 
     result = {
-        "query": query,
-        "league_id": league_id,
         "seasons": season_list,
     }
 

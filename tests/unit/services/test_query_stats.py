@@ -4,6 +4,7 @@ Unit tests for query_stats tool.
 Tests the query_stats universal tool with mocked database.
 """
 
+import json
 from unittest.mock import MagicMock, patch
 
 
@@ -76,34 +77,6 @@ class TestQueryStatsHelpers:
         stats.avg_points = None
 
         assert _get_metric_value(stats, "points", "game") == "N/A"
-
-    def test_truncate_response_under_limit(self):
-        """Test truncation when response is under limit."""
-        from src.services.query_stats import _truncate_response
-
-        response = "Short response"
-        result = _truncate_response(response, 5, 5)
-        assert result == "Short response"
-
-    def test_truncate_response_over_limit(self):
-        """Test truncation when response exceeds limit."""
-        from src.services.query_stats import MAX_RESPONSE_CHARS, _truncate_response
-
-        # Create a long response
-        long_response = "Line 1\n" * 500
-        result = _truncate_response(long_response, 10, 10)
-
-        assert len(result) <= MAX_RESPONSE_CHARS + 100  # Some buffer for message
-        assert "truncated" in result
-
-    def test_truncate_response_partial_shown(self):
-        """Test truncation message when showing partial results."""
-        from src.services.query_stats import _truncate_response
-
-        response = "Some results"
-        result = _truncate_response(response, 5, 10)
-
-        assert "Showing 5 of 10" in result
 
 
 class TestQueryStatsResolution:
@@ -226,7 +199,9 @@ class TestQueryHandlers:
             mock_stats = MagicMock()
             mock_stats.team = MagicMock()
             mock_stats.team.short_name = "TST"
+            mock_stats.team.name = "Test Team"
             mock_stats.avg_points = 15.5
+            mock_stats.total_points = 310
             mock_service.get_player_season.return_value = [mock_stats]
             mock_service_class.return_value = mock_service
 
@@ -243,7 +218,8 @@ class TestQueryHandlers:
                 mock_db, [mock_player], mock_season, ["points"], "game", 10
             )
 
-            assert "Player Stats" in result
+            data = json.loads(result)
+            assert data["mode"] == "player_stats"
             assert "Test Player" in result
             assert "TST" in result
 
@@ -325,11 +301,14 @@ class TestQueryHandlers:
             mock_service = MagicMock()
             mock_stats = MagicMock()
             mock_stats.player = MagicMock()
+            mock_stats.player.id = "player-123"
             mock_stats.player.first_name = "Test"
             mock_stats.player.last_name = "Player"
             mock_stats.team = MagicMock()
             mock_stats.team.short_name = "TST"
+            mock_stats.team.name = "Test Team"
             mock_stats.avg_points = 15.5
+            mock_stats.total_points = 310
             mock_service.get_league_leaders.return_value = [mock_stats]
             mock_service_class.return_value = mock_service
 
@@ -342,7 +321,8 @@ class TestQueryHandlers:
                 mock_db, None, mock_season, ["points"], "game", 10
             )
 
-            assert "Leaders" in result
+            data = json.loads(result)
+            assert data["mode"] == "leaders"
             assert "Test Player" in result
 
     def test_query_league_stats_with_league(self):
@@ -355,11 +335,14 @@ class TestQueryHandlers:
             mock_service = MagicMock()
             mock_stats = MagicMock()
             mock_stats.player = MagicMock()
+            mock_stats.player.id = "player-123"
             mock_stats.player.first_name = "Test"
             mock_stats.player.last_name = "Player"
             mock_stats.team = MagicMock()
             mock_stats.team.short_name = "TST"
+            mock_stats.team.name = "Test Team"
             mock_stats.avg_points = 15.5
+            mock_stats.total_points = 310
             mock_service.get_league_leaders.return_value = [mock_stats]
             mock_service_class.return_value = mock_service
 
@@ -374,7 +357,8 @@ class TestQueryHandlers:
                 mock_db, mock_league, mock_season, ["points"], "game", 10
             )
 
-            assert "Test League" in result
+            data = json.loads(result)
+            assert data["mode"] == "leaders"
 
     def test_query_league_stats_fallback_sort(self):
         """Test _query_league_stats falls back to avg_points on invalid category."""
@@ -387,11 +371,14 @@ class TestQueryHandlers:
             # First call raises ValueError, second call succeeds
             mock_stats = MagicMock()
             mock_stats.player = MagicMock()
+            mock_stats.player.id = "player-123"
             mock_stats.player.first_name = "Test"
             mock_stats.player.last_name = "Player"
             mock_stats.team = MagicMock()
             mock_stats.team.short_name = "TST"
+            mock_stats.team.name = "Test Team"
             mock_stats.avg_points = 15.5
+            mock_stats.total_points = 310
             mock_service.get_league_leaders.side_effect = [
                 ValueError("Invalid"),
                 [mock_stats],
@@ -407,7 +394,8 @@ class TestQueryHandlers:
                 mock_db, None, mock_season, ["unknown_metric"], "game", 10
             )
 
-            assert "Leaders" in result
+            data = json.loads(result)
+            assert data["mode"] == "leaders"
 
 
 class TestQueryStatsTool:
@@ -423,7 +411,8 @@ class TestQueryStatsTool:
 
         # Call the underlying function directly
         result = query_stats.func(db=None)
-        assert "Error" in result
+        data = json.loads(result)
+        assert "error" in data
 
     def test_query_stats_default_metrics(self):
         """Test query_stats uses default metrics when not specified."""
@@ -673,8 +662,9 @@ class TestQueryStatsWithTimeFilters:
 
         mock_db = MagicMock()
         result = query_stats.func(quarter=5, db=mock_db)
-        assert "Error" in result
-        assert "between 1 and 4" in result
+        data = json.loads(result)
+        assert "error" in data
+        assert "between 1 and 4" in data["error"]
 
     def test_query_stats_mutually_exclusive_quarters(self):
         """Test query_stats returns error when quarter and quarters both set."""
@@ -682,8 +672,9 @@ class TestQueryStatsWithTimeFilters:
 
         mock_db = MagicMock()
         result = query_stats.func(quarter=4, quarters=[1, 2], db=mock_db)
-        assert "Error" in result
-        assert "mutually exclusive" in result
+        data = json.loads(result)
+        assert "error" in data
+        assert "mutually exclusive" in data["error"]
 
     def test_query_stats_time_filter_requires_entity(self):
         """Test time filters require player or team (not league-wide)."""
@@ -695,8 +686,9 @@ class TestQueryStatsWithTimeFilters:
             mock_db = MagicMock()
             result = query_stats.func(quarter=4, db=mock_db)
 
-            assert "Error" in result
-            assert "require specifying" in result
+            data = json.loads(result)
+            assert "error" in data
+            assert "require specifying" in data["error"]
 
     def test_query_stats_last_n_games_triggers_time_filter(self):
         """Test last_n_games triggers time filter path."""
@@ -1078,8 +1070,9 @@ class TestQueryWithTimeFilters:
             last_n_games=None,
         )
 
-        assert "Error" in result
-        assert "require specifying" in result
+        data = json.loads(result)
+        assert "error" in data
+        assert "require specifying" in data["error"]
 
     def test_query_with_time_filters_player_no_games(self):
         """Test time filter query for player with no games."""
@@ -1244,8 +1237,9 @@ class TestQueryStatsWithLocationFilters:
 
         mock_db = MagicMock()
         result = query_stats.func(home_only=True, away_only=True, db=mock_db)
-        assert "Error" in result
-        assert "mutually exclusive" in result
+        data = json.loads(result)
+        assert "error" in data
+        assert "mutually exclusive" in data["error"]
 
     def test_query_stats_opponent_not_found(self):
         """Test query_stats returns error when opponent team ID not found."""
@@ -1527,7 +1521,7 @@ class TestLineupStatsFormatting:
 
     def test_format_lineup_stats_with_data(self):
         """Test formatting lineup stats with data."""
-        from src.services.query_stats import _format_lineup_stats
+        from src.services.query_stats import _format_lineup_stats_json
 
         lineup_stats = {
             "games": 10,
@@ -1537,21 +1531,26 @@ class TestLineupStatsFormatting:
             "plus_minus": 20,
         }
 
-        result = _format_lineup_stats(lineup_stats, ["Player A", "Player B"], "2024-25")
+        result = _format_lineup_stats_json(
+            lineup_stats, ["Player A", "Player B"], ["id-a", "id-b"], "2024-25"
+        )
 
-        assert "Player A" in result
-        assert "Player B" in result
-        assert "2024-25" in result
-        assert "150.5" in result
-        assert "+20" in result
+        data = json.loads(result)
+        assert data["mode"] == "lineup"
+        assert data["season"] == "2024-25"
+        assert data["data"]["games_together"] == 10
+        assert data["data"]["minutes_together"] == 150.5
+        assert data["data"]["plus_minus"] == 20
 
     def test_format_lineup_stats_no_games(self):
         """Test formatting lineup stats with no data."""
-        from src.services.query_stats import _format_lineup_stats
+        from src.services.query_stats import _format_lineup_stats_json
 
         lineup_stats = {"games": 0, "minutes": 0, "plus_minus": 0}
 
-        result = _format_lineup_stats(lineup_stats, ["Player A", "Player B"], "2024-25")
+        result = _format_lineup_stats_json(
+            lineup_stats, ["Player A", "Player B"], ["id-a", "id-b"], "2024-25"
+        )
 
         assert "No games found" in result
 
@@ -1563,7 +1562,7 @@ class TestBestLineupsFormatting:
         """Test formatting best lineups with data."""
         from uuid import UUID
 
-        from src.services.query_stats import _format_best_lineups
+        from src.services.query_stats import _format_best_lineups_json
 
         mock_db = MagicMock()
 
@@ -1591,20 +1590,21 @@ class TestBestLineupsFormatting:
             }
         ]
 
-        result = _format_best_lineups(lineups, mock_db, "Test Team", "2024-25", 2)
+        result = _format_best_lineups_json(lineups, mock_db, "Test Team", "2024-25", 2)
 
-        assert "Test Team" in result
-        assert "2024-25" in result
-        assert "J. Doe" in result
-        assert "J. Smith" in result
-        assert "+15" in result
+        data = json.loads(result)
+        assert data["mode"] == "lineup_discovery"
+        assert data["team"] == "Test Team"
+        assert data["season"] == "2024-25"
+        assert data["data"][0]["plus_minus"] == 15
+        assert "John Doe" in result
 
     def test_format_best_lineups_empty(self):
         """Test formatting best lineups with no data."""
-        from src.services.query_stats import _format_best_lineups
+        from src.services.query_stats import _format_best_lineups_json
 
         mock_db = MagicMock()
-        result = _format_best_lineups([], mock_db, "Test Team", "2024-25", 5)
+        result = _format_best_lineups_json([], mock_db, "Test Team", "2024-25", 5)
 
         assert "No lineups found" in result
 
@@ -1623,8 +1623,9 @@ class TestQueryLineupStats:
 
         result = _query_lineup_stats(mock_db, [mock_player], mock_season)
 
-        assert "Error" in result
-        assert "at least 2 players" in result
+        data = json.loads(result)
+        assert "error" in data
+        assert "at least 2 players" in data["error"]
 
     def test_query_lineup_stats_calls_analytics(self):
         """Test lineup stats calls AnalyticsService correctly."""
@@ -1695,7 +1696,7 @@ class TestQueryDiscoverLineups:
         with (
             patch("src.services.query_stats._get_recent_games") as mock_get_games,
             patch("src.services.query_stats.AnalyticsService") as mock_analytics_cls,
-            patch("src.services.query_stats._format_best_lineups") as mock_format,
+            patch("src.services.query_stats._format_best_lineups_json") as mock_format,
         ):
             mock_game1 = MagicMock()
             mock_game1.id = "game-1"
@@ -1775,12 +1776,16 @@ class TestQueryLeaderboard:
             mock_service = MagicMock()
             mock_stats = MagicMock()
             mock_stats.player = MagicMock()
+            mock_stats.player.id = "player-123"
             mock_stats.player.first_name = "Test"
             mock_stats.player.last_name = "Player"
             mock_stats.team = MagicMock()
             mock_stats.team.short_name = "TST"
+            mock_stats.team.name = "Test Team"
             mock_stats.avg_points = 25.0
+            mock_stats.total_points = 500
             mock_stats.avg_rebounds = 10.0
+            mock_stats.total_rebounds = 200
             mock_service.get_league_leaders.return_value = [mock_stats]
             mock_service_cls.return_value = mock_service
 
@@ -1801,10 +1806,11 @@ class TestQueryLeaderboard:
                 10,
             )
 
-            assert "Leaderboard" in result
+            data = json.loads(result)
+            assert data["mode"] == "leaderboard"
             assert "Test Player" in result
-            assert "descending" in result
-            assert "min 5 games" in result
+            assert data["filters"]["order"] == "desc"
+            assert data["filters"]["min_games"] == 5
 
     def test_query_leaderboard_ascending(self):
         """Test leaderboard with ascending order."""
@@ -1816,11 +1822,14 @@ class TestQueryLeaderboard:
             mock_service = MagicMock()
             mock_stats = MagicMock()
             mock_stats.player = MagicMock()
+            mock_stats.player.id = "player-123"
             mock_stats.player.first_name = "Test"
             mock_stats.player.last_name = "Player"
             mock_stats.team = MagicMock()
             mock_stats.team.short_name = "TST"
+            mock_stats.team.name = "Test Team"
             mock_stats.avg_points = 5.0
+            mock_stats.total_points = 100
             mock_service.get_league_leaders.return_value = [mock_stats]
             mock_service_cls.return_value = mock_service
 
@@ -1833,7 +1842,8 @@ class TestQueryLeaderboard:
                 mock_db, None, mock_season, "points", "asc", 5, ["points"], "game", 10
             )
 
-            assert "ascending" in result
+            data = json.loads(result)
+            assert data["filters"]["order"] == "asc"
 
 
 class TestQueryStatsLineupMode:
@@ -2407,8 +2417,9 @@ class TestQueryStatsWithSituationalFilters:
 
         result = query_stats.func(shot_type="INVALID", db=mock_db)
 
-        assert "Error" in result
-        assert "shot_type" in result
+        data = json.loads(result)
+        assert "error" in data
+        assert "shot_type" in data["error"]
 
     def test_query_stats_situational_triggers_filter_path(self):
         """Test that situational filters trigger the time filter path."""
@@ -2444,8 +2455,9 @@ class TestQueryStatsWithScheduleFilters:
 
         result = query_stats.func(min_rest_days=-1, db=mock_db)
 
-        assert "Error" in result
-        assert "min_rest_days" in result
+        data = json.loads(result)
+        assert "error" in data
+        assert "min_rest_days" in data["error"]
 
     def test_query_stats_conflicting_schedule_params(self):
         """Test query_stats returns error for conflicting params."""
@@ -2455,8 +2467,9 @@ class TestQueryStatsWithScheduleFilters:
 
         result = query_stats.func(back_to_back=True, min_rest_days=3, db=mock_db)
 
-        assert "Error" in result
-        assert "conflicts" in result
+        data = json.loads(result)
+        assert "error" in data
+        assert "conflicts" in data["error"]
 
     def test_query_stats_schedule_triggers_filter_path(self):
         """Test that schedule filters trigger the time filter path."""
