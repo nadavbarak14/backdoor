@@ -15,7 +15,7 @@ import sys
 from datetime import datetime
 
 # Add project root to path
-sys.path.insert(0, "/root/projects/backdoor")
+sys.path.insert(0, "/root/projects/3backdoor")
 
 from src.core.database import SessionLocal
 from src.sync import SyncConfig
@@ -23,6 +23,12 @@ from src.sync.manager import SyncManager
 from src.sync.winner import WinnerClient, WinnerScraper
 from src.sync.winner.adapter import WinnerAdapter
 from src.sync.winner.mapper import WinnerMapper
+from src.sync.euroleague import (
+    EuroleagueAdapter,
+    EuroleagueClient,
+    EuroleagueDirectClient,
+    EuroleagueMapper,
+)
 
 
 def log(msg: str):
@@ -31,19 +37,34 @@ def log(msg: str):
     print(f"[{timestamp}] {msg}", flush=True)
 
 
-def get_sync_manager(db):
+def get_sync_manager(db, sources: list[str] | None = None):
     """Create a SyncManager with configured adapters."""
-    log("Initializing Winner adapter...")
-    client = WinnerClient(db)
-    scraper = WinnerScraper(db)
-    mapper = WinnerMapper()
-    winner_adapter = WinnerAdapter(client, scraper, mapper)
+    adapters = {}
+
+    if sources is None:
+        sources = ["winner", "euroleague"]
+
+    if "winner" in sources:
+        log("Initializing Winner adapter...")
+        client = WinnerClient(db)
+        scraper = WinnerScraper(db)
+        mapper = WinnerMapper()
+        winner_adapter = WinnerAdapter(client, scraper, mapper)
+        adapters["winner"] = winner_adapter
+
+    if "euroleague" in sources:
+        log("Initializing Euroleague adapter...")
+        euro_client = EuroleagueClient(db)
+        euro_direct_client = EuroleagueDirectClient(db)
+        euro_mapper = EuroleagueMapper()
+        euro_adapter = EuroleagueAdapter(euro_client, euro_direct_client, euro_mapper)
+        adapters["euroleague"] = euro_adapter
 
     config = SyncConfig.from_settings()
 
     return SyncManager(
         db=db,
-        adapters={"winner": winner_adapter},
+        adapters=adapters,
         config=config,
     )
 
@@ -54,7 +75,7 @@ async def run_sync(source: str, season_id: str, include_pbp: bool):
 
     db = SessionLocal()
     try:
-        manager = get_sync_manager(db)
+        manager = get_sync_manager(db, sources=[source])
 
         log("Fetching games from external API...")
         sync_log = await manager.sync_season(
@@ -87,7 +108,7 @@ async def run_sync(source: str, season_id: str, include_pbp: bool):
 
 def main():
     parser = argparse.ArgumentParser(description="Run data sync")
-    parser.add_argument("source", choices=["winner"], help="Data source")
+    parser.add_argument("source", choices=["winner", "euroleague"], help="Data source")
     parser.add_argument("season", help="Season ID (e.g., 2025-26)")
     parser.add_argument(
         "--include-pbp", action="store_true", help="Include play-by-play"

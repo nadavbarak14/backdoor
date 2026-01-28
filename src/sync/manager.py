@@ -166,8 +166,8 @@ class SyncManager:
         """
         adapter = self._get_adapter(source)
 
-        # Find or create internal season
-        season = self._get_or_create_season(source, season_external_id)
+        # Find or create internal season (uses adapter to get normalized name)
+        season = await self._get_or_create_season(adapter, source, season_external_id)
 
         # Start sync log
         sync_log = self.sync_log_service.start_sync(
@@ -183,7 +183,7 @@ class SyncManager:
 
         try:
             # Sync teams first
-            await self._sync_teams_for_season(adapter, season, source)
+            await self._sync_teams_for_season(adapter, season, source, season_external_id)
 
             # Get schedule
             games = await adapter.get_schedule(season_external_id)
@@ -304,8 +304,8 @@ class SyncManager:
         """
         adapter = self._get_adapter(source)
 
-        # Find or create internal season
-        season = self._get_or_create_season(source, season_external_id)
+        # Find or create internal season (uses adapter to get normalized name)
+        season = await self._get_or_create_season(adapter, source, season_external_id)
 
         # Start sync log
         sync_log = self.sync_log_service.start_sync(
@@ -321,7 +321,7 @@ class SyncManager:
 
         try:
             # Sync teams first
-            await self._sync_teams_for_season(adapter, season, source)
+            await self._sync_teams_for_season(adapter, season, source, season_external_id)
 
             # Get schedule
             games = await adapter.get_schedule(season_external_id)
@@ -533,7 +533,7 @@ class SyncManager:
             if not seasons:
                 raise ValueError("No seasons available")
 
-            season = self._get_or_create_season(source, seasons[0].external_id)
+            season = await self._get_or_create_season(adapter, source, seasons[0].external_id)
 
             # Sync teams if needed
             home_team_raw = RawTeam(
@@ -612,8 +612,8 @@ class SyncManager:
         """
         adapter = self._get_adapter(source)
 
-        # Get or create season
-        season = self._get_or_create_season(source, season_external_id)
+        # Get or create season (uses adapter to get normalized name)
+        season = await self._get_or_create_season(adapter, source, season_external_id)
 
         # Start sync log
         sync_log = self.sync_log_service.start_sync(
@@ -1135,6 +1135,7 @@ class SyncManager:
         adapter: BaseLeagueAdapter,
         season: Season,
         source: str,
+        season_external_id: str,
     ) -> None:
         """
         Sync teams and their rosters for a season before syncing games.
@@ -1146,8 +1147,9 @@ class SyncManager:
             adapter: League adapter that may also implement BasePlayerInfoAdapter.
             season: The Season entity.
             source: The data source name.
+            season_external_id: Source-specific season ID (e.g., "E2025") for API calls.
         """
-        teams = await adapter.get_teams(season.name)
+        teams = await adapter.get_teams(season_external_id)
 
         for raw_team in teams:
             team, _team_season = self.team_syncer.sync_team_season(
@@ -1169,13 +1171,19 @@ class SyncManager:
 
         self.db.flush()
 
-    def _get_or_create_season(self, source: str, season_external_id: str) -> Season:
+    async def _get_or_create_season(
+        self, adapter: BaseLeagueAdapter, source: str, season_external_id: str
+    ) -> Season:
         """
         Get or create a Season for the given external ID.
 
+        Queries the adapter to get the normalized season name (YYYY-YY format)
+        and uses that to lookup/create the Season record.
+
         Args:
+            adapter: The league adapter to query for season info.
             source: The data source name.
-            season_external_id: External season identifier (e.g., "2024-25").
+            season_external_id: External season identifier (e.g., "E2025", "2024-25").
 
         Returns:
             Season model instance.
@@ -1184,13 +1192,31 @@ class SyncManager:
 
         from src.models.league import League
 
-        # Try to find existing season by name
-        stmt = select(Season).where(Season.name == season_external_id)
-        season = self.db.scalars(stmt).first()
-        if season:
-            return season
+        # Query adapter for normalized season info
+        raw_seasons = await adapter.get_seasons()
 
-        # Create league if needed
+        # Find the matching season by external_id or source_id
+        raw_season = None
+        for rs in raw_seasons:
+            if rs.external_id == season_external_id:
+                raw_season = rs
+                break
+            # Also check source_id for source-specific identifiers like "E2025"
+            if hasattr(rs, "source_id") and rs.source_id == season_external_id:
+                raw_season = rs
+                break
+
+        # Use normalized name from adapter, or fall back to passed ID
+        if raw_season:
+            season_name = raw_season.name
+            start_date = raw_season.start_date
+            end_date = raw_season.end_date
+        else:
+            season_name = season_external_id
+            start_date = None
+            end_date = None
+
+        # Get or create league first (needed for season lookup)
         league_code = source.upper()
         stmt = select(League).where(League.code == league_code)
         league = self.db.scalars(stmt).first()
@@ -1206,31 +1232,44 @@ class SyncManager:
             self.db.add(league)
             self.db.flush()
 
-        # Parse season dates from name (e.g., "2024-25")
-        try:
-            parts = season_external_id.split("-")
-            start_year = int(parts[0])
-            if len(parts) > 1:
-                end_year_short = int(parts[1])
-                # Handle two-digit year
-                if end_year_short < 100:
-                    century = (start_year // 100) * 100
-                    end_year = century + end_year_short
-                else:
-                    end_year = end_year_short
-            else:
-                end_year = start_year + 1
-        except (ValueError, IndexError):
-            start_year = date.today().year
-            end_year = start_year + 1
+        # Try to find existing season by normalized name AND league
+        stmt = select(Season).where(
+            Season.name == season_name,
+            Season.league_id == league.id,
+        )
+        season = self.db.scalars(stmt).first()
+        if season:
+            return season
 
-        # Create season
+        # Parse season dates from name if not provided by adapter
+        if start_date is None or end_date is None:
+            try:
+                parts = season_name.split("-")
+                start_year = int(parts[0])
+                if len(parts) > 1:
+                    end_year_short = int(parts[1])
+                    # Handle two-digit year
+                    if end_year_short < 100:
+                        century = (start_year // 100) * 100
+                        end_year = century + end_year_short
+                    else:
+                        end_year = end_year_short
+                else:
+                    end_year = start_year + 1
+            except (ValueError, IndexError):
+                start_year = date.today().year
+                end_year = start_year + 1
+            start_date = date(start_year, 9, 1)
+            end_date = date(end_year, 6, 30)
+
+        # Create season with normalized name
         season = Season(
             league_id=league.id,
-            name=season_external_id,
-            start_date=date(start_year, 9, 1),
-            end_date=date(end_year, 6, 30),
+            name=season_name,
+            start_date=start_date,
+            end_date=end_date,
             is_current=True,
+            external_ids={source: season_external_id} if season_external_id != season_name else {},
         )
         self.db.add(season)
         self.db.flush()
