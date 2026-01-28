@@ -104,14 +104,37 @@ def _get_entity_by_id(db: Session, model, entity_id: str | None):
 def _resolve_season(
     db: Session,
     season_id: str | None = None,
+    season: str | None = None,
     league_id: str | None = None,
 ) -> Season | None:
-    """Resolve a season by ID or get current season for a league."""
+    """
+    Resolve a season by ID, name, or get current season for a league.
+
+    Args:
+        db: Database session.
+        season_id: UUID of the season (takes precedence if provided).
+        season: Season name string like "2025-26" or "2024-25".
+        league_id: UUID of the league (for current season fallback).
+
+    Returns:
+        Season entity if found, None otherwise.
+    """
     season_service = SeasonService(db)
 
+    # First try by ID if provided
     if season_id:
         return _get_entity_by_id(db, Season, season_id)
 
+    # Then try by name string if provided (e.g., "2025-26")
+    if season:
+        from sqlalchemy import select
+
+        stmt = select(Season).where(Season.name.ilike(f"%{season}%"))
+        result = db.scalars(stmt).first()
+        if result:
+            return result
+
+    # Fall back to current season
     league_uuid = _parse_uuid(league_id)
     return season_service.get_current(league_uuid)
 
@@ -1384,7 +1407,7 @@ def _query_leaderboard(
 @tool
 def query_stats(
     league_id: str | None = None,
-    season_id: str | None = None,
+    season: str | None = None,
     team_id: str | None = None,
     player_ids: list[str] | None = None,
     metrics: list[str] | None = None,
@@ -1421,24 +1444,19 @@ def query_stats(
     """
     Universal stats query tool for flexible basketball analytics.
 
-    Use this tool for complex queries combining filters and metrics.
-    Supports querying by league, season, team, or specific players using IDs.
-    Time-based and location filters allow analysis of specific game situations.
+    THE primary tool for ALL statistical queries. Use search tools (search_players,
+    search_teams) to get entity IDs first, then use this tool with those IDs.
 
-    IMPORTANT: This tool requires entity IDs, not names. Use the search tools
-    (search_players, search_teams, search_leagues) to find IDs first.
-
-    Additional modes:
-    - Lineup mode: When player_ids has 2+ players, returns stats when ALL
-      players are on court together (time shared, +/-).
-    - Lineup discovery: With discover_lineups=True, finds best performing
-      lineups for a team.
-    - Leaderboard mode: With order_by specified (and no specific entity),
-      returns ranked player leaders.
+    Modes:
+    - Player stats: query_stats(player_ids=["uuid"])
+    - Team stats: query_stats(team_id="uuid")
+    - Lineup stats: query_stats(player_ids=["uuid1", "uuid2"]) (2+ players)
+    - Lineup discovery: query_stats(team_id="uuid", discover_lineups=True)
+    - Leaderboard: query_stats(order_by="points", limit=10)
 
     Args:
-        league_id: UUID of the league to filter by.
-        season_id: UUID of the season. Defaults to current season.
+        league_id: UUID of the league to filter by (optional).
+        season: Season string like "2025-26" or "2024-25". Defaults to current season.
         team_id: UUID of the team to query.
         player_ids: List of player UUIDs. If 2+ players, returns lineup stats.
         metrics: Stats to return. Options: points, rebounds, assists,
@@ -1447,8 +1465,7 @@ def query_stats(
         limit: Maximum rows to return (default 10, max 20).
         per: "game" (averages), "total" (season totals). Default "game".
         quarter: Single quarter to filter (1-4). Mutually exclusive with quarters.
-        quarters: Multiple quarters (e.g., [1,2] for 1st half). Mutually exclusive
-            with quarter.
+        quarters: Multiple quarters (e.g., [1,2] for 1st half).
         clutch_only: Only include clutch time (last 5 min Q4/OT, within 5 pts).
         exclude_garbage_time: Exclude when score differential > 20 points.
         last_n_games: Limit to most recent N games.
@@ -1470,17 +1487,15 @@ def query_stats(
         db: Database session (injected at runtime).
 
     Returns:
-        Markdown-formatted stats table. Truncated if too large.
+        Markdown-formatted stats table.
 
-    Example usage (after getting IDs from search tools):
-        - Player stats: player_ids=["uuid-1"]
-        - Team stats: team_id="uuid-2"
-        - Lineup stats: player_ids=["uuid-1", "uuid-2"]
-        - Leaderboard: order_by="points", min_games=10
-        - With filters: player_ids=["uuid-1"], quarter=4, clutch_only=True
-        - Fast break shots: player_ids=["uuid-1"], fast_break=True
-        - Contested shooting: player_ids=["uuid-1"], contested=True
-        - Back-to-back games: team_id="uuid-1", back_to_back=True
+    Examples:
+        - Player stats this season: query_stats(player_ids=["uuid"])
+        - Player stats last season: query_stats(player_ids=["uuid"], season="2024-25")
+        - Team 4th quarter stats: query_stats(team_id="uuid", quarter=4)
+        - Clutch performance: query_stats(team_id="uuid", clutch_only=True)
+        - Scoring leaders: query_stats(order_by="points", limit=10)
+        - Home vs away: query_stats(team_id="uuid", home_only=True)
     """
     if db is None:
         return "Error: Database session not provided."
@@ -1529,10 +1544,10 @@ def query_stats(
         if not league:
             return f"Error: League with ID '{league_id}' not found."
 
-    # Resolve season by ID or get current
-    season_obj = _resolve_season(db, season_id, league_id)
+    # Resolve season by name string or get current
+    season_obj = _resolve_season(db, season_id=None, season=season, league_id=league_id)
     if not season_obj:
-        return "Error: No season found. Please specify a season_id."
+        return "Error: No season found. Try specifying season like '2025-26'."
 
     # Resolve team by ID
     team = None

@@ -37,6 +37,7 @@ from src.services.league import SeasonService
 from src.services.player import PlayerService
 from src.services.player_stats import PlayerSeasonStatsService
 from src.services.query_stats import query_stats
+from src.services.search_tools import search_leagues
 from src.services.stats import PlayerGameStatsService
 from src.services.team import TeamService
 
@@ -1505,24 +1506,12 @@ def get_vs_opponent(
 # =============================================================================
 
 # List of all available tools for easy import
+# Simplified to essential tools only - query_stats handles all analytics
 ALL_TOOLS = [
-    # Basic Lookup
+    # Search Tools (use these first to find entity IDs)
     search_players,
     search_teams,
-    get_team_roster,
-    get_game_details,
-    # Stats
-    get_player_stats,
-    get_player_games,
-    get_league_leaders,
-    # Advanced Analytics
-    get_clutch_stats,
-    get_quarter_splits,
-    get_trend,
-    get_lineup_stats,
-    get_home_away_split,
-    get_on_off_stats,
-    get_vs_opponent,
-    # Universal Query
+    search_leagues,
+    # Universal Query Tool (handles ALL stats queries)
     query_stats,
 ]

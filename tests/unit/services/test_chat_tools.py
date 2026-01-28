@@ -725,7 +725,7 @@ class TestAllToolsExist:
 
         from src.services.chat_tools import ALL_TOOLS
 
-        assert len(ALL_TOOLS) == 15  # 4 basic + 3 stats + 7 analytics + 1 universal
+        assert len(ALL_TOOLS) == 4  # 3 search tools + 1 universal query tool
 
         for tool in ALL_TOOLS:
             # LangChain tools are instances of BaseTool
