@@ -19,16 +19,16 @@ sys.path.insert(0, "/root/projects/3backdoor")
 
 from src.core.database import SessionLocal
 from src.sync import SyncConfig
-from src.sync.manager import SyncManager
-from src.sync.winner import WinnerClient, WinnerScraper
-from src.sync.winner.adapter import WinnerAdapter
-from src.sync.winner.mapper import WinnerMapper
 from src.sync.euroleague import (
     EuroleagueAdapter,
     EuroleagueClient,
     EuroleagueDirectClient,
     EuroleagueMapper,
 )
+from src.sync.manager import SyncManager
+from src.sync.winner import WinnerClient, WinnerScraper
+from src.sync.winner.adapter import WinnerAdapter
+from src.sync.winner.mapper import WinnerMapper
 
 
 def log(msg: str):
