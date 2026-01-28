@@ -118,6 +118,9 @@ alembic/versions/*.pyc
 *.log
 logs/
 
+# Server PID files
+.pids/
+
 # Local configuration
 local_settings.py
 *.local
