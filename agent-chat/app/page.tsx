@@ -14,7 +14,7 @@ import { useState, useEffect } from "react";
 import { useChat } from "@ai-sdk/react";
 import {
   ChatContainer,
-  ChatInput,
+  MentionInput,
   MessageList,
   WelcomeScreen,
 } from "@/components/chat";
@@ -73,11 +73,20 @@ export default function ChatPage() {
 
   /**
    * Handles form submission for chat messages.
+   * Receives the transformed message with @type:id format.
    * Only allows submission after hydration when session ID is available.
    */
-  const handleSubmit = () => {
-    if (!input.trim() || !isHydrated) return;
-    submitChat();
+  const handleSubmit = (transformedMessage?: string) => {
+    if (!isHydrated) return;
+
+    // If we got a transformed message (from MentionInput), use it
+    if (transformedMessage) {
+      setInput(transformedMessage);
+      // Need to wait for state update before submitting
+      setTimeout(() => submitChat(), 0);
+    } else if (input.trim()) {
+      submitChat();
+    }
   };
 
   /**
@@ -108,7 +117,7 @@ export default function ChatPage() {
   return (
     <ChatContainer
       footer={
-        <ChatInput
+        <MentionInput
           value={input}
           onChange={setInput}
           onSubmit={handleSubmit}

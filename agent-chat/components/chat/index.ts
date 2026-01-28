@@ -15,5 +15,6 @@ export { WelcomeScreen } from "./WelcomeScreen";
 
 // @-mention components
 export { MentionPicker } from "./MentionPicker";
+export { MentionInput } from "./MentionInput";
 export { SearchResults } from "./SearchResults";
 export { BrowsePanel } from "./BrowsePanel";
