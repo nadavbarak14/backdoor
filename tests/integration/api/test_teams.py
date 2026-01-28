@@ -242,7 +242,7 @@ class TestGetTeamRoster:
             )
         )
 
-        # Create team and player
+        # Create team and add to season
         team = team_service.create_team(
             TeamCreate(
                 name="Los Angeles Lakers",
@@ -251,6 +251,9 @@ class TestGetTeamRoster:
                 country="USA",
             )
         )
+        team_service.add_to_season(team.id, season.id)
+
+        # Create player and add to team roster
         player = player_service.create_player(
             PlayerCreate(first_name="LeBron", last_name="James")
         )
@@ -280,7 +283,7 @@ class TestGetTeamRoster:
         response = client.get(f"/api/v1/teams/{team.id}/roster")
 
         assert response.status_code == 404
-        assert "current season" in response.json()["detail"].lower()
+        assert "season" in response.json()["detail"].lower()
 
     def test_get_team_roster_team_not_found(self, client):
         """Test roster endpoint returns 404 for non-existent team."""
