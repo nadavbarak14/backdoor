@@ -70,6 +70,14 @@ from src.sync.exceptions import (
     SyncError,
 )
 
+# Season format utilities
+from src.sync.season import (
+    SeasonFormatError,
+    normalize_season_name,
+    parse_season_year,
+    validate_season_format,
+)
+
 # iBasketball
 from src.sync.ibasketball import (
     IBasketballAdapter,
@@ -160,6 +168,11 @@ __all__ = [
     "PlayerNotFoundError",
     "DataValidationError",
     "SyncConfigError",
+    "SeasonFormatError",
+    # Season format utilities
+    "normalize_season_name",
+    "parse_season_year",
+    "validate_season_format",
     # Winner League
     "WinnerClient",
     "WinnerScraper",

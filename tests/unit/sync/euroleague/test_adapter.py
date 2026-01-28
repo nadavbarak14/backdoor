@@ -244,12 +244,16 @@ class TestGetSeasons:
 
     @pytest.mark.asyncio
     async def test_returns_configured_seasons(self, adapter):
-        """Test that configured seasons are returned."""
+        """Test that configured seasons are returned with normalized names."""
         seasons = await adapter.get_seasons()
 
         assert len(seasons) == 2
-        assert seasons[0].external_id == "E2024"
-        assert seasons[1].external_id == "E2023"
+        # external_id is now normalized YYYY-YY format
+        assert seasons[0].external_id == "2024-25"
+        assert seasons[1].external_id == "2023-24"
+        # source_id preserves original Euroleague format
+        assert seasons[0].source_id == "E2024"
+        assert seasons[1].source_id == "E2023"
 
     @pytest.mark.asyncio
     async def test_marks_current_season(self, adapter):
@@ -258,7 +262,7 @@ class TestGetSeasons:
 
         current_seasons = [s for s in seasons if s.is_current]
         assert len(current_seasons) == 1
-        assert current_seasons[0].external_id == "E2024"
+        assert current_seasons[0].name == "2024-25"
 
 
 class TestGetTeams:

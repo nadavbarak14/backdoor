@@ -18,6 +18,7 @@ Usage:
 from dataclasses import dataclass
 from datetime import date, datetime
 
+from src.sync.season import normalize_season_name
 from src.sync.types import (
     RawBoxScore,
     RawGame,
@@ -200,21 +201,24 @@ class WinnerMapper:
         - Uses game_year field if available (real API)
         - Falls back to parsing game dates
 
+        The season name is normalized to YYYY-YY format (e.g., "2025-26").
+        The original season string is stored in source_id for reference.
+
         Args:
             season_str: Season string (e.g., "2023-24"), or empty to infer.
             games_data: Full games_all response data.
 
         Returns:
-            RawSeason with extracted information.
+            RawSeason with normalized name in YYYY-YY format.
 
         Example:
             >>> mapper = WinnerMapper()
             >>> season = mapper.map_season("2023-24", {"games": []})
-            >>> season.external_id
+            >>> season.name
             '2023-24'
             >>> # Or infer from game_year
             >>> season = mapper.map_season("", {"games": [{"game_year": 2026}]})
-            >>> season.external_id
+            >>> season.name
             '2025-26'
         """
         # Determine if current season based on games
@@ -224,6 +228,7 @@ class WinnerMapper:
         start_date = None
         end_date = None
         games = games_data.get("games", [])
+        start_year: int | None = None
 
         # Infer season from games if not provided
         if not season_str and games:
@@ -233,7 +238,6 @@ class WinnerMapper:
             if game_year:
                 # game_year is the end year of the season (e.g., 2026 for 2025-26)
                 start_year = game_year - 1
-                season_str = f"{start_year}-{str(game_year)[-2:]}"
             else:
                 # Fall back to parsing game dates
                 game_date_str = first_game.get("game_date_txt") or first_game.get(
@@ -245,11 +249,25 @@ class WinnerMapper:
                         year = game_date.year
                         month = game_date.month
                         if month >= 9:  # Season starts in September
-                            season_str = f"{year}-{str(year + 1)[-2:]}"
+                            start_year = year
                         else:
-                            season_str = f"{year - 1}-{str(year)[-2:]}"
+                            start_year = year - 1
                     except ValueError:
                         pass
+
+        # Parse season_str if provided (e.g., "2023-24")
+        if season_str and start_year is None:
+            try:
+                start_year = int(season_str.split("-")[0])
+            except (ValueError, IndexError):
+                start_year = datetime.now().year
+
+        # Default to current year if still not determined
+        if start_year is None:
+            start_year = datetime.now().year
+
+        # Normalize to standard YYYY-YY format
+        normalized_name = normalize_season_name(start_year)
 
         if games:
             dates = []
@@ -266,8 +284,9 @@ class WinnerMapper:
                 end_date = max(dates).date()
 
         return RawSeason(
-            external_id=season_str,
-            name=f"{season_str} Winner League",
+            external_id=normalized_name,
+            name=normalized_name,
+            source_id=season_str if season_str else None,
             start_date=start_date,
             end_date=end_date,
             is_current=is_current,

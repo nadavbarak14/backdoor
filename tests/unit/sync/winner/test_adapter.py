@@ -189,7 +189,7 @@ class TestGetSeasons:
     async def test_season_name_format(
         self, adapter, mock_client, sample_games_response
     ):
-        """Test that season name is formatted correctly."""
+        """Test that season name is in normalized YYYY-YY format."""
         mock_client.fetch_games_all.return_value = CacheResult(
             data=sample_games_response,
             changed=False,
@@ -199,7 +199,9 @@ class TestGetSeasons:
 
         seasons = await adapter.get_seasons()
 
-        assert "Winner League" in seasons[0].name
+        # Name should be normalized YYYY-YY format
+        assert "-" in seasons[0].name
+        assert len(seasons[0].name) == 7  # YYYY-YY format
 
     @pytest.mark.asyncio
     async def test_infers_season_from_dates(self, adapter, mock_client):

@@ -184,22 +184,40 @@ class TestHeightMetersToCm:
 class TestMapSeason:
     """Tests for map_season method."""
 
-    def test_euroleague_season(self, mapper):
-        """Test Euroleague season mapping."""
+    def test_euroleague_season_normalized_name(self, mapper):
+        """Test that Euroleague season name is normalized to YYYY-YY format."""
         season = mapper.map_season(2024, "E")
 
         assert isinstance(season, RawSeason)
-        assert season.external_id == "E2024"
-        assert "Euroleague" in season.name
+        assert season.name == "2024-25"  # Normalized format
+        assert season.external_id == "2024-25"  # Same as name
+        assert season.source_id == "E2024"  # Original Euroleague ID preserved
         assert season.start_date == date(2024, 10, 1)
         assert season.end_date == date(2025, 5, 31)
 
-    def test_eurocup_season(self, mapper):
-        """Test EuroCup season mapping."""
+    def test_eurocup_season_normalized_name(self, mapper):
+        """Test that EuroCup season name is normalized to YYYY-YY format."""
         season = mapper.map_season(2024, "U")
 
-        assert season.external_id == "U2024"
-        assert "EuroCup" in season.name
+        assert season.name == "2024-25"  # Normalized format
+        assert season.external_id == "2024-25"
+        assert season.source_id == "U2024"  # Original EuroCup ID preserved
+
+    def test_season_source_id_for_external_reference(self, mapper):
+        """Test that source_id can be used for external API calls."""
+        season = mapper.map_season(2025, "E")
+
+        # source_id should be in the format expected by Euroleague API
+        assert season.source_id == "E2025"
+        # name should be standardized
+        assert season.name == "2025-26"
+
+    def test_century_boundary_season(self, mapper):
+        """Test season crossing century boundary."""
+        season = mapper.map_season(1999, "E")
+
+        assert season.name == "1999-00"
+        assert season.source_id == "E1999"
 
 
 class TestMapTeam:
