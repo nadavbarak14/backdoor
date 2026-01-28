@@ -5,6 +5,8 @@ Provides a flexible query_stats tool for complex basketball analytics queries.
 This tool supports filtering by league, season, team, and players with
 configurable metrics, time-based filters, location filters, and output controls.
 
+All responses are returned as JSON strings for reliable parsing by LLMs.
+
 Additionally supports:
 - Lineup mode: Get stats when 2+ players are on court together
 - Lineup discovery: Find best performing lineups for a team
@@ -19,6 +21,7 @@ Usage:
         "metrics": ["points", "rebounds", "assists"],
         "db": db_session
     })
+    data = json.loads(result)  # Returns JSON with mode, season, data fields
 
     # With time filters
     result = query_stats.invoke({
@@ -51,6 +54,7 @@ Usage:
     })
 """
 
+import json
 import logging
 from uuid import UUID
 
@@ -164,7 +168,24 @@ def _format_metric_header(metric: str) -> str:
 
 
 def _get_metric_value(stats: PlayerSeasonStats, metric: str, per: str) -> str:
-    """Extract and format a metric value from stats object."""
+    """Extract and format a metric value from stats object as string."""
+    value = _get_metric_value_raw(stats, metric, per)
+    if value is None:
+        return "N/A"
+
+    # Format based on metric type
+    if metric in ("fg_pct", "three_pct", "ft_pct"):
+        return f"{value * 100:.1f}%" if value else "0.0%"
+    elif metric == "plus_minus":
+        return f"{value:+.1f}" if per != "total" else f"{int(value):+d}"
+    elif metric == "games" or per == "total":
+        return f"{int(value)}"
+    else:
+        return f"{value:.1f}"
+
+
+def _get_metric_value_raw(stats: PlayerSeasonStats, metric: str, per: str):
+    """Extract raw metric value from stats object for JSON output."""
     attr_map = {
         "points": ("avg_points", "total_points"),
         "rebounds": ("avg_rebounds", "total_rebounds"),
@@ -181,36 +202,25 @@ def _get_metric_value(stats: PlayerSeasonStats, metric: str, per: str) -> str:
     }
 
     if metric not in attr_map:
-        return "N/A"
+        return None
 
     avg_attr, total_attr = attr_map[metric]
     value = getattr(stats, total_attr if per == "total" else avg_attr, None)
 
     if value is None:
-        return "N/A"
+        return None
 
-    # Format based on metric type
+    # Round appropriately
     if metric in ("fg_pct", "three_pct", "ft_pct"):
-        return f"{value * 100:.1f}%" if value else "0.0%"
-    elif metric == "plus_minus":
-        return f"{value:+.1f}" if per != "total" else f"{int(value):+d}"
+        return round(value, 3) if value else 0.0
     elif metric == "games" or per == "total":
-        return f"{int(value)}"
+        return int(value)
     else:
-        return f"{value:.1f}"
+        return round(value, 1)
 
 
-def _truncate_response(response: str, shown: int, total: int) -> str:
-    """Truncate response if it exceeds size limits."""
-    if len(response) > MAX_RESPONSE_CHARS:
-        cutoff = response[:MAX_RESPONSE_CHARS].rfind("\n")
-        if cutoff > 0:
-            response = response[:cutoff]
-            response += "\n\n*... truncated. Showing partial results.*"
-    elif shown < total:
-        response += f"\n\n*Showing {shown} of {total} results.*"
-
-    # Log response size for debugging
+def _log_response(response: str, shown: int, total: int) -> str:
+    """Log response size for debugging and return the response."""
     char_count = len(response)
     token_estimate = char_count // 4
     logger.info(
@@ -218,6 +228,45 @@ def _truncate_response(response: str, shown: int, total: int) -> str:
         f"~{token_estimate} tokens, {shown}/{total} rows"
     )
     return response
+
+
+def _json_response(
+    mode: str,
+    season_name: str,
+    data: list | dict,
+    filters: dict | None = None,
+    shown: int | None = None,
+    total: int | None = None,
+    team_name: str | None = None,
+    error: str | None = None,
+) -> str:
+    """Build a JSON response string for query_stats."""
+    response = {
+        "mode": mode,
+        "season": season_name,
+    }
+    if team_name:
+        response["team"] = team_name
+    if filters:
+        response["filters"] = filters
+    if error:
+        response["error"] = error
+    else:
+        response["data"] = data
+        if shown is not None and total is not None:
+            response["shown"] = shown
+            response["total"] = total
+            if shown < total:
+                response["truncated"] = True
+
+    result = json.dumps(response)
+    _log_response(result, shown or 0, total or 0)
+    return result
+
+
+def _json_error(message: str) -> str:
+    """Return a JSON error response."""
+    return json.dumps({"error": message})
 
 
 # =============================================================================
@@ -517,88 +566,103 @@ def _validate_leaderboard_params(
     return None
 
 
-def _format_lineup_stats(
+def _format_lineup_stats_json(
     lineup_stats: dict,
     player_names: list[str],
+    player_ids: list[str],
     season_name: str,
 ) -> str:
-    """Format lineup stats as markdown."""
-    lines = [
-        f"## Lineup Stats - {season_name}",
-        f"**Players:** {', '.join(player_names)}",
-        "",
-    ]
-
+    """Format lineup stats as JSON."""
     games = lineup_stats.get("games", 0)
     if games == 0:
-        return f"No games found where {', '.join(player_names)} played together."
+        return _json_response(
+            mode="lineup",
+            season_name=season_name,
+            data=[],
+            error=f"No games found where {', '.join(player_names)} played together.",
+        )
 
     minutes = lineup_stats.get("minutes", 0)
     team_pts = lineup_stats.get("team_pts", 0)
     opp_pts = lineup_stats.get("opp_pts", 0)
     plus_minus = lineup_stats.get("plus_minus", 0)
 
-    lines.extend(
-        [
-            "| Stat | Value |",
-            "|------|-------|",
-            f"| Games Together | {games} |",
-            f"| Minutes Together | {minutes:.1f} |",
-            f"| Team Points | {team_pts} |",
-            f"| Opponent Points | {opp_pts} |",
-            f"| Plus/Minus | {plus_minus:+d} |",
-        ]
-    )
+    data = {
+        "players": [
+            {"id": pid, "name": name}
+            for pid, name in zip(player_ids, player_names, strict=True)
+        ],
+        "games_together": games,
+        "minutes_together": round(minutes, 1),
+        "team_points": team_pts,
+        "opponent_points": opp_pts,
+        "plus_minus": plus_minus,
+    }
 
     if minutes > 0:
-        per_minute_pm = plus_minus / minutes
-        lines.append(f"| +/- Per Minute | {per_minute_pm:+.2f} |")
+        data["plus_minus_per_minute"] = round(plus_minus / minutes, 2)
 
-    return "\n".join(lines)
+    return _json_response(
+        mode="lineup",
+        season_name=season_name,
+        data=data,
+    )
 
 
-def _format_best_lineups(
+def _format_best_lineups_json(
     lineups: list[dict],
     db: "Session",
     team_name: str,
     season_name: str,
     lineup_size: int,
 ) -> str:
-    """Format best lineups as markdown table."""
+    """Format best lineups as JSON."""
     from src.models.player import Player
 
     if not lineups:
-        return f"No lineups found for {team_name} with sufficient minutes."
+        return _json_response(
+            mode="lineup_discovery",
+            season_name=season_name,
+            team_name=team_name,
+            data=[],
+            error=f"No lineups found for {team_name} with sufficient minutes.",
+        )
 
-    lines = [
-        f"## Best {lineup_size}-Player Lineups - {team_name}",
-        f"*{season_name}*",
-        "",
-        "| Lineup | MIN | +/- | Team Pts | Opp Pts |",
-        "|--------|-----|-----|----------|---------|",
-    ]
-
+    lineup_data = []
     for lineup in lineups[:10]:  # Limit to top 10
-        # Get player names
-        player_names = []
+        # Get player info
+        players = []
         for pid in lineup["player_ids"]:
             player = db.get(Player, pid)
             if player:
-                player_names.append(f"{player.first_name[0]}. {player.last_name}")
+                players.append(
+                    {
+                        "id": str(pid),
+                        "name": f"{player.first_name} {player.last_name}",
+                    }
+                )
             else:
-                player_names.append("Unknown")
+                players.append({"id": str(pid), "name": "Unknown"})
 
-        lineup_str = ", ".join(player_names)
-        minutes = lineup.get("minutes", 0)
-        plus_minus = lineup.get("plus_minus", 0)
-        team_pts = lineup.get("team_pts", 0)
-        opp_pts = lineup.get("opp_pts", 0)
-
-        lines.append(
-            f"| {lineup_str} | {minutes:.1f} | {plus_minus:+d} | {team_pts} | {opp_pts} |"
+        lineup_data.append(
+            {
+                "players": players,
+                "minutes": round(lineup.get("minutes", 0), 1),
+                "plus_minus": lineup.get("plus_minus", 0),
+                "team_points": lineup.get("team_pts", 0),
+                "opponent_points": lineup.get("opp_pts", 0),
+            }
         )
 
-    return "\n".join(lines)
+    return _json_response(
+        mode="lineup_discovery",
+        season_name=season_name,
+        team_name=team_name,
+        data=lineup_data,
+        filters={"lineup_size": lineup_size},
+        shown=len(lineup_data),
+        total=len(lineups),
+    )
 
 
 # =============================================================================
@@ -951,13 +1015,32 @@ def _calc_pbp_stats_for_game(
 
 
 def _format_game_stats_value(totals: dict, metric: str, per: str) -> str:
-    """Format a metric value from game-aggregated stats."""
-    games = totals.get("games", 0)
-    if games == 0:
+    """Format a metric value from game-aggregated stats as string."""
+    value = _get_game_stats_value_raw(totals, metric, per)
+    if value is None:
         return "N/A"
 
+    if metric in ("fg_pct", "three_pct", "ft_pct"):
+        return f"{value * 100:.1f}%"
+    elif metric == "plus_minus":
+        if per == "total":
+            return f"{int(value):+d}"
+        else:
+            return f"{value:+.1f}"
+    elif metric == "games" or per == "total":
+        return str(int(value))
+    else:
+        return f"{value:.1f}"
+
+
+def _get_game_stats_value_raw(totals: dict, metric: str, per: str):
+    """Get raw metric value from game-aggregated stats for JSON output."""
+    games = totals.get("games", 0)
+    if games == 0:
+        return None
+
     if metric == "games":
-        return str(games)
+        return games
     elif metric == "points":
         val = totals["points"]
     elif metric == "rebounds":
@@ -973,35 +1056,30 @@ def _format_game_stats_value(totals: dict, metric: str, per: str) -> str:
     elif metric == "fg_pct":
         fga = totals["fga"]
         fgm = totals["fgm"]
-        pct = fgm / fga if fga > 0 else 0
-        return f"{pct * 100:.1f}%"
+        return round(fgm / fga, 3) if fga > 0 else 0.0
     elif metric == "three_pct":
         fg3a = totals["fg3a"]
         fg3m = totals["fg3m"]
-        pct = fg3m / fg3a if fg3a > 0 else 0
-        return f"{pct * 100:.1f}%"
+        return round(fg3m / fg3a, 3) if fg3a > 0 else 0.0
     elif metric == "ft_pct":
         fta = totals["fta"]
         ftm = totals["ftm"]
-        pct = ftm / fta if fta > 0 else 0
-        return f"{pct * 100:.1f}%"
+        return round(ftm / fta, 3) if fta > 0 else 0.0
     elif metric == "plus_minus":
         val = totals["plus_minus"]
         if per == "total":
-            return f"{int(val):+d}"
+            return int(val)
         else:
-            avg = val / games
-            return f"{avg:+.1f}"
+            return round(val / games, 1)
     elif metric == "minutes":
         val = totals["minutes"]
     else:
-        return "N/A"
+        return None
 
     if per == "total":
-        return str(int(val))
+        return int(val)
     else:
-        avg = val / games
-        return f"{avg:.1f}"
+        return round(val / games, 1)
 
 
 def _build_time_filter_label(
@@ -1053,39 +1131,45 @@ def _query_player_stats(
     per: str,
     limit: int,
 ) -> str:
-    """Query stats for specific players."""
+    """Query stats for specific players. Returns JSON."""
     service = PlayerSeasonStatsService(db)
 
-    lines = [f"## Player Stats - {season.name}", ""]
-
-    # Build header
-    header = "| Player | Team |"
-    separator = "|--------|------|"
-    for metric in metrics:
-        header += f" {_format_metric_header(metric)} |"
-        separator += "------|"
-    lines.extend([header, separator])
-
-    row_count = 0
+    player_data = []
     for player in players[:limit]:
         stats_list = service.get_player_season(player.id, season.id)
         if not stats_list:
             continue
 
         stats = stats_list[0]
-        team_name = stats.team.short_name if stats.team else "N/A"
-        player_name = f"{player.first_name} {player.last_name}"
+        team_name = stats.team.short_name if stats.team else None
+        team_full = stats.team.name if stats.team else None
 
-        row = f"| {player_name} | {team_name} |"
+        player_stats = {
+            "id": str(player.id),
+            "name": f"{player.first_name} {player.last_name}",
+            "team": team_name,
+            "team_full": team_full,
+            "stats": {},
+        }
+
         for metric in metrics:
-            row += f" {_get_metric_value(stats, metric, per)} |"
-        lines.append(row)
-        row_count += 1
+            player_stats["stats"][metric] = _get_metric_value_raw(stats, metric, per)
 
-    if row_count == 0:
-        return f"No stats found for the specified players in {season.name}."
+        player_data.append(player_stats)
 
-    return _truncate_response("\n".join(lines), row_count, len(players))
+    if not player_data:
+        return _json_error(
+            f"No stats found for the specified players in {season.name}."
+        )
+
+    return _json_response(
+        mode="player_stats",
+        season_name=season.name,
+        data=player_data,
+        filters={"metrics": metrics, "per": per},
+        shown=len(player_data),
+        total=len(players),
+    )
 
 
 def _query_team_stats(
@@ -1096,7 +1180,7 @@ def _query_team_stats(
     per: str,
     limit: int,
 ) -> str:
-    """Query stats for all players on a team."""
+    """Query stats for all players on a team. Returns JSON."""
     stmt = (
         select(PlayerSeasonStats)
         .where(PlayerSeasonStats.team_id == team.id)
@@ -1107,26 +1191,29 @@ def _query_team_stats(
     all_stats = list(db.scalars(stmt).all())
 
     if not all_stats:
-        return f"No stats found for {team.name} in {season.name}."
+        return _json_error(f"No stats found for {team.name} in {season.name}.")
 
-    lines = [f"## {team.name} - {season.name}", ""]
-
-    header = "| Player |"
-    separator = "|--------|"
-    for metric in metrics:
-        header += f" {_format_metric_header(metric)} |"
-        separator += "------|"
-    lines.extend([header, separator])
-
+    player_data = []
     for stats in all_stats:
         player = stats.player
-        player_name = f"{player.first_name} {player.last_name}"
-        row = f"| {player_name} |"
+        player_stats = {
+            "id": str(player.id),
+            "name": f"{player.first_name} {player.last_name}",
+            "stats": {},
+        }
         for metric in metrics:
-            row += f" {_get_metric_value(stats, metric, per)} |"
-        lines.append(row)
+            player_stats["stats"][metric] = _get_metric_value_raw(stats, metric, per)
+        player_data.append(player_stats)
 
-    return _truncate_response("\n".join(lines), len(all_stats), len(all_stats))
+    return _json_response(
+        mode="team_stats",
+        season_name=season.name,
+        team_name=team.name,
+        data=player_data,
+        filters={"metrics": metrics, "per": per},
+        shown=len(player_data),
+        total=len(all_stats),
+    )
 
 
 def _query_league_stats(
@@ -1137,7 +1224,7 @@ def _query_league_stats(
     per: str,
     limit: int,
 ) -> str:
-    """Query league-wide stats (leaderboard mode)."""
+    """Query league-wide stats (leaderboard mode). Returns JSON."""
     service = PlayerSeasonStatsService(db)
 
     sort_metric = metrics[0] if metrics else "points"
@@ -1164,33 +1251,34 @@ def _query_league_stats(
 
     if not leaders:
         league_str = f" in {league.name}" if league else ""
-        return f"No stats found for {season.name}{league_str}."
+        return _json_error(f"No stats found for {season.name}{league_str}.")
 
-    league_str = f"{league.name} - " if league else ""
-    lines = [
-        f"## {league_str}{season.name} Leaders",
-        f"*Sorted by {_format_metric_header(sort_metric)}*",
-        "",
-    ]
-
-    header = "| # | Player | Team |"
-    separator = "|---|--------|------|"
-    for metric in metrics:
-        header += f" {_format_metric_header(metric)} |"
-        separator += "------|"
-    lines.extend([header, separator])
-
+    player_data = []
     for i, stats in enumerate(leaders, 1):
         player = stats.player
-        player_name = f"{player.first_name} {player.last_name}"
-        team_name = stats.team.short_name if stats.team else "N/A"
+        team_name = stats.team.short_name if stats.team else None
+        team_full = stats.team.name if stats.team else None
 
-        row = f"| {i} | {player_name} | {team_name} |"
+        player_stats = {
+            "rank": i,
+            "id": str(player.id),
+            "name": f"{player.first_name} {player.last_name}",
+            "team": team_name,
+            "team_full": team_full,
+            "stats": {},
+        }
         for metric in metrics:
-            row += f" {_get_metric_value(stats, metric, per)} |"
-        lines.append(row)
+            player_stats["stats"][metric] = _get_metric_value_raw(stats, metric, per)
+        player_data.append(player_stats)
 
-    return _truncate_response("\n".join(lines), len(leaders), len(leaders))
+    return _json_response(
+        mode="leaders",
+        season_name=season.name,
+        data=player_data,
+        filters={"metrics": metrics, "per": per, "sort_by": sort_metric},
+        shown=len(player_data),
+        total=len(leaders),
+    )
 
 
 # =============================================================================
@@ -1215,19 +1303,22 @@ def _query_lineup_stats(
         season: Season to query.
 
     Returns:
-        Markdown-formatted lineup stats (minutes together, +/-).
+        JSON-formatted lineup stats (minutes together, +/-).
     """
     if len(players) < 2:
-        return "Error: Lineup mode requires at least 2 players."
+        return _json_error("Lineup mode requires at least 2 players.")
 
     analytics = AnalyticsService(db)
     player_ids = [p.id for p in players]
     player_names = [f"{p.first_name} {p.last_name}" for p in players]
+    player_id_strs = [str(p.id) for p in players]
 
     # Get lineup stats for the season
     lineup_stats = analytics.get_lineup_stats_for_season(player_ids, season.id)
 
-    return _format_lineup_stats(lineup_stats, player_names, season.name)
+    return _format_lineup_stats_json(
+        lineup_stats, player_names, player_id_strs, season.name
+    )
 
 
 def _query_discover_lineups(
@@ -1252,7 +1343,7 @@ def _query_discover_lineups(
         limit: Maximum lineups to return.
 
     Returns:
-        Markdown-formatted table of best lineups.
+        JSON-formatted list of best lineups.
     """
     analytics = AnalyticsService(db)
 
@@ -1260,7 +1351,7 @@ def _query_discover_lineups(
     games = _get_recent_games(db, season, team_id=team.id)
 
     if not games:
-        return f"No games found for {team.name} in {season.name}."
+        return _json_error(f"No games found for {team.name} in {season.name}.")
 
     # Aggregate lineups across all games
     lineup_totals: dict[tuple, dict] = {}
@@ -1302,7 +1393,7 @@ def _query_discover_lineups(
     # Limit results
     qualified_lineups = qualified_lineups[:limit]
 
-    return _format_best_lineups(
+    return _format_best_lineups_json(
         qualified_lineups, db, team.name, season.name, lineup_size
     )
 
@@ -1333,7 +1424,7 @@ def _query_leaderboard(
         limit: Maximum players to return.
 
     Returns:
-        Markdown-formatted leaderboard table.
+        JSON-formatted leaderboard.
     """
     service = PlayerSeasonStatsService(db)
 
@@ -1365,38 +1456,46 @@ def _query_leaderboard(
 
     if not leaders:
         league_str = f" in {league.name}" if league else ""
-        return f"No stats found for {season.name}{league_str} (min {min_games} games)."
+        return _json_error(
+            f"No stats found for {season.name}{league_str} (min {min_games} games)."
+        )
 
     # Handle ascending order by reversing the list
     if order == "asc":
         leaders = list(reversed(leaders))
 
-    league_str = f"{league.name} - " if league else ""
-    direction = "ascending" if order == "asc" else "descending"
-    lines = [
-        f"## {league_str}{season.name} Leaderboard",
-        f"*Sorted by {_format_metric_header(order_by)} ({direction}), min {min_games} games*",
-        "",
-    ]
-
-    header = "| # | Player | Team |"
-    separator = "|---|--------|------|"
-    for metric in metrics:
-        header += f" {_format_metric_header(metric)} |"
-        separator += "------|"
-    lines.extend([header, separator])
-
+    player_data = []
     for i, stats in enumerate(leaders, 1):
         player = stats.player
-        player_name = f"{player.first_name} {player.last_name}"
-        team_name = stats.team.short_name if stats.team else "N/A"
+        team_name = stats.team.short_name if stats.team else None
+        team_full = stats.team.name if stats.team else None
 
-        row = f"| {i} | {player_name} | {team_name} |"
+        player_stats = {
+            "rank": i,
+            "id": str(player.id),
+            "name": f"{player.first_name} {player.last_name}",
+            "team": team_name,
+            "team_full": team_full,
+            "stats": {},
+        }
         for metric in metrics:
-            row += f" {_get_metric_value(stats, metric, per)} |"
-        lines.append(row)
+            player_stats["stats"][metric] = _get_metric_value_raw(stats, metric, per)
+        player_data.append(player_stats)
 
-    return _truncate_response("\n".join(lines), len(leaders), len(leaders))
+    return _json_response(
+        mode="leaderboard",
+        season_name=season.name,
+        data=player_data,
+        filters={
+            "metrics": metrics,
+            "per": per,
+            "order_by": order_by,
+            "order": order,
+            "min_games": min_games,
+        },
+        shown=len(player_data),
+        total=len(leaders),
+    )
 
 
 # =============================================================================
@@ -1447,6 +1546,8 @@ def query_stats(
     THE primary tool for ALL statistical queries. Use search tools (search_players,
     search_teams) to get entity IDs first, then use this tool with those IDs.
 
+    Returns JSON for all responses, including errors.
+
     Modes:
     - Player stats: query_stats(player_ids=["uuid"])
     - Team stats: query_stats(team_id="uuid")
@@ -1487,7 +1588,8 @@ def query_stats(
         db: Database session (injected at runtime).
 
     Returns:
-        Markdown-formatted stats table.
+        JSON string with mode, season, filters, and data fields.
+        On error, returns JSON with error field.
 
     Examples:
         - Player stats this season: query_stats(player_ids=["uuid"])
@@ -1498,39 +1600,39 @@ def query_stats(
         - Home vs away: query_stats(team_id="uuid", home_only=True)
     """
     if db is None:
-        return "Error: Database session not provided."
+        return _json_error("Database session not provided.")
 
     # Validate time filters
     validation_error = _validate_time_filters(quarter, quarters)
     if validation_error:
-        return validation_error
+        return _json_error(validation_error.replace("Error: ", ""))
 
     # Validate location filters
     location_error = _validate_location_filters(home_only, away_only)
     if location_error:
-        return location_error
+        return _json_error(location_error.replace("Error: ", ""))
 
     # Validate lineup params
     lineup_error = _validate_lineup_params(
         discover_lineups, lineup_size, min_minutes, player_ids, team_id
     )
     if lineup_error:
-        return lineup_error
+        return _json_error(lineup_error.replace("Error: ", ""))
 
     # Validate leaderboard params
     leaderboard_error = _validate_leaderboard_params(order_by, order, min_games)
     if leaderboard_error:
-        return leaderboard_error
+        return _json_error(leaderboard_error.replace("Error: ", ""))
 
     # Validate situational params
     situational_error = _validate_situational_params(shot_type)
     if situational_error:
-        return situational_error
+        return _json_error(situational_error.replace("Error: ", ""))
 
     # Validate schedule params
     schedule_error = _validate_schedule_params(back_to_back, min_rest_days)
     if schedule_error:
-        return schedule_error
+        return _json_error(schedule_error.replace("Error: ", ""))
 
     if metrics is None:
         metrics = ["points", "rebounds", "assists", "fg_pct"]
@@ -1542,26 +1644,26 @@ def query_stats(
     if league_id:
         league = _get_entity_by_id(db, League, league_id)
         if not league:
-            return f"Error: League with ID '{league_id}' not found."
+            return _json_error(f"League with ID '{league_id}' not found.")
 
     # Resolve season by name string or get current
     season_obj = _resolve_season(db, season_id=None, season=season, league_id=league_id)
     if not season_obj:
-        return "Error: No season found. Try specifying season like '2025-26'."
+        return _json_error("No season found. Try specifying season like '2025-26'.")
 
     # Resolve team by ID
     team = None
     if team_id:
         team = _get_entity_by_id(db, Team, team_id)
         if not team:
-            return f"Error: Team with ID '{team_id}' not found."
+            return _json_error(f"Team with ID '{team_id}' not found.")
 
     # Resolve opponent team by ID
     opponent = None
     if opponent_team_id:
         opponent = _get_entity_by_id(db, Team, opponent_team_id)
         if not opponent:
-            return f"Error: Opponent team with ID '{opponent_team_id}' not found."
+            return _json_error(f"Opponent team with ID '{opponent_team_id}' not found.")
 
     # Resolve players by IDs
     players: list[Player] = []
@@ -1571,7 +1673,7 @@ def query_stats(
             if player:
                 players.append(player)
             else:
-                return f"Error: Player with ID '{pid}' not found."
+                return _json_error(f"Player with ID '{pid}' not found.")
 
     # Check if time or location filters are active
     time_filters_active = (
@@ -1692,36 +1794,37 @@ def _query_with_time_filters(
     back_to_back: bool | None = None,
     min_rest_days: int | None = None,
 ) -> str:
-    """Query stats with time-based, location, situational, and schedule filters."""
-    # Build filter label for header
-    filter_label = _build_time_filter_label(
-        quarter,
-        quarters,
-        clutch_only,
-        exclude_garbage_time,
-        last_n_games,
-        home_only,
-        away_only,
-        opponent_name,
-    )
-
-    # Add situational filter label
-    situational_label = _build_situational_label(
-        fast_break, second_chance, contested, shot_type
-    )
-    if situational_label:
-        filter_label = (
-            f"{filter_label} | {situational_label}"
-            if filter_label
-            else situational_label
-        )
-
-    # Add schedule filter label
-    schedule_label = _build_schedule_label(back_to_back, min_rest_days)
-    if schedule_label:
-        filter_label = (
-            f"{filter_label} | {schedule_label}" if filter_label else schedule_label
-        )
+    """Query stats with time-based, location, situational, and schedule filters. Returns JSON."""
+    # Build filter dict for JSON response
+    filters_dict: dict = {"metrics": metrics, "per": per}
+    if quarter:
+        filters_dict["quarter"] = quarter
+    if quarters:
+        filters_dict["quarters"] = quarters
+    if clutch_only:
+        filters_dict["clutch_only"] = True
+    if exclude_garbage_time:
+        filters_dict["exclude_garbage_time"] = True
+    if last_n_games:
+        filters_dict["last_n_games"] = last_n_games
+    if home_only:
+        filters_dict["home_only"] = True
+    if away_only:
+        filters_dict["away_only"] = True
+    if opponent_name:
+        filters_dict["opponent"] = opponent_name
+    if fast_break is not None:
+        filters_dict["fast_break"] = fast_break
+    if second_chance is not None:
+        filters_dict["second_chance"] = second_chance
+    if contested is not None:
+        filters_dict["contested"] = contested
+    if shot_type:
+        filters_dict["shot_type"] = shot_type
+    if back_to_back is not None:
+        filters_dict["back_to_back"] = back_to_back
+    if min_rest_days is not None:
+        filters_dict["min_rest_days"] = min_rest_days
 
     # Build situational filter if needed
     situational_filter = None
@@ -1732,16 +1835,7 @@ def _query_with_time_filters(
 
     if players:
         # Query each player with time filters
-        lines = [f"## Player Stats - {season.name}", f"*{filter_label}*", ""]
-
-        header = "| Player | Team |"
-        separator = "|--------|------|"
-        for metric in metrics:
-            header += f" {_format_metric_header(metric)} |"
-            separator += "------|"
-        lines.extend([header, separator])
-
-        row_count = 0
+        player_data = []
         for player in players[:limit]:
             # Get games for this player
             games = _get_recent_games(
@@ -1805,8 +1899,9 @@ def _query_with_time_filters(
             if totals["games"] == 0:
                 continue
 
-            # Get team name from most recent game
-            team_name = "N/A"
+            # Get team info from most recent game
+            team_short = None
+            team_full = None
             stmt = (
                 select(PlayerGameStats)
                 .where(PlayerGameStats.game_id == games[0].id)
@@ -1814,19 +1909,36 @@ def _query_with_time_filters(
             )
             pgs = db.scalars(stmt).first()
             if pgs and pgs.team:
-                team_name = pgs.team.short_name
+                team_short = pgs.team.short_name
+                team_full = pgs.team.name
 
-            player_name = f"{player.first_name} {player.last_name}"
-            row = f"| {player_name} | {team_name} |"
+            player_stats = {
+                "id": str(player.id),
+                "name": f"{player.first_name} {player.last_name}",
+                "team": team_short,
+                "team_full": team_full,
+                "games_in_filter": totals["games"],
+                "stats": {},
+            }
             for metric in metrics:
-                row += f" {_format_game_stats_value(totals, metric, per)} |"
-            lines.append(row)
-            row_count += 1
+                player_stats["stats"][metric] = _get_game_stats_value_raw(
+                    totals, metric, per
+                )
+            player_data.append(player_stats)
 
-        if row_count == 0:
-            return f"No stats found for the specified players with {filter_label}."
+        if not player_data:
+            return _json_error(
+                "No stats found for the specified players with applied filters."
+            )
 
-        return _truncate_response("\n".join(lines), row_count, len(players))
+        return _json_response(
+            mode="filtered_player_stats",
+            season_name=season.name,
+            data=player_data,
+            filters=filters_dict,
+            shown=len(player_data),
+            total=len(players),
+        )
 
     elif team:
         # Query team players with time and location filters
@@ -1840,8 +1952,7 @@ def _query_with_time_filters(
             opponent_team_id=opponent_team_id,
         )
         if not games:
-            filter_desc = filter_label if filter_label else "filters"
-            return f"No games found for {team.name} with {filter_desc}."
+            return _json_error(f"No games found for {team.name} with applied filters.")
 
         # Apply schedule filters if needed
         if back_to_back is not None or min_rest_days is not None:
@@ -1853,11 +1964,12 @@ def _query_with_time_filters(
                 )
             ]
             if not games:
-                filter_desc = filter_label if filter_label else "schedule filters"
-                return f"No games found for {team.name} with {filter_desc}."
+                return _json_error(
+                    f"No games found for {team.name} with schedule filters."
+                )
 
         # Get all players who played for this team
-        player_ids = set()
+        player_id_set = set()
         for game in games:
             stmt = (
                 select(PlayerGameStats.player_id)
@@ -1865,22 +1977,13 @@ def _query_with_time_filters(
                 .where(PlayerGameStats.team_id == team.id)
             )
             for pid in db.scalars(stmt).all():
-                player_ids.add(pid)
-
-        lines = [f"## {team.name} - {season.name}", f"*{filter_label}*", ""]
-
-        header = "| Player |"
-        separator = "|--------|"
-        for metric in metrics:
-            header += f" {_format_metric_header(metric)} |"
-            separator += "------|"
-        lines.extend([header, separator])
+                player_id_set.add(pid)
 
         # Calculate stats for each player
         player_stats_list = []
         game_ids = [g.id for g in games]
 
-        for player_id in player_ids:
+        for player_id in player_id_set:
             # Use situational stats if situational filters are active
             if situational_filter:
                 totals = _calc_situational_stats_for_games(
@@ -1909,24 +2012,37 @@ def _query_with_time_filters(
             key=lambda x: x[1]["points"] / max(x[1]["games"], 1), reverse=True
         )
 
+        player_data = []
         for player, totals in player_stats_list[:limit]:
-            player_name = f"{player.first_name} {player.last_name}"
-            row = f"| {player_name} |"
+            player_stats = {
+                "id": str(player.id),
+                "name": f"{player.first_name} {player.last_name}",
+                "games_in_filter": totals["games"],
+                "stats": {},
+            }
             for metric in metrics:
-                row += f" {_format_game_stats_value(totals, metric, per)} |"
-            lines.append(row)
+                player_stats["stats"][metric] = _get_game_stats_value_raw(
+                    totals, metric, per
+                )
+            player_data.append(player_stats)
 
-        if len(player_stats_list) == 0:
-            return f"No stats found for {team.name} with {filter_label}."
+        if not player_data:
+            return _json_error(f"No stats found for {team.name} with applied filters.")
 
-        return _truncate_response(
-            "\n".join(lines), min(len(player_stats_list), limit), len(player_stats_list)
+        return _json_response(
+            mode="filtered_team_stats",
+            season_name=season.name,
+            team_name=team.name,
+            data=player_data,
+            filters=filters_dict,
+            shown=len(player_data),
+            total=len(player_stats_list),
         )
 
     else:
         # League-wide query with filters is not supported (too expensive)
-        return (
-            "Error: Time filters (quarter, clutch, etc.) and location filters "
-            "(home_only, away_only, opponent_team_id) require specifying player_ids or team_id."
+        return _json_error(
+            "Time filters (quarter, clutch, etc.) and location filters "
+            "(home_only, away_only, opponent_team_id) require specifying player_ids or team_id. "
             "League-wide filtered queries are not supported."
         )
