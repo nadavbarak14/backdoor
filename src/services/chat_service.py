@@ -66,21 +66,111 @@ IMPORTANT INSTRUCTIONS:
 4. If a tool returns an error or no data, tell the user what happened.
 5. For simple greetings or non-basketball questions, respond conversationally without tools.
 
-Available tools:
-- search_players: Find players by name
-- search_teams: Find teams by name
-- get_team_roster: Get a team's player roster
-- get_player_stats: Get a player's season statistics
-- get_player_games: Get a player's recent game log
-- get_league_leaders: Get top players in a statistical category
-- get_game_details: Get box score for a specific game
-- get_clutch_stats: Analyze clutch performance
-- get_quarter_splits: Performance by quarter
-- get_trend: Analyze recent performance trends
-- get_lineup_stats: Stats for specific player combinations
-- get_home_away_split: Home vs away performance
-- get_on_off_stats: Team performance with player on/off court
-- get_vs_opponent: Stats against specific opponent
+## @-MENTIONS (TAGGED ENTITIES)
+
+Users can tag players, teams, seasons, and leagues using @-mentions. When they do, you'll see
+the mention in this format: @type:uuid
+
+Examples in user messages:
+- "@player:abc-123-def" = a tagged player with ID abc-123-def
+- "@team:xyz-789-uvw" = a tagged team with ID xyz-789-uvw
+- "@season:sea-456-son" = a tagged season
+- "@league:lea-111-gue" = a tagged league
+
+**When you see @type:uuid mentions, use the UUID directly** - no need to search first!
+This saves a step and ensures you're querying the exact entity the user selected.
+
+Example with mention:
+User: "What are @player:abc-123's clutch stats?"
+→ Use query_stats(player_ids=["abc-123"], clutch_only=True) directly
+
+## WORKFLOW FOR QUERIES
+
+The primary workflow is: **Search → query_stats**
+
+**If the user tagged entities with @-mentions:** Use those IDs directly with query_stats.
+
+**If NO @-mentions are present:** Search first, then use query_stats:
+
+1. **Search first**: Use search tools to find entity IDs
+   - search_players("Clark") → returns player IDs
+   - search_teams("Maccabi") → returns team IDs
+   - search_leagues() → returns league IDs (only if filtering by league)
+
+2. **Query with query_stats**: Use the IDs from search results
+   - query_stats(player_ids=["uuid-from-search"])
+   - query_stats(team_id="uuid-from-search")
+
+**IMPORTANT: Seasons use string format, no search needed!**
+- Use season="2025-26" directly (not season_id)
+- Examples: "2024-25", "2023-24"
+
+## EXAMPLE WORKFLOWS
+
+**Player stats:**
+User: "What are Tamir Blatt's stats this season?"
+1. search_players("Tamir") → returns player_id
+2. query_stats(player_ids=[player_id], season="2025-26")
+
+**Team performance:**
+User: "How does Maccabi perform in the 4th quarter?"
+1. search_teams("Maccabi") → returns team_id
+2. query_stats(team_id=team_id, quarter=4)
+
+**Leaderboard (no search needed):**
+User: "Who led scoring last season?"
+→ query_stats(order_by="points", season="2024-25", limit=10)
+
+**Clutch analysis:**
+User: "How does Maccabi perform in clutch situations?"
+1. search_teams("Maccabi") → returns team_id
+2. query_stats(team_id=team_id, clutch_only=True)
+
+**Home/away comparison:**
+User: "Compare Maccabi's home vs away performance"
+1. search_teams("Maccabi") → returns team_id
+2. query_stats(team_id=team_id, home_only=True) → home stats
+3. query_stats(team_id=team_id, away_only=True) → away stats
+
+## PRIMARY TOOL - query_stats
+
+**This is THE universal query tool.** Use it for ALL statistical queries.
+
+**Entity Selection:**
+- player_ids: List of player UUIDs (2+ for lineup stats)
+- team_id: Team UUID
+- league_id: League UUID (optional filter)
+- season: Season string like "2025-26" (defaults to current)
+
+**Time Filters:**
+- quarter: Single quarter (1-4)
+- quarters: Multiple quarters (e.g., [1,2] for first half)
+- clutch_only: Last 5 min of Q4/OT when score within 5 points
+- last_n_games: Limit to recent games
+
+**Location Filters:**
+- home_only: Only home games
+- away_only: Only away games
+- opponent_team_id: Games against specific opponent
+
+**Situational Filters:**
+- fast_break: Fast break shots only
+- contested: Contested/uncontested shots
+- shot_type: PULL_UP, CATCH_AND_SHOOT, POST_UP
+
+**Schedule Filters:**
+- back_to_back: Back-to-back games
+- min_rest_days: Minimum rest days before game
+
+**Special Modes:**
+- Lineup mode: Pass 2+ player_ids to get stats when all players are on court together
+- Lineup discovery: discover_lineups=True with team_id finds best lineups
+- Leaderboard mode: order_by="points" without specific entity returns ranked leaders
+
+## SEARCH TOOLS (use these to find IDs)
+- search_players: Find player IDs by name
+- search_teams: Find team IDs by name
+- search_leagues: Find league IDs by name
 
 Remember: Always use tools for data queries. Never fabricate statistics."""
 
@@ -376,7 +466,7 @@ class ChatService:
 
             # Stream the response with potential tool calls
             full_response = ""
-            max_tool_iterations = 5  # Prevent infinite loops
+            max_tool_iterations = 20  # Allow sufficient iterations for complex queries
 
             for iteration in range(max_tool_iterations):
                 try:
