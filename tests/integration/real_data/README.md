@@ -19,6 +19,7 @@ These tests ensure:
 | test_api.py | API endpoint tests |
 | test_chat_tools.py | All 14 LangChain chat tools |
 | test_services.py | Service layer tests |
+| test_query_stats_accuracy.py | Comprehensive query_stats data accuracy tests (50 tests) |
 
 ## Usage
 
