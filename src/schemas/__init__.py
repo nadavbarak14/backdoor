@@ -78,6 +78,14 @@ from src.schemas.player_stats import (
     PlayerSeasonStatsResponse,
     StatsCategory,
 )
+from src.schemas.search import (
+    AutocompleteResponse,
+    BrowseItem,
+    BrowseParent,
+    BrowseResponse,
+    EntityType,
+    SearchResult,
+)
 from src.schemas.stats import (
     PlayerGameLogResponse,
     PlayerGameStatsResponse,
@@ -185,4 +193,11 @@ __all__ = [
     "SyncStatusResponse",
     "SeasonSyncCoverage",
     "SyncCoverageResponse",
+    # Search schemas
+    "EntityType",
+    "SearchResult",
+    "AutocompleteResponse",
+    "BrowseItem",
+    "BrowseParent",
+    "BrowseResponse",
 ]

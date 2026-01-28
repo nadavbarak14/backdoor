@@ -16,6 +16,9 @@ Version 1 of the Basketball Analytics API. Contains all REST endpoints under `/a
 | `games.py` | Game, box score, and play-by-play endpoints |
 | `stats.py` | League leaders endpoints |
 | `sync.py` | Sync operation tracking endpoints |
+| `chat.py` | AI chat streaming endpoint |
+| `search.py` | Autocomplete search for @-mentions |
+| `browse.py` | Hierarchical browse for @-mentions |
 
 ## Endpoint Summary
 
@@ -65,6 +68,21 @@ Version 1 of the Basketball Analytics API. Contains all REST endpoints under `/a
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/sync/logs` | Get sync operation history |
+
+### Search (`/api/v1/search`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/search/autocomplete` | Search entities for @-mention autocomplete |
+
+### Browse (`/api/v1/browse`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/browse/leagues` | List all leagues (root level) |
+| GET | `/browse/leagues/{league_id}/seasons` | List seasons in a league |
+| GET | `/browse/seasons/{season_id}/teams` | List teams in a season |
+| GET | `/browse/teams/{team_id}/players` | List players on a team |
 
 ## Query Parameters
 
@@ -126,6 +144,19 @@ Used by both `/players/{id}/games` and `/teams/{id}/games`:
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `season_id` | UUID | Filter by season |
+
+### Autocomplete Parameters (`GET /search/autocomplete`)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `q` | string | (required) | Search query (1-100 characters) |
+| `limit` | int | 10 | Maximum results (1-20) |
+
+### Browse Players Parameters (`GET /browse/teams/{id}/players`)
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `season_id` | UUID | Optional season filter for roster |
 
 ## Error Responses
 
