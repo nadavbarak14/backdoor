@@ -1,0 +1,16 @@
+[Unit]
+Description=Basketball Analytics Frontend (Next.js)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/projects/2backdoor/agent-chat
+ExecStart=/usr/bin/npm run dev
+Restart=always
+RestartSec=5
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=NODE_ENV=development
+
+[Install]
+WantedBy=multi-user.target
