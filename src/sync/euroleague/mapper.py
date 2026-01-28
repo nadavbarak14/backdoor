@@ -743,11 +743,16 @@ class EuroleagueMapper:
                 first_name = parts[0]
                 last_name = " ".join(parts[1:]) if len(parts) > 1 else ""
 
+        # Add P prefix to code for consistency with boxscore Player_ID format
+        code = data.get("code", "")
+        external_id = f"P{code}" if code and not code.startswith("P") else code
+
         return RawPlayerInfo(
-            external_id=data.get("code", ""),
+            external_id=external_id,
             first_name=first_name,
             last_name=last_name,
             birth_date=None,
             height_cm=None,
             position=data.get("position"),
+            jersey_number=data.get("dorsal"),
         )
