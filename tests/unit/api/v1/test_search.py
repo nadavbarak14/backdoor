@@ -7,11 +7,9 @@ Tests:
 
 from datetime import date
 
-import pytest
 from sqlalchemy.orm import Session
 
-from src.models import League, Player, Season, Team, TeamSeason
-from src.schemas.search import EntityType
+from src.models import League, Player, Season, Team
 
 
 class TestAutocomplete:
