@@ -63,10 +63,13 @@ from src.models.league import League, Season
 from src.models.player import Player
 from src.models.stats import PlayerSeasonStats
 from src.models.team import Team
-from src.schemas.analytics import ClutchFilter, TimeFilter
+from src.schemas.analytics import ClutchFilter, SituationalFilter, TimeFilter
 from src.services.analytics import AnalyticsService
 from src.services.league import SeasonService
 from src.services.player_stats import PlayerSeasonStatsService
+
+# Valid shot types for situational filter
+VALID_SHOT_TYPES = {"PULL_UP", "CATCH_AND_SHOOT", "POST_UP"}
 
 # Response size constants to prevent context blowup
 MAX_RESPONSE_ROWS = 20
@@ -192,6 +195,253 @@ def _truncate_response(response: str, shown: int, total: int) -> str:
         f"~{token_estimate} tokens, {shown}/{total} rows"
     )
     return response
+
+
+# =============================================================================
+# Situational Filter Helpers
+# =============================================================================
+
+
+def _validate_situational_params(shot_type: str | None) -> str | None:
+    """Validate situational filter parameters. Returns error message or None."""
+    if shot_type is not None and shot_type not in VALID_SHOT_TYPES:
+        return (
+            f"Error: 'shot_type' must be one of: {', '.join(sorted(VALID_SHOT_TYPES))}."
+        )
+    return None
+
+
+def _has_situational_filters(
+    fast_break: bool | None,
+    second_chance: bool | None,
+    contested: bool | None,
+    shot_type: str | None,
+) -> bool:
+    """Check if any situational filters are active."""
+    return any(x is not None for x in [fast_break, second_chance, contested, shot_type])
+
+
+def _build_situational_filter(
+    fast_break: bool | None,
+    second_chance: bool | None,
+    contested: bool | None,
+    shot_type: str | None,
+) -> SituationalFilter:
+    """Build a SituationalFilter from parameters."""
+    return SituationalFilter(
+        fast_break=fast_break,
+        second_chance=second_chance,
+        contested=contested,
+        shot_type=shot_type,
+    )
+
+
+def _build_situational_label(
+    fast_break: bool | None,
+    second_chance: bool | None,
+    contested: bool | None,
+    shot_type: str | None,
+) -> str:
+    """Build a human-readable label for situational filters."""
+    parts = []
+    if fast_break is True:
+        parts.append("Fast Break")
+    elif fast_break is False:
+        parts.append("Non-Fast Break")
+    if second_chance is True:
+        parts.append("Second Chance")
+    elif second_chance is False:
+        parts.append("Non-Second Chance")
+    if contested is True:
+        parts.append("Contested")
+    elif contested is False:
+        parts.append("Uncontested")
+    if shot_type:
+        parts.append(shot_type.replace("_", " ").title())
+    return " | ".join(parts) if parts else ""
+
+
+def _calc_situational_stats_for_games(
+    db: Session,
+    game_ids: list,
+    player_id=None,
+    situational_filter: SituationalFilter | None = None,
+) -> dict:
+    """
+    Calculate full shooting stats from situational shots across games.
+
+    Unlike AnalyticsService.get_situational_stats which only returns made/attempted/pct,
+    this function returns a full stats dict compatible with _format_game_stats_value.
+
+    Args:
+        db: Database session.
+        game_ids: List of game UUIDs to aggregate.
+        player_id: Player UUID to filter by.
+        situational_filter: SituationalFilter with criteria.
+
+    Returns:
+        Dictionary with full shooting stats including points from shots.
+    """
+    totals = {
+        "games": 0,
+        "points": 0,
+        "rebounds": 0,
+        "assists": 0,
+        "steals": 0,
+        "blocks": 0,
+        "turnovers": 0,
+        "fgm": 0,
+        "fga": 0,
+        "fg3m": 0,
+        "fg3a": 0,
+        "ftm": 0,
+        "fta": 0,
+        "plus_minus": 0,
+        "minutes": 0,
+    }
+
+    if not game_ids:
+        return totals
+
+    analytics = AnalyticsService(db)
+    games_with_shots = set()
+
+    for game_id in game_ids:
+        shots = analytics.get_situational_shots(
+            game_id=game_id,
+            player_id=player_id,
+            filter=situational_filter,
+        )
+
+        for shot in shots:
+            games_with_shots.add(game_id)
+            totals["fga"] += 1
+
+            is_3pt = shot.event_subtype == "3PT"
+            if is_3pt:
+                totals["fg3a"] += 1
+
+            if shot.success:
+                totals["fgm"] += 1
+                if is_3pt:
+                    totals["fg3m"] += 1
+                    totals["points"] += 3
+                else:
+                    totals["points"] += 2
+
+    totals["games"] = len(games_with_shots)
+    return totals
+
+
+# =============================================================================
+# Schedule Filter Helpers
+# =============================================================================
+
+
+def _validate_schedule_params(
+    back_to_back: bool | None,
+    min_rest_days: int | None,
+) -> str | None:
+    """Validate schedule filter parameters. Returns error message or None."""
+    if min_rest_days is not None and min_rest_days < 0:
+        return "Error: 'min_rest_days' must be non-negative."
+    if back_to_back is True and min_rest_days is not None and min_rest_days > 1:
+        return "Error: 'back_to_back=True' conflicts with 'min_rest_days > 1'."
+    return None
+
+
+def _has_schedule_filters(
+    back_to_back: bool | None,
+    min_rest_days: int | None,
+) -> bool:
+    """Check if any schedule filters are active."""
+    return back_to_back is not None or min_rest_days is not None
+
+
+def _get_rest_days_before_game(
+    db: Session,
+    team_id: UUID,
+    game: Game,
+    season_id: UUID,
+) -> int | None:
+    """
+    Calculate rest days before a game for a team.
+
+    Returns the number of days since the team's previous game in the season.
+    Returns None if this is the team's first game of the season.
+    """
+    # Find the previous game for this team
+    stmt = (
+        select(Game)
+        .where(
+            Game.season_id == season_id,
+            Game.game_date < game.game_date,
+            ((Game.home_team_id == team_id) | (Game.away_team_id == team_id)),
+        )
+        .order_by(Game.game_date.desc())
+        .limit(1)
+    )
+    prev_game = db.scalars(stmt).first()
+
+    if prev_game is None:
+        return None  # First game of season
+
+    # Calculate days between games
+    delta = game.game_date.date() - prev_game.game_date.date()
+    return delta.days
+
+
+def _is_back_to_back(rest_days: int | None) -> bool:
+    """Check if a game is a back-to-back (played day after previous game)."""
+    return rest_days is not None and rest_days <= 1
+
+
+def _game_matches_schedule_filter(
+    db: Session,
+    game: Game,
+    team_id: UUID,
+    season_id: UUID,
+    back_to_back: bool | None,
+    min_rest_days: int | None,
+) -> bool:
+    """Check if a game matches the schedule filter criteria."""
+    if back_to_back is None and min_rest_days is None:
+        return True
+
+    rest_days = _get_rest_days_before_game(db, team_id, game, season_id)
+
+    # Handle back_to_back filter
+    if back_to_back is not None:
+        is_b2b = _is_back_to_back(rest_days)
+        if back_to_back and not is_b2b:
+            return False
+        if not back_to_back and is_b2b:
+            return False
+
+    # Handle min_rest_days filter
+    if min_rest_days is not None:
+        if rest_days is None:
+            # First game - no previous game, treat as well-rested
+            return True
+        if rest_days < min_rest_days:
+            return False
+
+    return True
+
+
+def _build_schedule_label(
+    back_to_back: bool | None,
+    min_rest_days: int | None,
+) -> str:
+    """Build a human-readable label for schedule filters."""
+    parts = []
+    if back_to_back is True:
+        parts.append("Back-to-Back")
+    elif back_to_back is False:
+        parts.append("Non-B2B")
+    if min_rest_days is not None:
+        parts.append(f"Min {min_rest_days} Rest Days")
+    return " | ".join(parts) if parts else ""
 
 
 # =============================================================================
@@ -1150,6 +1400,14 @@ def query_stats(
     home_only: bool = False,
     away_only: bool = False,
     opponent_team_id: str | None = None,
+    # Situational filters
+    fast_break: bool | None = None,
+    second_chance: bool | None = None,
+    contested: bool | None = None,
+    shot_type: str | None = None,
+    # Schedule/Rest filters
+    back_to_back: bool | None = None,
+    min_rest_days: int | None = None,
     # Lineup mode
     discover_lineups: bool = False,
     lineup_size: int = 5,
@@ -1197,6 +1455,12 @@ def query_stats(
         home_only: Only include home games. Mutually exclusive with away_only.
         away_only: Only include away games. Mutually exclusive with home_only.
         opponent_team_id: UUID of opponent team to filter games against.
+        fast_break: Filter for fast break shots (True=only, False=exclude).
+        second_chance: Filter for second chance shots (True=only, False=exclude).
+        contested: Filter for contested shots (True=contested, False=uncontested).
+        shot_type: Shot type filter (PULL_UP, CATCH_AND_SHOOT, POST_UP).
+        back_to_back: Filter for back-to-back games (True=only B2B, False=non-B2B).
+        min_rest_days: Minimum days of rest before game.
         discover_lineups: Find best performing lineups for the team.
         lineup_size: Size of lineups to discover (2-5). Default 5.
         min_minutes: Minimum minutes threshold for lineup discovery. Default 10.0.
@@ -1214,6 +1478,9 @@ def query_stats(
         - Lineup stats: player_ids=["uuid-1", "uuid-2"]
         - Leaderboard: order_by="points", min_games=10
         - With filters: player_ids=["uuid-1"], quarter=4, clutch_only=True
+        - Fast break shots: player_ids=["uuid-1"], fast_break=True
+        - Contested shooting: player_ids=["uuid-1"], contested=True
+        - Back-to-back games: team_id="uuid-1", back_to_back=True
     """
     if db is None:
         return "Error: Database session not provided."
@@ -1239,6 +1506,16 @@ def query_stats(
     leaderboard_error = _validate_leaderboard_params(order_by, order, min_games)
     if leaderboard_error:
         return leaderboard_error
+
+    # Validate situational params
+    situational_error = _validate_situational_params(shot_type)
+    if situational_error:
+        return situational_error
+
+    # Validate schedule params
+    schedule_error = _validate_schedule_params(back_to_back, min_rest_days)
+    if schedule_error:
+        return schedule_error
 
     if metrics is None:
         metrics = ["points", "rebounds", "assists", "fg_pct"]
@@ -1289,6 +1566,10 @@ def query_stats(
     location_filters_active = _has_location_filters(
         home_only, away_only, opponent.id if opponent else None
     )
+    situational_filters_active = _has_situational_filters(
+        fast_break, second_chance, contested, shot_type
+    )
+    schedule_filters_active = _has_schedule_filters(back_to_back, min_rest_days)
 
     # Execute query based on mode (priority order)
 
@@ -1325,8 +1606,13 @@ def query_stats(
             limit=limit,
         )
 
-    # 4. Time/location filters
-    if time_filters_active or location_filters_active:
+    # 4. Time/location/situational/schedule filters
+    if (
+        time_filters_active
+        or location_filters_active
+        or situational_filters_active
+        or schedule_filters_active
+    ):
         return _query_with_time_filters(
             db=db,
             season=season_obj,
@@ -1344,6 +1630,12 @@ def query_stats(
             away_only=away_only,
             opponent_team_id=opponent.id if opponent else None,
             opponent_name=opponent.name if opponent else None,
+            fast_break=fast_break,
+            second_chance=second_chance,
+            contested=contested,
+            shot_type=shot_type,
+            back_to_back=back_to_back,
+            min_rest_days=min_rest_days,
         )
 
     # 5. Player stats
@@ -1376,8 +1668,16 @@ def _query_with_time_filters(
     away_only: bool = False,
     opponent_team_id=None,
     opponent_name: str | None = None,
+    # Situational filters
+    fast_break: bool | None = None,
+    second_chance: bool | None = None,
+    contested: bool | None = None,
+    shot_type: str | None = None,
+    # Schedule filters
+    back_to_back: bool | None = None,
+    min_rest_days: int | None = None,
 ) -> str:
-    """Query stats with time-based and location filters applied."""
+    """Query stats with time-based, location, situational, and schedule filters."""
     # Build filter label for header
     filter_label = _build_time_filter_label(
         quarter,
@@ -1389,6 +1689,31 @@ def _query_with_time_filters(
         away_only,
         opponent_name,
     )
+
+    # Add situational filter label
+    situational_label = _build_situational_label(
+        fast_break, second_chance, contested, shot_type
+    )
+    if situational_label:
+        filter_label = (
+            f"{filter_label} | {situational_label}"
+            if filter_label
+            else situational_label
+        )
+
+    # Add schedule filter label
+    schedule_label = _build_schedule_label(back_to_back, min_rest_days)
+    if schedule_label:
+        filter_label = (
+            f"{filter_label} | {schedule_label}" if filter_label else schedule_label
+        )
+
+    # Build situational filter if needed
+    situational_filter = None
+    if _has_situational_filters(fast_break, second_chance, contested, shot_type):
+        situational_filter = _build_situational_filter(
+            fast_break, second_chance, contested, shot_type
+        )
 
     if players:
         # Query each player with time filters
@@ -1416,16 +1741,51 @@ def _query_with_time_filters(
             if not games:
                 continue
 
-            # Calculate stats with time filters
-            totals = _calc_stats_from_games(
-                db,
-                games,
-                player_id=player.id,
-                quarter=quarter,
-                quarters=quarters,
-                clutch_only=clutch_only,
-                exclude_garbage_time=exclude_garbage_time,
-            )
+            # Apply schedule filters if needed
+            if back_to_back is not None or min_rest_days is not None:
+                # Get player's team from first game to check schedule
+                stmt = (
+                    select(PlayerGameStats.team_id)
+                    .where(PlayerGameStats.game_id == games[0].id)
+                    .where(PlayerGameStats.player_id == player.id)
+                )
+                player_team_id = db.scalars(stmt).first()
+                if player_team_id:
+                    games = [
+                        g
+                        for g in games
+                        if _game_matches_schedule_filter(
+                            db,
+                            g,
+                            player_team_id,
+                            season.id,
+                            back_to_back,
+                            min_rest_days,
+                        )
+                    ]
+                if not games:
+                    continue
+
+            # Calculate stats - use situational if needed
+            if situational_filter:
+                game_ids = [g.id for g in games]
+                totals = _calc_situational_stats_for_games(
+                    db,
+                    game_ids=game_ids,
+                    player_id=player.id,
+                    situational_filter=situational_filter,
+                )
+            else:
+                # Calculate stats with time filters
+                totals = _calc_stats_from_games(
+                    db,
+                    games,
+                    player_id=player.id,
+                    quarter=quarter,
+                    quarters=quarters,
+                    clutch_only=clutch_only,
+                    exclude_garbage_time=exclude_garbage_time,
+                )
 
             if totals["games"] == 0:
                 continue
@@ -1468,6 +1828,19 @@ def _query_with_time_filters(
             filter_desc = filter_label if filter_label else "filters"
             return f"No games found for {team.name} with {filter_desc}."
 
+        # Apply schedule filters if needed
+        if back_to_back is not None or min_rest_days is not None:
+            games = [
+                g
+                for g in games
+                if _game_matches_schedule_filter(
+                    db, g, team.id, season.id, back_to_back, min_rest_days
+                )
+            ]
+            if not games:
+                filter_desc = filter_label if filter_label else "schedule filters"
+                return f"No games found for {team.name} with {filter_desc}."
+
         # Get all players who played for this team
         player_ids = set()
         for game in games:
@@ -1490,16 +1863,27 @@ def _query_with_time_filters(
 
         # Calculate stats for each player
         player_stats_list = []
+        game_ids = [g.id for g in games]
+
         for player_id in player_ids:
-            totals = _calc_stats_from_games(
-                db,
-                games,
-                player_id=player_id,
-                quarter=quarter,
-                quarters=quarters,
-                clutch_only=clutch_only,
-                exclude_garbage_time=exclude_garbage_time,
-            )
+            # Use situational stats if situational filters are active
+            if situational_filter:
+                totals = _calc_situational_stats_for_games(
+                    db,
+                    game_ids=game_ids,
+                    player_id=player_id,
+                    situational_filter=situational_filter,
+                )
+            else:
+                totals = _calc_stats_from_games(
+                    db,
+                    games,
+                    player_id=player_id,
+                    quarter=quarter,
+                    quarters=quarters,
+                    clutch_only=clutch_only,
+                    exclude_garbage_time=exclude_garbage_time,
+                )
             if totals["games"] > 0:
                 player = db.get(Player, player_id)
                 if player:

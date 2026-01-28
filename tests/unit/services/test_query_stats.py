@@ -1939,3 +1939,543 @@ class TestQueryStatsDiscoverLineups:
 
             mock_discover.assert_called_once()
             assert result == "Best lineups"
+
+
+# =============================================================================
+# Situational Filter Tests
+# =============================================================================
+
+
+class TestSituationalFilterValidation:
+    """Tests for situational filter validation."""
+
+    def test_validate_situational_params_valid_shot_type(self):
+        """Test valid shot_type values pass validation."""
+        from src.services.query_stats import _validate_situational_params
+
+        assert _validate_situational_params("PULL_UP") is None
+        assert _validate_situational_params("CATCH_AND_SHOOT") is None
+        assert _validate_situational_params("POST_UP") is None
+        assert _validate_situational_params(None) is None
+
+    def test_validate_situational_params_invalid_shot_type(self):
+        """Test invalid shot_type returns error."""
+        from src.services.query_stats import _validate_situational_params
+
+        result = _validate_situational_params("INVALID_TYPE")
+        assert "Error" in result
+        assert "shot_type" in result
+
+    def test_has_situational_filters_none(self):
+        """Test has_situational_filters returns False when all None."""
+        from src.services.query_stats import _has_situational_filters
+
+        assert _has_situational_filters(None, None, None, None) is False
+
+    def test_has_situational_filters_fast_break(self):
+        """Test has_situational_filters detects fast_break."""
+        from src.services.query_stats import _has_situational_filters
+
+        assert _has_situational_filters(True, None, None, None) is True
+        assert _has_situational_filters(False, None, None, None) is True
+
+    def test_has_situational_filters_second_chance(self):
+        """Test has_situational_filters detects second_chance."""
+        from src.services.query_stats import _has_situational_filters
+
+        assert _has_situational_filters(None, True, None, None) is True
+
+    def test_has_situational_filters_contested(self):
+        """Test has_situational_filters detects contested."""
+        from src.services.query_stats import _has_situational_filters
+
+        assert _has_situational_filters(None, None, True, None) is True
+        assert _has_situational_filters(None, None, False, None) is True
+
+    def test_has_situational_filters_shot_type(self):
+        """Test has_situational_filters detects shot_type."""
+        from src.services.query_stats import _has_situational_filters
+
+        assert _has_situational_filters(None, None, None, "PULL_UP") is True
+
+
+class TestSituationalFilterLabel:
+    """Tests for situational filter label building."""
+
+    def test_build_situational_label_empty(self):
+        """Test empty label when no filters."""
+        from src.services.query_stats import _build_situational_label
+
+        assert _build_situational_label(None, None, None, None) == ""
+
+    def test_build_situational_label_fast_break(self):
+        """Test fast break label."""
+        from src.services.query_stats import _build_situational_label
+
+        assert "Fast Break" in _build_situational_label(True, None, None, None)
+        assert "Non-Fast Break" in _build_situational_label(False, None, None, None)
+
+    def test_build_situational_label_second_chance(self):
+        """Test second chance label."""
+        from src.services.query_stats import _build_situational_label
+
+        assert "Second Chance" in _build_situational_label(None, True, None, None)
+        assert "Non-Second Chance" in _build_situational_label(None, False, None, None)
+
+    def test_build_situational_label_contested(self):
+        """Test contested label."""
+        from src.services.query_stats import _build_situational_label
+
+        assert "Contested" in _build_situational_label(None, None, True, None)
+        assert "Uncontested" in _build_situational_label(None, None, False, None)
+
+    def test_build_situational_label_shot_type(self):
+        """Test shot type label."""
+        from src.services.query_stats import _build_situational_label
+
+        assert "Pull Up" in _build_situational_label(None, None, None, "PULL_UP")
+        assert "Catch And Shoot" in _build_situational_label(
+            None, None, None, "CATCH_AND_SHOOT"
+        )
+
+    def test_build_situational_label_combined(self):
+        """Test combined labels."""
+        from src.services.query_stats import _build_situational_label
+
+        result = _build_situational_label(True, None, True, None)
+        assert "Fast Break" in result
+        assert "Contested" in result
+        assert " | " in result
+
+
+class TestBuildSituationalFilter:
+    """Tests for situational filter construction."""
+
+    def test_build_situational_filter(self):
+        """Test building SituationalFilter from params."""
+        from src.schemas.analytics import SituationalFilter
+        from src.services.query_stats import _build_situational_filter
+
+        result = _build_situational_filter(True, False, None, "PULL_UP")
+
+        assert isinstance(result, SituationalFilter)
+        assert result.fast_break is True
+        assert result.second_chance is False
+        assert result.contested is None
+        assert result.shot_type == "PULL_UP"
+
+
+class TestCalcSituationalStatsForGames:
+    """Tests for situational stats calculation."""
+
+    def test_calc_situational_stats_empty_games(self):
+        """Test situational stats with no games."""
+        from src.services.query_stats import _calc_situational_stats_for_games
+
+        mock_db = MagicMock()
+        result = _calc_situational_stats_for_games(mock_db, game_ids=[])
+
+        assert result["games"] == 0
+        assert result["points"] == 0
+        assert result["fga"] == 0
+
+    def test_calc_situational_stats_with_shots(self):
+        """Test situational stats with shot data."""
+        from uuid import UUID
+
+        from src.schemas.analytics import SituationalFilter
+        from src.services.query_stats import _calc_situational_stats_for_games
+
+        with patch("src.services.query_stats.AnalyticsService") as mock_analytics_cls:
+            mock_analytics = MagicMock()
+
+            # Create mock shots
+            mock_shot1 = MagicMock()
+            mock_shot1.event_subtype = "2PT"
+            mock_shot1.success = True
+
+            mock_shot2 = MagicMock()
+            mock_shot2.event_subtype = "3PT"
+            mock_shot2.success = True
+
+            mock_shot3 = MagicMock()
+            mock_shot3.event_subtype = "2PT"
+            mock_shot3.success = False
+
+            mock_analytics.get_situational_shots.return_value = [
+                mock_shot1,
+                mock_shot2,
+                mock_shot3,
+            ]
+            mock_analytics_cls.return_value = mock_analytics
+
+            mock_db = MagicMock()
+            game_id = UUID("12345678-1234-5678-1234-567812345678")
+            player_id = UUID("12345678-1234-5678-1234-567812345679")
+            filter = SituationalFilter(fast_break=True)
+
+            result = _calc_situational_stats_for_games(
+                mock_db,
+                game_ids=[game_id],
+                player_id=player_id,
+                situational_filter=filter,
+            )
+
+            assert result["games"] == 1
+            assert result["fga"] == 3
+            assert result["fgm"] == 2
+            assert result["fg3a"] == 1
+            assert result["fg3m"] == 1
+            assert result["points"] == 5  # 2 pts + 3 pts
+
+
+# =============================================================================
+# Schedule Filter Tests
+# =============================================================================
+
+
+class TestScheduleFilterValidation:
+    """Tests for schedule filter validation."""
+
+    def test_validate_schedule_params_valid(self):
+        """Test valid schedule params pass validation."""
+        from src.services.query_stats import _validate_schedule_params
+
+        assert _validate_schedule_params(None, None) is None
+        assert _validate_schedule_params(True, None) is None
+        assert _validate_schedule_params(False, None) is None
+        assert _validate_schedule_params(None, 2) is None
+        assert _validate_schedule_params(True, 1) is None
+
+    def test_validate_schedule_params_negative_rest_days(self):
+        """Test negative min_rest_days returns error."""
+        from src.services.query_stats import _validate_schedule_params
+
+        result = _validate_schedule_params(None, -1)
+        assert "Error" in result
+        assert "min_rest_days" in result
+
+    def test_validate_schedule_params_conflicting(self):
+        """Test conflicting back_to_back and min_rest_days returns error."""
+        from src.services.query_stats import _validate_schedule_params
+
+        result = _validate_schedule_params(True, 3)
+        assert "Error" in result
+        assert "conflicts" in result
+
+    def test_has_schedule_filters_none(self):
+        """Test has_schedule_filters returns False when all None."""
+        from src.services.query_stats import _has_schedule_filters
+
+        assert _has_schedule_filters(None, None) is False
+
+    def test_has_schedule_filters_back_to_back(self):
+        """Test has_schedule_filters detects back_to_back."""
+        from src.services.query_stats import _has_schedule_filters
+
+        assert _has_schedule_filters(True, None) is True
+        assert _has_schedule_filters(False, None) is True
+
+    def test_has_schedule_filters_min_rest_days(self):
+        """Test has_schedule_filters detects min_rest_days."""
+        from src.services.query_stats import _has_schedule_filters
+
+        assert _has_schedule_filters(None, 2) is True
+
+
+class TestScheduleFilterLabel:
+    """Tests for schedule filter label building."""
+
+    def test_build_schedule_label_empty(self):
+        """Test empty label when no filters."""
+        from src.services.query_stats import _build_schedule_label
+
+        assert _build_schedule_label(None, None) == ""
+
+    def test_build_schedule_label_back_to_back(self):
+        """Test back-to-back label."""
+        from src.services.query_stats import _build_schedule_label
+
+        assert "Back-to-Back" in _build_schedule_label(True, None)
+        assert "Non-B2B" in _build_schedule_label(False, None)
+
+    def test_build_schedule_label_min_rest_days(self):
+        """Test min rest days label."""
+        from src.services.query_stats import _build_schedule_label
+
+        assert "Min 2 Rest Days" in _build_schedule_label(None, 2)
+
+    def test_build_schedule_label_combined(self):
+        """Test combined labels."""
+        from src.services.query_stats import _build_schedule_label
+
+        result = _build_schedule_label(False, 3)
+        assert "Non-B2B" in result
+        assert "Min 3 Rest Days" in result
+
+
+class TestRestDaysCalculation:
+    """Tests for rest days calculation."""
+
+    def test_is_back_to_back_none(self):
+        """Test is_back_to_back with None returns False."""
+        from src.services.query_stats import _is_back_to_back
+
+        assert _is_back_to_back(None) is False
+
+    def test_is_back_to_back_true(self):
+        """Test is_back_to_back with 0 or 1 days returns True."""
+        from src.services.query_stats import _is_back_to_back
+
+        assert _is_back_to_back(0) is True
+        assert _is_back_to_back(1) is True
+
+    def test_is_back_to_back_false(self):
+        """Test is_back_to_back with 2+ days returns False."""
+        from src.services.query_stats import _is_back_to_back
+
+        assert _is_back_to_back(2) is False
+        assert _is_back_to_back(3) is False
+
+    def test_get_rest_days_before_game_first_game(self):
+        """Test rest days for first game of season returns None."""
+        from uuid import UUID
+
+        from src.services.query_stats import _get_rest_days_before_game
+
+        mock_db = MagicMock()
+        mock_db.scalars.return_value.first.return_value = None
+
+        mock_game = MagicMock()
+        team_id = UUID("12345678-1234-5678-1234-567812345678")
+        season_id = UUID("12345678-1234-5678-1234-567812345679")
+
+        result = _get_rest_days_before_game(mock_db, team_id, mock_game, season_id)
+
+        assert result is None
+
+    def test_get_rest_days_before_game_calculates_days(self):
+        """Test rest days calculation between games."""
+        from datetime import datetime
+        from uuid import UUID
+
+        from src.services.query_stats import _get_rest_days_before_game
+
+        mock_db = MagicMock()
+
+        # Previous game
+        mock_prev_game = MagicMock()
+        mock_prev_game.game_date = datetime(2025, 1, 10, 19, 0, 0)
+        mock_db.scalars.return_value.first.return_value = mock_prev_game
+
+        # Current game
+        mock_game = MagicMock()
+        mock_game.game_date = datetime(2025, 1, 12, 19, 0, 0)
+
+        team_id = UUID("12345678-1234-5678-1234-567812345678")
+        season_id = UUID("12345678-1234-5678-1234-567812345679")
+
+        result = _get_rest_days_before_game(mock_db, team_id, mock_game, season_id)
+
+        assert result == 2  # 2 days between Jan 10 and Jan 12
+
+
+class TestGameMatchesScheduleFilter:
+    """Tests for game schedule filter matching."""
+
+    def test_game_matches_schedule_filter_no_filters(self):
+        """Test game matches when no filters specified."""
+        from src.services.query_stats import _game_matches_schedule_filter
+
+        mock_db = MagicMock()
+        mock_game = MagicMock()
+
+        result = _game_matches_schedule_filter(
+            mock_db,
+            mock_game,
+            team_id=MagicMock(),
+            season_id=MagicMock(),
+            back_to_back=None,
+            min_rest_days=None,
+        )
+
+        assert result is True
+
+    def test_game_matches_schedule_filter_b2b_true(self):
+        """Test back_to_back=True filter."""
+        from uuid import UUID
+
+        from src.services.query_stats import _game_matches_schedule_filter
+
+        with patch(
+            "src.services.query_stats._get_rest_days_before_game"
+        ) as mock_rest_days:
+            mock_rest_days.return_value = 1  # Back-to-back
+
+            mock_db = MagicMock()
+            mock_game = MagicMock()
+            team_id = UUID("12345678-1234-5678-1234-567812345678")
+            season_id = UUID("12345678-1234-5678-1234-567812345679")
+
+            result = _game_matches_schedule_filter(
+                mock_db,
+                mock_game,
+                team_id=team_id,
+                season_id=season_id,
+                back_to_back=True,
+                min_rest_days=None,
+            )
+
+            assert result is True
+
+    def test_game_matches_schedule_filter_b2b_true_not_b2b(self):
+        """Test back_to_back=True rejects non-B2B games."""
+        from uuid import UUID
+
+        from src.services.query_stats import _game_matches_schedule_filter
+
+        with patch(
+            "src.services.query_stats._get_rest_days_before_game"
+        ) as mock_rest_days:
+            mock_rest_days.return_value = 2  # Not back-to-back
+
+            mock_db = MagicMock()
+            mock_game = MagicMock()
+            team_id = UUID("12345678-1234-5678-1234-567812345678")
+            season_id = UUID("12345678-1234-5678-1234-567812345679")
+
+            result = _game_matches_schedule_filter(
+                mock_db,
+                mock_game,
+                team_id=team_id,
+                season_id=season_id,
+                back_to_back=True,
+                min_rest_days=None,
+            )
+
+            assert result is False
+
+    def test_game_matches_schedule_filter_min_rest_days(self):
+        """Test min_rest_days filter."""
+        from uuid import UUID
+
+        from src.services.query_stats import _game_matches_schedule_filter
+
+        with patch(
+            "src.services.query_stats._get_rest_days_before_game"
+        ) as mock_rest_days:
+            mock_rest_days.return_value = 3
+
+            mock_db = MagicMock()
+            mock_game = MagicMock()
+            team_id = UUID("12345678-1234-5678-1234-567812345678")
+            season_id = UUID("12345678-1234-5678-1234-567812345679")
+
+            # 3 >= 2, should match
+            result = _game_matches_schedule_filter(
+                mock_db,
+                mock_game,
+                team_id=team_id,
+                season_id=season_id,
+                back_to_back=None,
+                min_rest_days=2,
+            )
+
+            assert result is True
+
+            # 3 < 4, should not match
+            result = _game_matches_schedule_filter(
+                mock_db,
+                mock_game,
+                team_id=team_id,
+                season_id=season_id,
+                back_to_back=None,
+                min_rest_days=4,
+            )
+
+            assert result is False
+
+
+class TestQueryStatsWithSituationalFilters:
+    """Tests for query_stats with situational filters."""
+
+    def test_query_stats_invalid_shot_type(self):
+        """Test query_stats returns error for invalid shot_type."""
+        from src.services.query_stats import query_stats
+
+        mock_db = MagicMock()
+
+        result = query_stats.func(shot_type="INVALID", db=mock_db)
+
+        assert "Error" in result
+        assert "shot_type" in result
+
+    def test_query_stats_situational_triggers_filter_path(self):
+        """Test that situational filters trigger the time filter path."""
+        from src.services.query_stats import query_stats
+
+        with (
+            patch("src.services.query_stats._resolve_season") as mock_season,
+            patch("src.services.query_stats._get_entity_by_id") as mock_get_entity,
+            patch("src.services.query_stats._query_with_time_filters") as mock_time,
+        ):
+            mock_season.return_value = MagicMock()
+            mock_player = MagicMock()
+            mock_get_entity.return_value = mock_player
+            mock_time.return_value = "Time filtered stats"
+
+            mock_db = MagicMock()
+            uuid = "12345678-1234-5678-1234-567812345678"
+
+            result = query_stats.func(player_ids=[uuid], fast_break=True, db=mock_db)
+
+            mock_time.assert_called_once()
+            assert result == "Time filtered stats"
+
+
+class TestQueryStatsWithScheduleFilters:
+    """Tests for query_stats with schedule filters."""
+
+    def test_query_stats_invalid_schedule_params(self):
+        """Test query_stats returns error for invalid schedule params."""
+        from src.services.query_stats import query_stats
+
+        mock_db = MagicMock()
+
+        result = query_stats.func(min_rest_days=-1, db=mock_db)
+
+        assert "Error" in result
+        assert "min_rest_days" in result
+
+    def test_query_stats_conflicting_schedule_params(self):
+        """Test query_stats returns error for conflicting params."""
+        from src.services.query_stats import query_stats
+
+        mock_db = MagicMock()
+
+        result = query_stats.func(back_to_back=True, min_rest_days=3, db=mock_db)
+
+        assert "Error" in result
+        assert "conflicts" in result
+
+    def test_query_stats_schedule_triggers_filter_path(self):
+        """Test that schedule filters trigger the time filter path."""
+        from src.services.query_stats import query_stats
+
+        with (
+            patch("src.services.query_stats._resolve_season") as mock_season,
+            patch("src.services.query_stats._get_entity_by_id") as mock_get_entity,
+            patch("src.services.query_stats._query_with_time_filters") as mock_time,
+        ):
+            mock_season.return_value = MagicMock()
+            mock_team = MagicMock()
+            mock_get_entity.return_value = mock_team
+            mock_time.return_value = "Schedule filtered stats"
+
+            mock_db = MagicMock()
+            uuid = "12345678-1234-5678-1234-567812345678"
+
+            result = query_stats.func(team_id=uuid, back_to_back=True, db=mock_db)
+
+            mock_time.assert_called_once()
+            assert result == "Schedule filtered stats"
