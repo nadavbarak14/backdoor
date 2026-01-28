@@ -238,6 +238,7 @@ def search_players(
         position_str = player.position or "N/A"
 
         lines.append(f"- **{player.first_name} {player.last_name}**")
+        lines.append(f"  - ID: `{player.id}`")
         lines.append(f"  - Position: {position_str}")
         lines.append(f"  - Team: {current_team}")
         lines.append("")
@@ -289,6 +290,7 @@ def search_teams(
 
     for team in teams:
         lines.append(f"- **{team.name}** ({team.short_name})")
+        lines.append(f"  - ID: `{team.id}`")
         lines.append(f"  - City: {team.city or 'N/A'}")
         lines.append(f"  - Country: {team.country or 'N/A'}")
         lines.append("")

@@ -23,6 +23,7 @@ Usage:
 """
 
 import inspect
+import json
 import logging
 from collections.abc import AsyncGenerator
 from functools import wraps
@@ -514,10 +515,7 @@ class ChatService:
                     # Add AI message with tool calls to history
                     full_messages.append(final_message)
 
-                    # Show user that we're fetching data (immediate feedback)
-                    yield "🔍 "
-
-                    # Execute each tool and add results
+                    # Execute each tool and stream progress
                     for tool_call in final_message.tool_calls:
                         tool_name = tool_call["name"]
                         tool_args = tool_call["args"]
@@ -535,15 +533,21 @@ class ChatService:
                             f"~{result_tokens} tokens args={tool_args}"
                         )
 
+                        # Stream tool call marker for frontend to render
+                        tool_data = {
+                            "name": tool_name,
+                            "args": tool_args,
+                            "result": result,
+                            "success": not result.startswith("Error"),
+                        }
+                        yield f"\n\n[[TOOL_CALL:{json.dumps(tool_data)}]]\n\n"
+
                         # Add tool result to messages
                         tool_message = ToolMessage(
                             content=result,
                             tool_call_id=tool_id,
                         )
                         full_messages.append(tool_message)
-
-                    # Show that data was found and we're preparing response
-                    yield "Found data, preparing response...\n\n"
 
                     # Reset for next iteration (LLM will process tool results)
                     full_response = ""
