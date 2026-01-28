@@ -3,10 +3,13 @@
 # Server Management Script
 #
 # Manages the Backend (FastAPI) and Frontend (Next.js) servers.
-# Uses nohup + PID files for process management.
+# Automatically uses systemd if services are installed, otherwise falls back to nohup.
 #
 # Usage:
 #   ./scripts/server.sh start|stop|restart|status|logs [backend|frontend]
+#
+# To install systemd services for persistence after reboot/terminal close:
+#   sudo ./scripts/install-services.sh install
 #
 
 set -e
@@ -20,11 +23,13 @@ LOG_DIR="$PROJECT_ROOT/logs"
 BACKEND_PORT=9000
 BACKEND_PID_FILE="$PID_DIR/backend.pid"
 BACKEND_LOG="$LOG_DIR/backend.log"
+BACKEND_SERVICE="basketball-backend"
 
 # Frontend config (agent-chat)
 FRONTEND_PORT=3001
 FRONTEND_PID_FILE="$PID_DIR/frontend.pid"
 FRONTEND_LOG="$LOG_DIR/frontend.log"
+FRONTEND_SERVICE="basketball-frontend"
 
 # Colors for output
 RED='\033[0;31m'
@@ -47,7 +52,20 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-is_running() {
+# Check if systemd service is installed
+has_systemd_service() {
+    local service=$1
+    systemctl list-unit-files "$service.service" 2>/dev/null | grep -q "$service.service"
+}
+
+# Check if systemd service is running
+is_systemd_running() {
+    local service=$1
+    systemctl is-active --quiet "$service.service" 2>/dev/null
+}
+
+# Check if nohup process is running
+is_nohup_running() {
     local pid_file=$1
     if [ -f "$pid_file" ]; then
         local pid=$(cat "$pid_file")
@@ -65,134 +83,217 @@ get_pid() {
     fi
 }
 
+# ============ Backend Functions ============
+
 start_backend() {
-    if is_running "$BACKEND_PID_FILE"; then
-        log_warn "Backend is already running (PID: $(get_pid $BACKEND_PID_FILE))"
-        return 0
-    fi
-
-    log_info "Starting Backend on port $BACKEND_PORT..."
-    cd "$PROJECT_ROOT"
-
-    nohup uv run uvicorn src.main:app --host 0.0.0.0 --port $BACKEND_PORT >> "$BACKEND_LOG" 2>&1 &
-    local pid=$!
-    echo $pid > "$BACKEND_PID_FILE"
-
-    # Wait a moment and verify it started
-    sleep 2
-    if is_running "$BACKEND_PID_FILE"; then
-        log_info "Backend started (PID: $pid)"
+    if has_systemd_service "$BACKEND_SERVICE"; then
+        if is_systemd_running "$BACKEND_SERVICE"; then
+            log_warn "Backend is already running (systemd)"
+            return 0
+        fi
+        log_info "Starting Backend via systemd..."
+        sudo systemctl start "$BACKEND_SERVICE"
+        sleep 2
+        if is_systemd_running "$BACKEND_SERVICE"; then
+            log_info "Backend started (systemd, Port: $BACKEND_PORT)"
+        else
+            log_error "Backend failed to start. Check: sudo journalctl -u $BACKEND_SERVICE"
+            return 1
+        fi
     else
-        log_error "Backend failed to start. Check logs: $BACKEND_LOG"
-        rm -f "$BACKEND_PID_FILE"
-        return 1
+        # Fallback to nohup
+        if is_nohup_running "$BACKEND_PID_FILE"; then
+            log_warn "Backend is already running (PID: $(get_pid $BACKEND_PID_FILE))"
+            return 0
+        fi
+
+        log_info "Starting Backend on port $BACKEND_PORT (nohup)..."
+        cd "$PROJECT_ROOT"
+
+        nohup uv run uvicorn src.main:app --host 0.0.0.0 --port $BACKEND_PORT >> "$BACKEND_LOG" 2>&1 &
+        local pid=$!
+        echo $pid > "$BACKEND_PID_FILE"
+
+        sleep 2
+        if is_nohup_running "$BACKEND_PID_FILE"; then
+            log_info "Backend started (PID: $pid)"
+            log_warn "Note: For persistence after terminal close, run: sudo ./scripts/install-services.sh install"
+        else
+            log_error "Backend failed to start. Check logs: $BACKEND_LOG"
+            rm -f "$BACKEND_PID_FILE"
+            return 1
+        fi
     fi
 }
 
 stop_backend() {
-    if ! is_running "$BACKEND_PID_FILE"; then
-        log_warn "Backend is not running"
+    if has_systemd_service "$BACKEND_SERVICE"; then
+        if ! is_systemd_running "$BACKEND_SERVICE"; then
+            log_warn "Backend is not running (systemd)"
+            return 0
+        fi
+        log_info "Stopping Backend via systemd..."
+        sudo systemctl stop "$BACKEND_SERVICE"
+        log_info "Backend stopped"
+    else
+        if ! is_nohup_running "$BACKEND_PID_FILE"; then
+            log_warn "Backend is not running"
+            rm -f "$BACKEND_PID_FILE"
+            return 0
+        fi
+
+        local pid=$(get_pid "$BACKEND_PID_FILE")
+        log_info "Stopping Backend (PID: $pid)..."
+        kill "$pid" 2>/dev/null || true
+
+        local count=0
+        while is_nohup_running "$BACKEND_PID_FILE" && [ $count -lt 10 ]; do
+            sleep 1
+            count=$((count + 1))
+        done
+
+        if is_nohup_running "$BACKEND_PID_FILE"; then
+            log_warn "Force killing Backend..."
+            kill -9 "$pid" 2>/dev/null || true
+        fi
+
         rm -f "$BACKEND_PID_FILE"
-        return 0
+        log_info "Backend stopped"
     fi
-
-    local pid=$(get_pid "$BACKEND_PID_FILE")
-    log_info "Stopping Backend (PID: $pid)..."
-    kill "$pid" 2>/dev/null || true
-
-    # Wait for graceful shutdown
-    local count=0
-    while is_running "$BACKEND_PID_FILE" && [ $count -lt 10 ]; do
-        sleep 1
-        count=$((count + 1))
-    done
-
-    # Force kill if still running
-    if is_running "$BACKEND_PID_FILE"; then
-        log_warn "Force killing Backend..."
-        kill -9 "$pid" 2>/dev/null || true
-    fi
-
-    rm -f "$BACKEND_PID_FILE"
-    log_info "Backend stopped"
 }
 
+# ============ Frontend Functions ============
+
 start_frontend() {
-    if is_running "$FRONTEND_PID_FILE"; then
-        log_warn "Frontend is already running (PID: $(get_pid $FRONTEND_PID_FILE))"
-        return 0
-    fi
-
-    log_info "Starting Frontend on port $FRONTEND_PORT..."
-    cd "$PROJECT_ROOT/agent-chat"
-
-    nohup npm run dev >> "$FRONTEND_LOG" 2>&1 &
-    local pid=$!
-    echo $pid > "$FRONTEND_PID_FILE"
-
-    # Wait a moment and verify it started
-    sleep 3
-    if is_running "$FRONTEND_PID_FILE"; then
-        log_info "Frontend started (PID: $pid)"
+    if has_systemd_service "$FRONTEND_SERVICE"; then
+        if is_systemd_running "$FRONTEND_SERVICE"; then
+            log_warn "Frontend is already running (systemd)"
+            return 0
+        fi
+        log_info "Starting Frontend via systemd..."
+        sudo systemctl start "$FRONTEND_SERVICE"
+        sleep 3
+        if is_systemd_running "$FRONTEND_SERVICE"; then
+            log_info "Frontend started (systemd, Port: $FRONTEND_PORT)"
+        else
+            log_error "Frontend failed to start. Check: sudo journalctl -u $FRONTEND_SERVICE"
+            return 1
+        fi
     else
-        log_error "Frontend failed to start. Check logs: $FRONTEND_LOG"
-        rm -f "$FRONTEND_PID_FILE"
-        return 1
+        if is_nohup_running "$FRONTEND_PID_FILE"; then
+            log_warn "Frontend is already running (PID: $(get_pid $FRONTEND_PID_FILE))"
+            return 0
+        fi
+
+        log_info "Starting Frontend on port $FRONTEND_PORT (nohup)..."
+        cd "$PROJECT_ROOT/agent-chat"
+
+        nohup npm run dev >> "$FRONTEND_LOG" 2>&1 &
+        local pid=$!
+        echo $pid > "$FRONTEND_PID_FILE"
+
+        sleep 3
+        if is_nohup_running "$FRONTEND_PID_FILE"; then
+            log_info "Frontend started (PID: $pid)"
+            log_warn "Note: For persistence after terminal close, run: sudo ./scripts/install-services.sh install"
+        else
+            log_error "Frontend failed to start. Check logs: $FRONTEND_LOG"
+            rm -f "$FRONTEND_PID_FILE"
+            return 1
+        fi
     fi
 }
 
 stop_frontend() {
-    if ! is_running "$FRONTEND_PID_FILE"; then
-        log_warn "Frontend is not running"
+    if has_systemd_service "$FRONTEND_SERVICE"; then
+        if ! is_systemd_running "$FRONTEND_SERVICE"; then
+            log_warn "Frontend is not running (systemd)"
+            return 0
+        fi
+        log_info "Stopping Frontend via systemd..."
+        sudo systemctl stop "$FRONTEND_SERVICE"
+        log_info "Frontend stopped"
+    else
+        if ! is_nohup_running "$FRONTEND_PID_FILE"; then
+            log_warn "Frontend is not running"
+            rm -f "$FRONTEND_PID_FILE"
+            return 0
+        fi
+
+        local pid=$(get_pid "$FRONTEND_PID_FILE")
+        log_info "Stopping Frontend (PID: $pid)..."
+        kill -- -"$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true
+
+        local count=0
+        while is_nohup_running "$FRONTEND_PID_FILE" && [ $count -lt 10 ]; do
+            sleep 1
+            count=$((count + 1))
+        done
+
+        if is_nohup_running "$FRONTEND_PID_FILE"; then
+            log_warn "Force killing Frontend..."
+            kill -9 "$pid" 2>/dev/null || true
+        fi
+
         rm -f "$FRONTEND_PID_FILE"
-        return 0
+        log_info "Frontend stopped"
     fi
-
-    local pid=$(get_pid "$FRONTEND_PID_FILE")
-    log_info "Stopping Frontend (PID: $pid)..."
-
-    # Kill the process group to ensure child processes are also killed
-    kill -- -"$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true
-
-    # Wait for graceful shutdown
-    local count=0
-    while is_running "$FRONTEND_PID_FILE" && [ $count -lt 10 ]; do
-        sleep 1
-        count=$((count + 1))
-    done
-
-    # Force kill if still running
-    if is_running "$FRONTEND_PID_FILE"; then
-        log_warn "Force killing Frontend..."
-        kill -9 "$pid" 2>/dev/null || true
-    fi
-
-    rm -f "$FRONTEND_PID_FILE"
-    log_info "Frontend stopped"
 }
+
+# ============ Status Functions ============
 
 show_status() {
     echo ""
     echo "=== Server Status ==="
     echo ""
 
+    # Detect mode
+    local mode="nohup"
+    if has_systemd_service "$BACKEND_SERVICE"; then
+        mode="systemd"
+    fi
+    echo -e "Mode: ${YELLOW}$mode${NC}"
+    echo ""
+
     # Backend status
-    if is_running "$BACKEND_PID_FILE"; then
-        local pid=$(get_pid "$BACKEND_PID_FILE")
-        echo -e "Backend:  ${GREEN}RUNNING${NC} (PID: $pid, Port: $BACKEND_PORT)"
+    if has_systemd_service "$BACKEND_SERVICE"; then
+        if is_systemd_running "$BACKEND_SERVICE"; then
+            echo -e "Backend:  ${GREEN}RUNNING${NC} (systemd, Port: $BACKEND_PORT)"
+        else
+            echo -e "Backend:  ${RED}STOPPED${NC} (systemd)"
+        fi
     else
-        echo -e "Backend:  ${RED}STOPPED${NC}"
+        if is_nohup_running "$BACKEND_PID_FILE"; then
+            local pid=$(get_pid "$BACKEND_PID_FILE")
+            echo -e "Backend:  ${GREEN}RUNNING${NC} (PID: $pid, Port: $BACKEND_PORT)"
+        else
+            echo -e "Backend:  ${RED}STOPPED${NC}"
+        fi
     fi
 
     # Frontend status
-    if is_running "$FRONTEND_PID_FILE"; then
-        local pid=$(get_pid "$FRONTEND_PID_FILE")
-        echo -e "Frontend: ${GREEN}RUNNING${NC} (PID: $pid, Port: $FRONTEND_PORT)"
+    if has_systemd_service "$FRONTEND_SERVICE"; then
+        if is_systemd_running "$FRONTEND_SERVICE"; then
+            echo -e "Frontend: ${GREEN}RUNNING${NC} (systemd, Port: $FRONTEND_PORT)"
+        else
+            echo -e "Frontend: ${RED}STOPPED${NC} (systemd)"
+        fi
     else
-        echo -e "Frontend: ${RED}STOPPED${NC}"
+        if is_nohup_running "$FRONTEND_PID_FILE"; then
+            local pid=$(get_pid "$FRONTEND_PID_FILE")
+            echo -e "Frontend: ${GREEN}RUNNING${NC} (PID: $pid, Port: $FRONTEND_PORT)"
+        else
+            echo -e "Frontend: ${RED}STOPPED${NC}"
+        fi
     fi
 
     echo ""
+
+    if [ "$mode" = "nohup" ]; then
+        echo -e "${YELLOW}Tip:${NC} For persistence after terminal close, run:"
+        echo "  sudo ./scripts/install-services.sh install"
+        echo ""
+    fi
 }
 
 show_logs() {
@@ -201,14 +302,18 @@ show_logs() {
 
     case "$service" in
         backend)
-            if [ -f "$BACKEND_LOG" ]; then
+            if has_systemd_service "$BACKEND_SERVICE"; then
+                sudo journalctl -u "$BACKEND_SERVICE" -f -n "$lines"
+            elif [ -f "$BACKEND_LOG" ]; then
                 tail -n "$lines" -f "$BACKEND_LOG"
             else
                 log_error "Backend log not found: $BACKEND_LOG"
             fi
             ;;
         frontend)
-            if [ -f "$FRONTEND_LOG" ]; then
+            if has_systemd_service "$FRONTEND_SERVICE"; then
+                sudo journalctl -u "$FRONTEND_SERVICE" -f -n "$lines"
+            elif [ -f "$FRONTEND_LOG" ]; then
                 tail -n "$lines" -f "$FRONTEND_LOG"
             else
                 log_error "Frontend log not found: $FRONTEND_LOG"
@@ -221,7 +326,8 @@ show_logs() {
     esac
 }
 
-# Main command handling
+# ============ Main Command Handling ============
+
 case "$1" in
     start)
         case "$2" in
@@ -302,6 +408,9 @@ case "$1" in
         echo "Services:"
         echo "  backend   FastAPI backend (port $BACKEND_PORT)"
         echo "  frontend  Next.js frontend (port $FRONTEND_PORT)"
+        echo ""
+        echo "For persistence after terminal/tmux close and auto-restart on reboot:"
+        echo "  sudo ./scripts/install-services.sh install"
         echo ""
         exit 1
         ;;

@@ -1,0 +1,15 @@
+[Unit]
+Description=Basketball Analytics Backend (FastAPI)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/projects/2backdoor
+ExecStart=/root/projects/2backdoor/.venv/bin/uvicorn src.main:app --host 0.0.0.0 --port 9000
+Restart=always
+RestartSec=5
+Environment=PATH=/root/projects/2backdoor/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+[Install]
+WantedBy=multi-user.target
