@@ -493,9 +493,7 @@ class EuroleagueAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
                     continue
 
                 # Map from roster (includes jersey_number/dorsal)
-                player_info = self.mapper.map_player_from_roster(
-                    player_data, team_code
-                )
+                player_info = self.mapper.map_player_from_roster(player_data, team_code)
 
                 result.append((player_code, player_name, player_info))
 

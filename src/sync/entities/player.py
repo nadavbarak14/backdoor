@@ -143,9 +143,7 @@ class PlayerSyncer:
 
             # Create new player from boxscore data if we have a name
             if raw.player_name:
-                return self._create_player_from_stats(
-                    raw, team_id, source, season_id
-                )
+                return self._create_player_from_stats(raw, team_id, source, season_id)
 
         # Fall back to jersey matching (e.g., Winner league with rosters)
         if raw.jersey_number:
