@@ -5,20 +5,21 @@ Provides LangChain @tool wrappers around existing services for the chat agent.
 Each tool calls existing service methods and formats output for LLM consumption.
 
 This module exports LangChain tools that accept human-friendly parameters (names,
-not UUIDs), resolve names to IDs internally, and return markdown-formatted strings
-optimized for LLM understanding.
+not UUIDs), resolve names to IDs internally, and return JSON-formatted strings
+for reliable parsing by LLMs.
 
 Usage:
     from src.services.chat_tools import search_players, get_player_stats
 
     # Tools are async and require a database session
     result = await search_players(query="Curry", session=db_session)
-    print(result)  # Markdown formatted player list
+    print(result)  # JSON formatted player list
 
 The tools are designed to be used with LangChain agents for natural language
 basketball analytics queries.
 """
 
+import json
 import logging
 from uuid import UUID
 
@@ -200,7 +201,8 @@ def search_players(
         db: Database session (injected at runtime).
 
     Returns:
-        Markdown-formatted list of matching players with their team and position.
+        JSON object with query, total count, and list of matching players.
+        Each player includes id, name, position, and team.
 
     Example queries this tool handles:
         - "Find players named Curry"
@@ -208,7 +210,7 @@ def search_players(
         - "Search for James"
     """
     if db is None:
-        return "Error: Database session not provided."
+        return json.dumps({"error": "Database session not provided."})
 
     service = PlayerService(db)
 
@@ -226,24 +228,31 @@ def search_players(
     players, total = service.get_filtered(filter_params, limit=limit)
 
     if not players:
-        return f"No players found matching '{query}'."
+        return json.dumps({"query": query, "total": 0, "players": []})
 
-    # Format output
-    lines = [f"## Players Matching '{query}'", "", f"Found {total} players:", ""]
-
+    # Build JSON response
+    player_list = []
     for player in players:
         # Get current team from history
         history = service.get_team_history(player.id)
         current_team = history[0].team.name if history else "Free Agent"
-        position_str = player.position or "N/A"
 
-        lines.append(f"- **{player.first_name} {player.last_name}**")
-        lines.append(f"  - ID: `{player.id}`")
-        lines.append(f"  - Position: {position_str}")
-        lines.append(f"  - Team: {current_team}")
-        lines.append("")
+        player_list.append(
+            {
+                "id": str(player.id),
+                "name": f"{player.first_name} {player.last_name}",
+                "position": player.position or None,
+                "team": current_team,
+            }
+        )
 
-    return _log_response("search_players", "\n".join(lines))
+    result = {
+        "query": query,
+        "total": total,
+        "players": player_list,
+    }
+
+    return _log_response("search_players", json.dumps(result))
 
 
 @tool
@@ -266,7 +275,8 @@ def search_teams(
         db: Database session (injected at runtime).
 
     Returns:
-        Markdown-formatted list of matching teams with city and country.
+        JSON object with query, total count, and list of matching teams.
+        Each team includes id, name, short_name, city, and country.
 
     Example queries this tool handles:
         - "Find teams in Israel"
@@ -274,7 +284,7 @@ def search_teams(
         - "Show me NBA teams"
     """
     if db is None:
-        return "Error: Database session not provided."
+        return json.dumps({"error": "Database session not provided."})
 
     service = TeamService(db)
     filter_params = TeamFilter(search=query, country=country)
@@ -284,18 +294,28 @@ def search_teams(
     teams, total = service.get_filtered(filter_params, limit=limit)
 
     if not teams:
-        return f"No teams found matching '{query}'."
+        return json.dumps({"query": query, "total": 0, "teams": []})
 
-    lines = [f"## Teams Matching '{query}'", "", f"Found {total} teams:", ""]
-
+    # Build JSON response
+    team_list = []
     for team in teams:
-        lines.append(f"- **{team.name}** ({team.short_name})")
-        lines.append(f"  - ID: `{team.id}`")
-        lines.append(f"  - City: {team.city or 'N/A'}")
-        lines.append(f"  - Country: {team.country or 'N/A'}")
-        lines.append("")
+        team_list.append(
+            {
+                "id": str(team.id),
+                "name": team.name,
+                "short_name": team.short_name or None,
+                "city": team.city or None,
+                "country": team.country or None,
+            }
+        )
 
-    return _log_response("search_teams", "\n".join(lines))
+    result = {
+        "query": query,
+        "total": total,
+        "teams": team_list,
+    }
+
+    return _log_response("search_teams", json.dumps(result))
 
 
 @tool

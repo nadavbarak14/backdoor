@@ -4,46 +4,61 @@ Tests for AI chat tools with real data.
 Tests all 14 LangChain tools that the AI agent uses.
 """
 
+import json
+
 import pytest
 from sqlalchemy.orm import Session
 
 
 class TestSearchPlayers:
-    """Tests for search_players tool."""
+    """Tests for search_players tool (returns JSON)."""
 
     def test_search_by_name(self, real_db: Session):
         from src.services.chat_tools import search_players
 
         result = search_players.invoke({"query": "Clark", "db": real_db})
-        assert "Clark" in result or "Players Matching" in result
+        data = json.loads(result)
+        assert data["query"] == "Clark"
+        assert "players" in data
+        # Either found players or empty list
+        if data["total"] > 0:
+            assert any("Clark" in p["name"] for p in data["players"])
 
     def test_search_by_position(self, real_db: Session):
         from src.services.chat_tools import search_players
 
         result = search_players.invoke({"query": "a", "position": "G", "db": real_db})
-        assert "Error" not in result
+        data = json.loads(result)
+        assert "error" not in data
 
     def test_search_not_found(self, real_db: Session):
         from src.services.chat_tools import search_players
 
         result = search_players.invoke({"query": "XXXNONEXISTENT123", "db": real_db})
-        assert "No players found" in result
+        data = json.loads(result)
+        assert data["total"] == 0
+        assert data["players"] == []
 
 
 class TestSearchTeams:
-    """Tests for search_teams tool."""
+    """Tests for search_teams tool (returns JSON)."""
 
     def test_search_by_name(self, real_db: Session):
         from src.services.chat_tools import search_teams
 
         result = search_teams.invoke({"query": "Maccabi", "db": real_db})
-        assert "Maccabi" in result
+        data = json.loads(result)
+        assert data["query"] == "Maccabi"
+        if data["total"] > 0:
+            assert any("Maccabi" in t["name"] for t in data["teams"])
 
     def test_search_not_found(self, real_db: Session):
         from src.services.chat_tools import search_teams
 
         result = search_teams.invoke({"query": "XXXNONEXISTENT123", "db": real_db})
-        assert "No teams found" in result
+        data = json.loads(result)
+        assert data["total"] == 0
+        assert data["teams"] == []
 
 
 class TestGetTeamRoster:
