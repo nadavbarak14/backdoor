@@ -85,8 +85,18 @@ export function MentionInput({
       onChange(newValue);
       setCursorPosition(newCursor);
 
-      // Detect @ trigger
-      const query = detectMentionTrigger(newValue, newCursor);
+      // Clean up mentions that were deleted
+      const updatedMentions = mentions.filter((m) => {
+        const mentionText = `@${m.displayName}`;
+        return newValue.includes(mentionText);
+      });
+
+      if (updatedMentions.length !== mentions.length) {
+        setMentions(updatedMentions);
+      }
+
+      // Detect @ trigger (pass existing mentions to avoid re-triggering on completed ones)
+      const query = detectMentionTrigger(newValue, newCursor, updatedMentions);
       if (query !== null) {
         setMentionQuery(query);
         setShowPicker(true);
@@ -94,17 +104,8 @@ export function MentionInput({
         setShowPicker(false);
         setMentionQuery("");
       }
-
-      // Clean up mentions that were deleted
-      setMentions((prev) =>
-        prev.filter((m) => {
-          const mentionText = `@${m.displayName}`;
-          const inText = newValue.includes(mentionText);
-          return inText;
-        })
-      );
     },
-    [onChange]
+    [onChange, mentions]
   );
 
   /**
@@ -118,6 +119,7 @@ export function MentionInput({
       setMentions((prev) => [...prev, result.mention]);
       setShowPicker(false);
       setMentionQuery("");
+      setCursorPosition(result.cursorPosition);
 
       // Focus input and set cursor position
       setTimeout(() => {
@@ -143,6 +145,14 @@ export function MentionInput({
 
       // Transform message: replace @DisplayName with @type:id
       const transformedMessage = transformForSend(value, mentions);
+
+      // Debug logging
+      console.log("[MentionInput] Submit:", {
+        original: value,
+        mentions: mentions,
+        transformed: transformedMessage,
+      });
+
       onSubmit(transformedMessage);
 
       // Clear mentions after send
@@ -170,6 +180,11 @@ export function MentionInput({
         if (!value.trim() || disabled) return;
 
         const transformedMessage = transformForSend(value, mentions);
+        console.log("[MentionInput] Enter submit:", {
+          original: value,
+          mentions: mentions,
+          transformed: transformedMessage,
+        });
         onSubmit(transformedMessage);
         setMentions([]);
       }

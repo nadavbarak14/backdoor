@@ -11,7 +11,6 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { MentionEntity, AutocompleteResponse } from "@/lib/chat/types";
-import { BACKEND_API_URL } from "@/lib/chat/constants";
 
 /** Default debounce delay in milliseconds */
 const DEBOUNCE_DELAY = 150;
@@ -100,11 +99,9 @@ export function useAutocomplete(
       setError(null);
 
       try {
-        const url = new URL(`${BACKEND_API_URL}/api/v1/search/autocomplete`);
-        url.searchParams.set("q", query);
-        url.searchParams.set("limit", String(limit));
-
-        const response = await fetch(url.toString(), {
+        const response = await fetch(
+          `/api/v1/search/autocomplete?q=${encodeURIComponent(query)}&limit=${limit}`,
+          {
           signal: abortControllerRef.current.signal,
         });
 
