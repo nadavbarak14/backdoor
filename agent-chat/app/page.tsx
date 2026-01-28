@@ -10,7 +10,7 @@
  * @module app/page
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useChat } from "@ai-sdk/react";
 import {
   ChatContainer,
@@ -36,6 +36,10 @@ export default function ChatPage() {
   const [sessionId, setSessionId] = useState<string>("");
   const [isHydrated, setIsHydrated] = useState(false);
 
+  // Store the transformed message (with @type:id) to send to backend
+  // while UI shows the display version (with @Name)
+  const pendingTransformedMessage = useRef<string | null>(null);
+
   // Initialize session ID on client side after hydration
   useEffect(() => {
     const id = getSessionId();
@@ -47,7 +51,7 @@ export default function ChatPage() {
     messages,
     input,
     setInput,
-    handleSubmit: submitChat,
+    append,
     isLoading,
     setMessages,
     error,
@@ -69,24 +73,55 @@ export default function ChatPage() {
     onError: (err) => {
       console.error("Chat error:", err);
     },
+    // Transform the last user message to use @type:id format before sending
+    experimental_prepareRequestBody: ({ messages: chatMessages }) => {
+      const transformedMessages = chatMessages.map((msg, idx) => {
+        // Only transform the last user message if we have a pending transformation
+        if (
+          idx === chatMessages.length - 1 &&
+          msg.role === "user" &&
+          pendingTransformedMessage.current
+        ) {
+          const transformed = {
+            ...msg,
+            content: pendingTransformedMessage.current,
+          };
+          pendingTransformedMessage.current = null; // Clear after use
+          return transformed;
+        }
+        return msg;
+      });
+
+      return {
+        messages: transformedMessages,
+        session_id: sessionId,
+      };
+    },
   });
 
   /**
    * Handles form submission for chat messages.
-   * Receives the transformed message with @type:id format.
-   * Only allows submission after hydration when session ID is available.
+   * Receives the transformed message with @type:id format for the backend,
+   * but displays the original input (with @Name) in the UI.
    */
   const handleSubmit = (transformedMessage?: string) => {
     if (!isHydrated) return;
 
-    // If we got a transformed message (from MentionInput), use it
-    if (transformedMessage) {
-      setInput(transformedMessage);
-      // Need to wait for state update before submitting
-      setTimeout(() => submitChat(), 0);
-    } else if (input.trim()) {
-      submitChat();
-    }
+    const displayMessage = input.trim();
+    if (!displayMessage) return;
+
+    // Store the transformed message (with @type:id) to send to backend
+    // If no transformation needed, send the display message as-is
+    pendingTransformedMessage.current = transformedMessage || displayMessage;
+
+    // Append the DISPLAY message (with @Name) so UI looks friendly
+    append({
+      role: "user",
+      content: displayMessage,
+    });
+
+    // Clear the input
+    setInput("");
   };
 
   /**
