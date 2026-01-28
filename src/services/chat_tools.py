@@ -113,7 +113,7 @@ def search_players(
         db: Database session (injected at runtime).
 
     Returns:
-        JSON object with query, total count, and list of matching players.
+        JSON object with total count and list of matching players.
         Each player includes id, name, position, and team.
 
     Example queries this tool handles:
@@ -140,7 +140,7 @@ def search_players(
     players, total = service.get_filtered(filter_params, limit=limit)
 
     if not players:
-        return json.dumps({"query": query, "total": 0, "players": []})
+        return json.dumps({"total": 0, "players": []})
 
     # Build JSON response
     player_list = []
@@ -159,7 +159,6 @@ def search_players(
         )
 
     result = {
-        "query": query,
         "total": total,
         "players": player_list,
     }
@@ -187,7 +186,7 @@ def search_teams(
         db: Database session (injected at runtime).
 
     Returns:
-        JSON object with query, total count, and list of matching teams.
+        JSON object with total count and list of matching teams.
         Each team includes id, name, short_name, city, and country.
 
     Example queries this tool handles:
@@ -206,7 +205,7 @@ def search_teams(
     teams, total = service.get_filtered(filter_params, limit=limit)
 
     if not teams:
-        return json.dumps({"query": query, "total": 0, "teams": []})
+        return json.dumps({"total": 0, "teams": []})
 
     # Build JSON response
     team_list = []
@@ -222,7 +221,6 @@ def search_teams(
         )
 
     result = {
-        "query": query,
         "total": total,
         "teams": team_list,
     }

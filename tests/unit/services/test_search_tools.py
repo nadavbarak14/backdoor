@@ -53,7 +53,6 @@ class TestSearchPlayers:
             result = search_players.func(query="NonExistent", db=mock_db)
             data = json.loads(result)
 
-            assert data["query"] == "NonExistent"
             assert data["total"] == 0
             assert data["players"] == []
 
@@ -80,7 +79,6 @@ class TestSearchPlayers:
             result = search_players.func(query="Clark", db=mock_db)
             data = json.loads(result)
 
-            assert data["query"] == "Clark"
             assert data["total"] == 1
             assert len(data["players"]) == 1
             player = data["players"][0]
@@ -177,7 +175,6 @@ class TestSearchTeams:
             result = search_teams.func(query="NonExistent", db=mock_db)
             data = json.loads(result)
 
-            assert data["query"] == "NonExistent"
             assert data["total"] == 0
             assert data["teams"] == []
 
@@ -202,7 +199,6 @@ class TestSearchTeams:
             result = search_teams.func(query="Maccabi", db=mock_db)
             data = json.loads(result)
 
-            assert data["query"] == "Maccabi"
             assert data["total"] == 1
             team = data["teams"][0]
             assert team["name"] == "Maccabi Tel-Aviv"
@@ -257,7 +253,6 @@ class TestSearchLeagues:
         result = search_leagues.func(query="NonExistent", db=mock_db)
         data = json.loads(result)
 
-        assert data["query"] == "NonExistent"
         assert data["leagues"] == []
 
     def test_search_leagues_with_results(self):
@@ -276,7 +271,6 @@ class TestSearchLeagues:
         result = search_leagues.func(query="Israeli", db=mock_db)
         data = json.loads(result)
 
-        assert data["query"] == "Israeli"
         league = data["leagues"][0]
         assert league["name"] == "Israeli Winner League"
         assert league["id"] == "12345678-1234-5678-1234-567812345678"
@@ -298,7 +292,6 @@ class TestSearchLeagues:
         result = search_leagues.func(db=mock_db)
         data = json.loads(result)
 
-        assert data["query"] is None
         assert len(data["leagues"]) == 1
         assert data["leagues"][0]["name"] == "Test League"
 
@@ -344,7 +337,6 @@ class TestSearchSeasons:
         result = search_seasons.func(query="2099", db=mock_db)
         data = json.loads(result)
 
-        assert data["query"] == "2099"
         assert data["seasons"] == []
 
     def test_search_seasons_with_results(self):
@@ -367,7 +359,6 @@ class TestSearchSeasons:
         result = search_seasons.func(query="2024", db=mock_db)
         data = json.loads(result)
 
-        assert data["query"] == "2024"
         season = data["seasons"][0]
         assert season["name"] == "2024-25"
         assert season["id"] == "12345678-1234-5678-1234-567812345678"

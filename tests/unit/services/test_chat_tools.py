@@ -137,7 +137,6 @@ class TestSearchTools:
         result = search_players.invoke({"query": "Curry", "db": test_db})
         data = json.loads(result)
 
-        assert data["query"] == "Curry"
         assert data["total"] == 2
         assert len(data["players"]) == 2
         player_names = [p["name"] for p in data["players"]]
@@ -149,7 +148,6 @@ class TestSearchTools:
         result = search_players.invoke({"query": "NonExistent", "db": test_db})
         data = json.loads(result)
 
-        assert data["query"] == "NonExistent"
         assert data["total"] == 0
         assert data["players"] == []
 
@@ -177,7 +175,6 @@ class TestSearchTools:
         result = search_teams.invoke({"query": "Lakers", "db": test_db})
         data = json.loads(result)
 
-        assert data["query"] == "Lakers"
         assert data["total"] == 1
         assert data["teams"][0]["name"] == "Los Angeles Lakers"
 
@@ -186,7 +183,6 @@ class TestSearchTools:
         result = search_teams.invoke({"query": "NonExistent", "db": test_db})
         data = json.loads(result)
 
-        assert data["query"] == "NonExistent"
         assert data["total"] == 0
         assert data["teams"] == []
 
@@ -211,7 +207,6 @@ class TestOutputFormatting:
         data = json.loads(result)
 
         # Should be valid JSON with expected structure
-        assert "query" in data
         assert "total" in data
         assert "players" in data
         assert isinstance(data["players"], list)
@@ -237,7 +232,6 @@ class TestOutputFormatting:
         data = json.loads(result)
 
         # Should be valid JSON with expected structure
-        assert "query" in data
         assert "total" in data
         assert "teams" in data
         assert isinstance(data["teams"], list)
