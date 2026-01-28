@@ -5,10 +5,11 @@ Tests the LangChain @tool wrappers around existing services for the chat agent.
 Tests verify:
     - Name resolution (player names, team names, seasons)
     - Proper service method calls
-    - Output formatting (markdown)
+    - Output formatting (JSON for search tools, markdown for other tools)
     - Error handling (not found, invalid input)
 """
 
+import json
 from datetime import date, datetime
 from uuid import uuid4
 
@@ -233,18 +234,25 @@ class TestSearchTools:
     def test_search_players_finds_matches(
         self, test_db: Session, players: list[Player]
     ):
-        """Test that search_players finds matching players."""
+        """Test that search_players finds matching players and returns JSON."""
         result = search_players.invoke({"query": "Curry", "db": test_db})
+        data = json.loads(result)
 
-        assert "Stephen Curry" in result
-        assert "Seth Curry" in result
-        assert "Found 2 players" in result
+        assert data["query"] == "Curry"
+        assert data["total"] == 2
+        assert len(data["players"]) == 2
+        player_names = [p["name"] for p in data["players"]]
+        assert "Stephen Curry" in player_names
+        assert "Seth Curry" in player_names
 
-    def test_search_players_returns_no_matches_message(self, test_db: Session):
-        """Test that search_players returns message when no matches."""
+    def test_search_players_returns_empty_when_no_matches(self, test_db: Session):
+        """Test that search_players returns empty list when no matches."""
         result = search_players.invoke({"query": "NonExistent", "db": test_db})
+        data = json.loads(result)
 
-        assert "No players found" in result
+        assert data["query"] == "NonExistent"
+        assert data["total"] == 0
+        assert data["players"] == []
 
     def test_search_players_filters_by_position(
         self, test_db: Session, players: list[Player]
@@ -253,29 +261,35 @@ class TestSearchTools:
         result = search_players.invoke(
             {"query": "Curry", "position": "PG", "db": test_db}
         )
+        data = json.loads(result)
 
-        assert "Stephen Curry" in result
-        # Seth Curry is SG, should not appear
-        assert "Found 1 player" in result
+        assert data["total"] == 1
+        assert data["players"][0]["name"] == "Stephen Curry"
 
     def test_search_players_returns_error_without_db(self):
-        """Test that search_players returns error without database."""
+        """Test that search_players returns error JSON without database."""
         result = search_players.invoke({"query": "Curry"})
+        data = json.loads(result)
 
-        assert "Error" in result
+        assert "error" in data
 
     def test_search_teams_finds_matches(self, test_db: Session, teams: list[Team]):
-        """Test that search_teams finds matching teams."""
+        """Test that search_teams finds matching teams and returns JSON."""
         result = search_teams.invoke({"query": "Lakers", "db": test_db})
+        data = json.loads(result)
 
-        assert "Los Angeles Lakers" in result
-        assert "Found 1 team" in result
+        assert data["query"] == "Lakers"
+        assert data["total"] == 1
+        assert data["teams"][0]["name"] == "Los Angeles Lakers"
 
-    def test_search_teams_returns_no_matches_message(self, test_db: Session):
-        """Test that search_teams returns message when no matches."""
+    def test_search_teams_returns_empty_when_no_matches(self, test_db: Session):
+        """Test that search_teams returns empty list when no matches."""
         result = search_teams.invoke({"query": "NonExistent", "db": test_db})
+        data = json.loads(result)
 
-        assert "No teams found" in result
+        assert data["query"] == "NonExistent"
+        assert data["total"] == 0
+        assert data["teams"] == []
 
 
 class TestRosterTool:
@@ -647,8 +661,8 @@ class TestPlayerGamesTool:
 class TestOutputFormatting:
     """Tests for output formatting of tools."""
 
-    def test_search_players_returns_markdown(self, test_db: Session):
-        """Test that search_players returns markdown formatted output."""
+    def test_search_players_returns_valid_json(self, test_db: Session):
+        """Test that search_players returns valid JSON with correct structure."""
         # Create a player
         player = Player(
             id=uuid4(),
@@ -661,14 +675,20 @@ class TestOutputFormatting:
         test_db.commit()
 
         result = search_players.invoke({"query": "Player", "db": test_db})
+        data = json.loads(result)
 
-        # Should contain markdown headers
-        assert "##" in result
-        # Should contain bold player name
-        assert "**Test Player**" in result
+        # Should be valid JSON with expected structure
+        assert "query" in data
+        assert "total" in data
+        assert "players" in data
+        assert isinstance(data["players"], list)
+        assert data["players"][0]["name"] == "Test Player"
+        assert "id" in data["players"][0]
+        assert "position" in data["players"][0]
+        assert "team" in data["players"][0]
 
-    def test_search_teams_returns_markdown(self, test_db: Session):
-        """Test that search_teams returns markdown formatted output."""
+    def test_search_teams_returns_valid_json(self, test_db: Session):
+        """Test that search_teams returns valid JSON with correct structure."""
         team = Team(
             id=uuid4(),
             name="Test Team",
@@ -681,11 +701,18 @@ class TestOutputFormatting:
         test_db.commit()
 
         result = search_teams.invoke({"query": "Test", "db": test_db})
+        data = json.loads(result)
 
-        # Should contain markdown headers
-        assert "##" in result
-        # Should contain bold team name
-        assert "**Test Team**" in result
+        # Should be valid JSON with expected structure
+        assert "query" in data
+        assert "total" in data
+        assert "teams" in data
+        assert isinstance(data["teams"], list)
+        assert data["teams"][0]["name"] == "Test Team"
+        assert "id" in data["teams"][0]
+        assert "short_name" in data["teams"][0]
+        assert "city" in data["teams"][0]
+        assert "country" in data["teams"][0]
 
 
 class TestErrorHandling:
@@ -693,27 +720,38 @@ class TestErrorHandling:
 
     def test_tools_handle_no_db_session(self):
         """Test that tools handle missing database session."""
-        # All tools should return an error message without db
-        tools = [
+        # Search tools return JSON errors
+        search_tools_params = [
             (search_players, {"query": "test"}),
             (search_teams, {"query": "test"}),
+        ]
+
+        for tool, params in search_tools_params:
+            result = tool.invoke(params)
+            data = json.loads(result)
+            assert "error" in data
+
+        # Other tools return text errors
+        other_tools = [
             (get_team_roster, {"team_name": "test"}),
             (get_player_stats, {"player_name": "test"}),
             (get_player_games, {"player_name": "test"}),
             (get_league_leaders, {"category": "points"}),
         ]
 
-        for tool, params in tools:
+        for tool, params in other_tools:
             result = tool.invoke(params)
             assert "Error" in result or "not provided" in result
 
     def test_tools_handle_invalid_input(self, test_db: Session):
         """Test that tools handle invalid input gracefully."""
-        # Test with short query (minimum valid query)
+        # Test with short query - returns empty list in JSON
         result = search_players.invoke({"query": "X", "db": test_db})
-        # Should not crash, returns no results message
-        assert isinstance(result, str)
-        assert "No players found" in result
+        data = json.loads(result)
+        # Should not crash, returns empty players list
+        assert isinstance(data, dict)
+        assert data["players"] == []
+        assert data["total"] == 0
 
 
 class TestAllToolsExist:

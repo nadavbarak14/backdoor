@@ -2,8 +2,8 @@
 Search Tools Module
 
 Provides search tools for finding basketball entities (players, teams, leagues,
-seasons) by name. These tools return structured data with IDs that can be used
-with the query_stats tool.
+seasons) by name. These tools return JSON-formatted data with IDs that can be
+used with the query_stats tool.
 
 Usage:
     from src.services.search_tools import search_players, search_teams
@@ -14,6 +14,8 @@ Usage:
     # Search for teams
     result = search_teams.invoke({"query": "Maccabi", "db": db_session})
 """
+
+import json
 
 from langchain_core.tools import tool
 from sqlalchemy import or_, select
@@ -52,18 +54,18 @@ def search_players(
         db: Database session (injected at runtime).
 
     Returns:
-        Markdown-formatted list of matching players with their IDs.
-        Use the ID values with query_stats tool.
+        JSON object with query, total count, and list of matching players.
+        Each player includes id, name, team, and position.
 
     Example:
         User: "Find players named Clark"
-        -> Returns list with IDs to use in query_stats(player_ids=[...])
+        -> Returns JSON with IDs to use in query_stats(player_ids=[...])
     """
     if db is None:
-        return "Error: Database session not provided."
+        return json.dumps({"error": "Database session not provided."})
 
     if not query or len(query.strip()) < 2:
-        return "Error: Search query must be at least 2 characters."
+        return json.dumps({"error": "Search query must be at least 2 characters."})
 
     service = PlayerService(db)
 
@@ -75,35 +77,37 @@ def search_players(
 
             filter_params.team_id = UUID(team_id)
         except ValueError:
-            return f"Error: Invalid team_id format: {team_id}"
+            return json.dumps({"error": f"Invalid team_id format: {team_id}"})
 
     players, total = service.get_filtered(filter_params, limit=limit)
 
     if not players:
-        return f"No players found matching '{query}'."
+        return json.dumps({"query": query, "total": 0, "players": []})
 
-    # Format output with IDs
-    lines = [
-        f"## Players Matching '{query}'",
-        f"Found {total} player(s). Showing top {len(players)}:",
-        "",
-        "| ID | Name | Team | Position |",
-        "|----|------|------|----------|",
-    ]
-
+    # Build JSON response
+    player_list = []
     for player in players:
         name = f"{player.first_name} {player.last_name}"
-        team_name = "N/A"
+        team_name = None
         if player.current_team:
             team_name = player.current_team.short_name or player.current_team.name
-        position = player.position or "N/A"
 
-        lines.append(f"| `{player.id}` | {name} | {team_name} | {position} |")
+        player_list.append(
+            {
+                "id": str(player.id),
+                "name": name,
+                "team": team_name,
+                "position": player.position or None,
+            }
+        )
 
-    lines.append("")
-    lines.append("*Use the ID values with `query_stats(player_ids=[...])`*")
+    result = {
+        "query": query,
+        "total": total,
+        "players": player_list,
+    }
 
-    return "\n".join(lines)
+    return json.dumps(result)
 
 
 # =============================================================================
@@ -131,18 +135,18 @@ def search_teams(
         db: Database session (injected at runtime).
 
     Returns:
-        Markdown-formatted list of matching teams with their IDs.
-        Use the ID values with query_stats tool.
+        JSON object with query, total count, and list of matching teams.
+        Each team includes id, name, short_name, city, and country.
 
     Example:
         User: "Find teams named Maccabi"
-        -> Returns list with IDs to use in query_stats(team_id=...)
+        -> Returns JSON with IDs to use in query_stats(team_id=...)
     """
     if db is None:
-        return "Error: Database session not provided."
+        return json.dumps({"error": "Database session not provided."})
 
     if not query or len(query.strip()) < 2:
-        return "Error: Search query must be at least 2 characters."
+        return json.dumps({"error": "Search query must be at least 2 characters."})
 
     service = TeamService(db)
     filter_params = TeamFilter(search=query.strip(), country=country)
@@ -150,30 +154,28 @@ def search_teams(
     teams, total = service.get_filtered(filter_params, limit=limit)
 
     if not teams:
-        return f"No teams found matching '{query}'."
+        return json.dumps({"query": query, "total": 0, "teams": []})
 
-    # Format output with IDs
-    lines = [
-        f"## Teams Matching '{query}'",
-        f"Found {total} team(s). Showing top {len(teams)}:",
-        "",
-        "| ID | Name | Short | City | Country |",
-        "|----|------|-------|------|---------|",
-    ]
-
+    # Build JSON response
+    team_list = []
     for team in teams:
-        short_name = team.short_name or "N/A"
-        city = team.city or "N/A"
-        country = team.country or "N/A"
-
-        lines.append(
-            f"| `{team.id}` | {team.name} | {short_name} | {city} | {country} |"
+        team_list.append(
+            {
+                "id": str(team.id),
+                "name": team.name,
+                "short_name": team.short_name or None,
+                "city": team.city or None,
+                "country": team.country or None,
+            }
         )
 
-    lines.append("")
-    lines.append("*Use the ID value with `query_stats(team_id=...)`*")
+    result = {
+        "query": query,
+        "total": total,
+        "teams": team_list,
+    }
 
-    return "\n".join(lines)
+    return json.dumps(result)
 
 
 # =============================================================================
@@ -200,15 +202,15 @@ def search_leagues(
         db: Database session (injected at runtime).
 
     Returns:
-        Markdown-formatted list of leagues with their IDs.
-        Use the ID values with query_stats tool.
+        JSON object with list of leagues.
+        Each league includes id, name, and code.
 
     Example:
         User: "What leagues are available?"
-        -> Returns list with IDs to use in query_stats(league_id=...)
+        -> Returns JSON with IDs to use in query_stats(league_id=...)
     """
     if db is None:
-        return "Error: Database session not provided."
+        return json.dumps({"error": "Database session not provided."})
 
     # Build query
     stmt = select(League)
@@ -225,27 +227,25 @@ def search_leagues(
     leagues = list(db.scalars(stmt).all())
 
     if not leagues:
-        if query:
-            return f"No leagues found matching '{query}'."
-        return "No leagues found in the database."
+        return json.dumps({"query": query, "leagues": []})
 
-    # Format output with IDs
-    title = f"## Leagues Matching '{query}'" if query else "## Available Leagues"
-    lines = [
-        title,
-        "",
-        "| ID | Name | Code |",
-        "|----|------|------|",
-    ]
-
+    # Build JSON response
+    league_list = []
     for league in leagues:
-        code = league.code or "N/A"
-        lines.append(f"| `{league.id}` | {league.name} | {code} |")
+        league_list.append(
+            {
+                "id": str(league.id),
+                "name": league.name,
+                "code": league.code or None,
+            }
+        )
 
-    lines.append("")
-    lines.append("*Use the ID value with `query_stats(league_id=...)`*")
+    result = {
+        "query": query,
+        "leagues": league_list,
+    }
 
-    return "\n".join(lines)
+    return json.dumps(result)
 
 
 # =============================================================================
@@ -273,15 +273,15 @@ def search_seasons(
         db: Database session (injected at runtime).
 
     Returns:
-        Markdown-formatted list of seasons with their IDs.
-        Use the ID values with query_stats tool.
+        JSON object with list of seasons.
+        Each season includes id, name, league, and is_current flag.
 
     Example:
         User: "What seasons are available for the Israeli league?"
-        -> Returns list with IDs to use in query_stats(season_id=...)
+        -> Returns JSON with IDs to use in query_stats(season_id=...)
     """
     if db is None:
-        return "Error: Database session not provided."
+        return json.dumps({"error": "Database session not provided."})
 
     from uuid import UUID
 
@@ -293,7 +293,7 @@ def search_seasons(
             league_uuid = UUID(league_id)
             stmt = stmt.where(Season.league_id == league_uuid)
         except ValueError:
-            return f"Error: Invalid league_id format: {league_id}"
+            return json.dumps({"error": f"Invalid league_id format: {league_id}"})
 
     if query and query.strip():
         stmt = stmt.where(Season.name.ilike(f"%{query.strip()}%"))
@@ -303,33 +303,28 @@ def search_seasons(
     seasons = list(db.scalars(stmt).all())
 
     if not seasons:
-        if query:
-            return f"No seasons found matching '{query}'."
-        return "No seasons found."
+        return json.dumps({"query": query, "league_id": league_id, "seasons": []})
 
-    # Format output with IDs
-    title = f"## Seasons Matching '{query}'" if query else "## Available Seasons"
-    lines = [
-        title,
-        "",
-        "| ID | Name | League | Current |",
-        "|----|------|--------|---------|",
-    ]
-
+    # Build JSON response
+    season_list = []
     for season in seasons:
-        league_name = season.league.name if season.league else "N/A"
-        is_current = "Yes" if season.is_current else "No"
-        lines.append(
-            f"| `{season.id}` | {season.name} | {league_name} | {is_current} |"
+        league_name = season.league.name if season.league else None
+        season_list.append(
+            {
+                "id": str(season.id),
+                "name": season.name,
+                "league": league_name,
+                "is_current": season.is_current,
+            }
         )
 
-    lines.append("")
-    lines.append("*Use the ID value with `query_stats(season_id=...)`*")
-    lines.append(
-        "*Note: If season_id is not specified, query_stats uses the current season.*"
-    )
+    result = {
+        "query": query,
+        "league_id": league_id,
+        "seasons": season_list,
+    }
 
-    return "\n".join(lines)
+    return json.dumps(result)
 
 
 # =============================================================================
