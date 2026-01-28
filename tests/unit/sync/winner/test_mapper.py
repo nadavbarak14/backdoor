@@ -9,6 +9,7 @@ from datetime import date, datetime
 
 import pytest
 
+from src.schemas.game import EventType
 from src.sync.types import (
     RawBoxScore,
     RawGame,
@@ -478,7 +479,7 @@ class TestMapPbpEvent:
         assert event.event_number == 1
         assert event.period == 1
         assert event.clock == "09:45"
-        assert event.event_type == "shot"
+        assert event.event_type == EventType.SHOT
         assert event.success is True
         assert event.team_external_id == "100"
 
@@ -492,18 +493,18 @@ class TestMapPbpEvent:
         }
         event = mapper.map_pbp_event(data, 2)
 
-        assert event.event_type == "shot"
+        assert event.event_type == EventType.SHOT
         assert event.success is False
 
     def test_event_type_mapping(self, mapper):
         """Test various event type mappings."""
         event_mappings = [
-            ("REBOUND", "rebound"),
-            ("TURNOVER", "turnover"),
-            ("STEAL", "steal"),
-            ("BLOCK", "block"),
-            ("FOUL", "foul"),
-            ("MADE_FT", "free_throw"),
+            ("REBOUND", EventType.REBOUND),
+            ("TURNOVER", EventType.TURNOVER),
+            ("STEAL", EventType.STEAL),
+            ("BLOCK", EventType.BLOCK),
+            ("FOUL", EventType.FOUL),
+            ("MADE_FT", EventType.FREE_THROW),
         ]
 
         for winner_type, expected_type in event_mappings:

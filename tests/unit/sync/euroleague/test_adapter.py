@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.schemas.game import EventType
 from src.sync.euroleague.adapter import EuroleagueAdapter
 from src.sync.euroleague.direct_client import CacheResult
 from src.sync.euroleague.mapper import EuroleagueMapper
@@ -387,7 +388,7 @@ class TestGetGamePbp:
         events = await adapter.get_game_pbp("E2024_1")
 
         assert len(events) == 3
-        assert events[0].event_type == "shot"
+        assert events[0].event_type == EventType.SHOT
         assert events[0].period == 1
         assert events[2].period == 2
 

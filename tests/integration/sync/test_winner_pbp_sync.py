@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from src.schemas.game import EventType
 from src.sync.winner.mapper import WinnerMapper
 
 
@@ -47,7 +48,7 @@ class TestSyncPbpShotsHaveSuccess:
 
     def test_all_shots_have_success_value(self, mapper, real_pbp_fixture):
         events = mapper.map_pbp_events(real_pbp_fixture)
-        shots = [e for e in events if e.event_type == "shot"]
+        shots = [e for e in events if e.event_type == EventType.SHOT]
 
         assert len(shots) > 0, "Should have shot events"
         for shot in shots:
@@ -58,7 +59,7 @@ class TestSyncPbpShotsHaveSuccess:
 
     def test_free_throws_have_success_value(self, mapper, real_pbp_fixture):
         events = mapper.map_pbp_events(real_pbp_fixture)
-        fts = [e for e in events if e.event_type == "free_throw"]
+        fts = [e for e in events if e.event_type == EventType.FREE_THROW]
 
         assert len(fts) > 0, "Should have free throw events"
         for ft in fts:
@@ -100,7 +101,7 @@ class TestSyncPbpCoordinates:
 
     def test_some_shots_have_coordinates(self, mapper, real_pbp_fixture):
         events = mapper.map_pbp_events(real_pbp_fixture)
-        shots = [e for e in events if e.event_type == "shot"]
+        shots = [e for e in events if e.event_type == EventType.SHOT]
         shots_with_coords = [
             s for s in shots if s.coord_x is not None and s.coord_y is not None
         ]
@@ -117,6 +118,6 @@ class TestSyncPbpEventTypes:
         event_types = {e.event_type for e in events}
 
         # Should have common basketball event types
-        expected_types = {"shot", "free_throw", "rebound", "foul"}
+        expected_types = {EventType.SHOT, EventType.FREE_THROW, EventType.REBOUND, EventType.FOUL}
         for expected in expected_types:
             assert expected in event_types, f"Missing event type: {expected}"
