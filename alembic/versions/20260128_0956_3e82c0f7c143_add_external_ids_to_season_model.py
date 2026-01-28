@@ -13,16 +13,17 @@ This migration:
 
 import json
 import re
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "3e82c0f7c143"
-down_revision: Union[str, None] = "a1b2c3d4e5f6"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "a1b2c3d4e5f6"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 # Regex patterns for detecting season formats
 EUROLEAGUE_PATTERN = re.compile(r"^([EU])(\d{4})$")  # E2025 or U2025
@@ -107,7 +108,7 @@ def downgrade() -> None:
         sa.text("SELECT id, name, external_ids FROM seasons")
     ).fetchall()
 
-    for season_id, name, external_ids_json in seasons:
+    for season_id, _name, external_ids_json in seasons:
         if external_ids_json:
             try:
                 external_ids = json.loads(external_ids_json)

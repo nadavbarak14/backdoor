@@ -248,10 +248,8 @@ class WinnerMapper:
                         game_date = self.parse_datetime(game_date_str)
                         year = game_date.year
                         month = game_date.month
-                        if month >= 9:  # Season starts in September
-                            start_year = year
-                        else:
-                            start_year = year - 1
+                        # Season starts in September
+                        start_year = year if month >= 9 else year - 1
                     except ValueError:
                         pass
 

@@ -70,14 +70,6 @@ from src.sync.exceptions import (
     SyncError,
 )
 
-# Season format utilities
-from src.sync.season import (
-    SeasonFormatError,
-    normalize_season_name,
-    parse_season_year,
-    validate_season_format,
-)
-
 # iBasketball
 from src.sync.ibasketball import (
     IBasketballAdapter,
@@ -101,6 +93,14 @@ from src.sync.nba import (
 
 # Player Info Service
 from src.sync.player_info import MergedPlayerInfo, PlayerInfoService, merge_player_info
+
+# Season format utilities
+from src.sync.season import (
+    SeasonFormatError,
+    normalize_season_name,
+    parse_season_year,
+    validate_season_format,
+)
 from src.sync.tracking import SyncTracker
 from src.sync.types import (
     RawBoxScore,
