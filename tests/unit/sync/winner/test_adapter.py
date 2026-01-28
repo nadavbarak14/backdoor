@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.schemas.game import EventType
 from src.sync.types import RawBoxScore, RawGame, RawSeason
 from src.sync.winner.adapter import WinnerAdapter
 from src.sync.winner.client import CacheResult
@@ -370,9 +371,9 @@ class TestGetGamePbp:
         events = await adapter.get_game_pbp("12345")
 
         assert len(events) == 2
-        assert events[0].event_type == "shot"
+        assert events[0].event_type == EventType.SHOT
         assert events[0].success is True
-        assert events[1].event_type == "turnover"
+        assert events[1].event_type == EventType.TURNOVER
 
 
 class TestIsGameFinal:
