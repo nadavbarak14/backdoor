@@ -18,6 +18,8 @@ Usage:
 from dataclasses import dataclass
 from datetime import date, datetime
 
+from src.schemas.game import EventType
+from src.sync.pbp import infer_pbp_links
 from src.sync.season import normalize_season_name
 from src.sync.types import (
     RawBoxScore,
@@ -73,40 +75,41 @@ class WinnerMapper:
         '12345'
     """
 
-    # Event type mappings from Winner format to normalized format
-    EVENT_TYPE_MAP = {
-        "MADE_2PT": "shot",
-        "MADE_3PT": "shot",
-        "MISS_2PT": "shot",
-        "MISS_3PT": "shot",
-        "MADE_FT": "free_throw",
-        "MISS_FT": "free_throw",
-        "REBOUND": "rebound",
-        "ASSIST": "assist",
-        "TURNOVER": "turnover",
-        "STEAL": "steal",
-        "BLOCK": "block",
-        "FOUL": "foul",
-        "JUMP_BALL": "jump_ball",
-        "TIMEOUT": "timeout",
-        "SUBSTITUTION": "substitution",
+    # Event type mappings from Winner format to canonical EventType
+    EVENT_TYPE_MAP: dict[str, EventType] = {
+        "MADE_2PT": EventType.SHOT,
+        "MADE_3PT": EventType.SHOT,
+        "MISS_2PT": EventType.SHOT,
+        "MISS_3PT": EventType.SHOT,
+        "MADE_FT": EventType.FREE_THROW,
+        "MISS_FT": EventType.FREE_THROW,
+        "REBOUND": EventType.REBOUND,
+        "ASSIST": EventType.ASSIST,
+        "TURNOVER": EventType.TURNOVER,
+        "STEAL": EventType.STEAL,
+        "BLOCK": EventType.BLOCK,
+        "FOUL": EventType.FOUL,
+        "JUMP_BALL": EventType.JUMP_BALL,
+        "TIMEOUT": EventType.TIMEOUT,
+        "SUBSTITUTION": EventType.SUBSTITUTION,
     }
 
-    # Event type mappings from segevstats format to normalized format
-    SEGEVSTATS_EVENT_TYPE_MAP = {
-        "shot": "shot",
-        "freeThrow": "free_throw",
-        "rebound": "rebound",
-        "assist": "assist",
-        "turnover": "turnover",
-        "steal": "steal",
-        "block": "block",
-        "foul": "foul",
-        "substitution": "substitution",
-        "timeout": "timeout",
-        "game": "game",
-        "quarter": "quarter",
-        "clock": "clock",
+    # Event type mappings from segevstats format to canonical EventType
+    # None values indicate events that should be skipped
+    SEGEVSTATS_EVENT_TYPE_MAP: dict[str, EventType | None] = {
+        "shot": EventType.SHOT,
+        "freeThrow": EventType.FREE_THROW,
+        "rebound": EventType.REBOUND,
+        "assist": EventType.ASSIST,
+        "turnover": EventType.TURNOVER,
+        "steal": EventType.STEAL,
+        "block": EventType.BLOCK,
+        "foul": EventType.FOUL,
+        "substitution": EventType.SUBSTITUTION,
+        "timeout": EventType.TIMEOUT,
+        "game": None,  # Skip
+        "quarter": None,  # Skip
+        "clock": None,  # Skip
     }
 
     def parse_minutes_to_seconds(self, minutes_str: str) -> int:
@@ -816,11 +819,14 @@ class WinnerMapper:
             ...     "PlayerId": "1001"
             ... }, 1)
             >>> event.event_type
-            'shot'
+            EventType.SHOT
         """
-        # Map event type
+        # Map event type to canonical EventType
         raw_event_type = data.get("EventType", "")
-        event_type = self.EVENT_TYPE_MAP.get(raw_event_type, raw_event_type.lower())
+        event_type = self.EVENT_TYPE_MAP.get(raw_event_type)
+        if event_type is None:
+            # Unknown event type - default to VIOLATION for unrecognized events
+            event_type = EventType.VIOLATION
 
         # Determine success for shot events
         success = None
@@ -890,8 +896,8 @@ class WinnerMapper:
             event = self.map_pbp_event(event_data, i)
             events.append(event)
 
-        # Infer links between related events
-        return self.infer_pbp_links(events)
+        # Infer links between related events (uses shared module)
+        return infer_pbp_links(events)
 
     def extract_player_roster(self, pbp_data: dict) -> PlayerRoster:
         """
@@ -979,7 +985,7 @@ class WinnerMapper:
             >>> len(events)
             800
             >>> events[0].event_type
-            'shot'
+            EventType.SHOT
         """
         # Extract player roster for name lookups
         roster = self.extract_player_roster(data)
@@ -1004,8 +1010,8 @@ class WinnerMapper:
             if event:
                 events.append(event)
 
-        # Infer links between related events
-        return self.infer_pbp_links(events)
+        # Infer links between related events (uses shared module)
+        return infer_pbp_links(events)
 
     def _map_segevstats_pbp_action(
         self,
@@ -1040,12 +1046,12 @@ class WinnerMapper:
         """
         action_type = action.get("type", "")
 
-        # Skip non-game-event types (clock updates, game start, quarter start)
-        if action_type in ("clock", "game", "quarter"):
-            return None
+        # Map event type to canonical EventType
+        event_type = self.SEGEVSTATS_EVENT_TYPE_MAP.get(action_type)
 
-        # Map event type
-        event_type = self.SEGEVSTATS_EVENT_TYPE_MAP.get(action_type, action_type)
+        # Skip events with None mapping (clock, game, quarter)
+        if event_type is None:
+            return None
 
         # Extract parameters
         params = action.get("parameters", {})
@@ -1056,8 +1062,19 @@ class WinnerMapper:
             made_value = params.get("made", "")
             success = made_value == "made"
 
-        # Extract subtype
-        event_subtype = params.get("type")
+        # Extract subtype - for shots, use point value (2PT/3PT) as primary subtype
+        event_subtype = None
+        if action_type == "shot":
+            points = params.get("points")
+            if points == 3:
+                event_subtype = "3PT"
+            elif points == 2:
+                event_subtype = "2PT"
+            else:
+                # Fallback to shot type (jump-shot, lay-up, etc.)
+                event_subtype = params.get("type")
+        else:
+            event_subtype = params.get("type")
 
         # Extract player info
         player_id = action.get("playerId")
@@ -1183,120 +1200,6 @@ class WinnerMapper:
             home_players=home_players,
             away_players=away_players,
         )
-
-    def _parse_clock_to_seconds(self, clock: str) -> float:
-        """
-        Parse game clock string to seconds remaining in period.
-
-        Args:
-            clock: Clock string like "09:45" or "9:45".
-
-        Returns:
-            Seconds remaining as float.
-        """
-        if not clock:
-            return 0.0
-
-        try:
-            parts = clock.split(":")
-            if len(parts) == 2:
-                minutes = int(parts[0])
-                seconds = int(parts[1])
-                return minutes * 60 + seconds
-            return 0.0
-        except (ValueError, AttributeError):
-            return 0.0
-
-    def infer_pbp_links(self, events: list[RawPBPEvent]) -> list[RawPBPEvent]:
-        """
-        Infer relationships between play-by-play events.
-
-        Links related events based on timing and type:
-        1. ASSIST after made SHOT (same team, <2 sec) -> links to shot
-        2. REBOUND after missed SHOT (<3 sec) -> links to shot
-        3. STEAL after TURNOVER (diff team, <2 sec) -> links to turnover
-        4. BLOCK with missed SHOT (same time) -> links to shot
-        5. FREE_THROW after FOUL -> links to foul
-
-        Args:
-            events: List of RawPBPEvent objects without links.
-
-        Returns:
-            Same events with related_event_numbers populated.
-
-        Example:
-            >>> mapper = WinnerMapper()
-            >>> events = [shot_event, assist_event]
-            >>> linked = mapper.infer_pbp_links(events)
-            >>> linked[1].related_event_numbers
-            [1]
-        """
-        # Build index for quick lookup
-        for i, event in enumerate(events):
-
-            # Look at previous events in same period for potential links
-            for j in range(i - 1, max(0, i - 10) - 1, -1):
-                prev_event = events[j]
-
-                # Must be same period
-                if prev_event.period != event.period:
-                    continue
-
-                prev_time = self._parse_clock_to_seconds(prev_event.clock)
-                curr_time = self._parse_clock_to_seconds(event.clock)
-                time_diff = prev_time - curr_time  # Clock counts down
-
-                # Rule 1: ASSIST after made SHOT (same team, <2 sec)
-                if (
-                    event.event_type == "assist"
-                    and prev_event.event_type == "shot"
-                    and prev_event.success is True
-                    and event.team_external_id == prev_event.team_external_id
-                    and 0 <= time_diff <= 2
-                ):
-                    event.related_event_numbers = [prev_event.event_number]
-                    break
-
-                # Rule 2: REBOUND after missed SHOT (<3 sec)
-                if (
-                    event.event_type == "rebound"
-                    and prev_event.event_type == "shot"
-                    and prev_event.success is False
-                    and 0 <= time_diff <= 3
-                ):
-                    event.related_event_numbers = [prev_event.event_number]
-                    break
-
-                # Rule 3: STEAL after TURNOVER (diff team, <2 sec)
-                if (
-                    event.event_type == "steal"
-                    and prev_event.event_type == "turnover"
-                    and event.team_external_id != prev_event.team_external_id
-                    and 0 <= time_diff <= 2
-                ):
-                    event.related_event_numbers = [prev_event.event_number]
-                    break
-
-                # Rule 4: BLOCK with missed SHOT (same time)
-                if (
-                    event.event_type == "block"
-                    and prev_event.event_type == "shot"
-                    and prev_event.success is False
-                    and abs(time_diff) <= 1
-                ):
-                    event.related_event_numbers = [prev_event.event_number]
-                    break
-
-                # Rule 5: FREE_THROW after FOUL
-                if (
-                    event.event_type == "free_throw"
-                    and prev_event.event_type == "foul"
-                    and 0 <= time_diff <= 5
-                ):
-                    event.related_event_numbers = [prev_event.event_number]
-                    break
-
-        return events
 
     def map_player_info(self, profile: PlayerProfile) -> RawPlayerInfo:
         """

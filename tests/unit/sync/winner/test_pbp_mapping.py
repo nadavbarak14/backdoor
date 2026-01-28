@@ -4,6 +4,7 @@ Tests for segevstats PBP mapping in WinnerMapper.
 
 import pytest
 
+from src.schemas.game import EventType
 from src.sync.winner.mapper import WinnerMapper
 
 
@@ -167,7 +168,7 @@ class TestMapPbpEventsFromActions:
         }
         events = mapper.map_pbp_events(data)
         assert len(events) == 1
-        assert events[0].event_type == "shot"
+        assert events[0].event_type == EventType.SHOT
 
 
 class TestMapShotSuccess:
@@ -176,58 +177,58 @@ class TestMapShotSuccess:
     def test_made_shot_success_true(self, mapper, pbp_fixture):
         events = mapper.map_pbp_events(pbp_fixture)
         shot_event = events[0]
-        assert shot_event.event_type == "shot"
+        assert shot_event.event_type == EventType.SHOT
         assert shot_event.success is True
 
     def test_missed_shot_success_false(self, mapper, pbp_fixture):
         events = mapper.map_pbp_events(pbp_fixture)
         missed_shot = events[1]
-        assert missed_shot.event_type == "shot"
+        assert missed_shot.event_type == EventType.SHOT
         assert missed_shot.success is False
 
 
 class TestMapEventTypes:
-    """Test all action types mapped correctly."""
+    """Test all action types mapped to canonical EventType."""
 
     def test_shot_type(self, mapper, pbp_fixture):
         events = mapper.map_pbp_events(pbp_fixture)
-        assert events[0].event_type == "shot"
+        assert events[0].event_type == EventType.SHOT
 
     def test_free_throw_type(self, mapper, pbp_fixture):
         events = mapper.map_pbp_events(pbp_fixture)
-        assert events[3].event_type == "free_throw"
+        assert events[3].event_type == EventType.FREE_THROW
 
     def test_rebound_type(self, mapper, pbp_fixture):
         events = mapper.map_pbp_events(pbp_fixture)
-        assert events[2].event_type == "rebound"
+        assert events[2].event_type == EventType.REBOUND
 
     def test_assist_type(self, mapper, pbp_fixture):
         events = mapper.map_pbp_events(pbp_fixture)
-        assert events[5].event_type == "assist"
+        assert events[5].event_type == EventType.ASSIST
 
     def test_turnover_type(self, mapper, pbp_fixture):
         events = mapper.map_pbp_events(pbp_fixture)
-        assert events[6].event_type == "turnover"
+        assert events[6].event_type == EventType.TURNOVER
 
     def test_steal_type(self, mapper, pbp_fixture):
         events = mapper.map_pbp_events(pbp_fixture)
-        assert events[7].event_type == "steal"
+        assert events[7].event_type == EventType.STEAL
 
     def test_foul_type(self, mapper, pbp_fixture):
         events = mapper.map_pbp_events(pbp_fixture)
-        assert events[8].event_type == "foul"
+        assert events[8].event_type == EventType.FOUL
 
     def test_block_type(self, mapper, pbp_fixture):
         events = mapper.map_pbp_events(pbp_fixture)
-        assert events[9].event_type == "block"
+        assert events[9].event_type == EventType.BLOCK
 
     def test_substitution_type(self, mapper, pbp_fixture):
         events = mapper.map_pbp_events(pbp_fixture)
-        assert events[10].event_type == "substitution"
+        assert events[10].event_type == EventType.SUBSTITUTION
 
     def test_timeout_type(self, mapper, pbp_fixture):
         events = mapper.map_pbp_events(pbp_fixture)
-        assert events[11].event_type == "timeout"
+        assert events[11].event_type == EventType.TIMEOUT
 
 
 class TestExtractPlayerRosterFromPbp:
