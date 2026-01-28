@@ -183,7 +183,9 @@ class SyncManager:
 
         try:
             # Sync teams first
-            await self._sync_teams_for_season(adapter, season, source, season_external_id)
+            await self._sync_teams_for_season(
+                adapter, season, source, season_external_id
+            )
 
             # Get schedule
             games = await adapter.get_schedule(season_external_id)
@@ -321,7 +323,9 @@ class SyncManager:
 
         try:
             # Sync teams first
-            await self._sync_teams_for_season(adapter, season, source, season_external_id)
+            await self._sync_teams_for_season(
+                adapter, season, source, season_external_id
+            )
 
             # Get schedule
             games = await adapter.get_schedule(season_external_id)
@@ -533,7 +537,9 @@ class SyncManager:
             if not seasons:
                 raise ValueError("No seasons available")
 
-            season = await self._get_or_create_season(adapter, source, seasons[0].external_id)
+            season = await self._get_or_create_season(
+                adapter, source, seasons[0].external_id
+            )
 
             # Sync teams if needed
             home_team_raw = RawTeam(
@@ -1269,7 +1275,11 @@ class SyncManager:
             start_date=start_date,
             end_date=end_date,
             is_current=True,
-            external_ids={source: season_external_id} if season_external_id != season_name else {},
+            external_ids=(
+                {source: season_external_id}
+                if season_external_id != season_name
+                else {}
+            ),
         )
         self.db.add(season)
         self.db.flush()
