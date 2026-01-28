@@ -201,15 +201,27 @@ def get_team_roster(
             detail=f"Team with id {team_id} not found",
         )
 
-    # If no season specified, get current season
+    # If no season specified, find the most recent season the team participated in
     if season_id is None:
         season_service = SeasonService(db)
-        current_season = season_service.get_current()
+        # Get seasons this team has participated in (via TeamSeason)
+        team_seasons = team_service.get_team_seasons(team_id)
+        if team_seasons:
+            # Use the most recent season (last in list or find current)
+            current_season = None
+            for ts in team_seasons:
+                season = season_service.get_by_id(ts.season_id)
+                if season and season.is_current:
+                    current_season = season
+                    break
+            # Fall back to the most recent season
+            if current_season is None and team_seasons:
+                current_season = season_service.get_by_id(team_seasons[-1].season_id)
 
         if current_season is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="No current season found. Please specify a season_id.",
+                detail="No season found for this team. Please specify a season_id.",
             )
         season_id = current_season.id
         season_name = current_season.name

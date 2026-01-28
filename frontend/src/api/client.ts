@@ -23,7 +23,10 @@ import type {
   SyncStatusResponse,
 } from '../types';
 
-const API_BASE = '/api/v1';
+// Use VITE_API_URL for remote access, fallback to relative path for proxy
+const API_BASE = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api/v1`
+  : '/api/v1';
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {

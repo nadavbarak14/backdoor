@@ -175,6 +175,24 @@ class TeamService(BaseService[Team]):
         )
         return list(self.db.scalars(stmt).unique().all())
 
+    def get_team_seasons(self, team_id: UUID) -> list[TeamSeason]:
+        """
+        Get all seasons a team has participated in.
+
+        Args:
+            team_id: UUID of the team.
+
+        Returns:
+            List of TeamSeason entries for the team.
+
+        Example:
+            >>> seasons = service.get_team_seasons(lakers_id)
+            >>> for ts in seasons:
+            ...     print(f"Season: {ts.season_id}")
+        """
+        stmt = select(TeamSeason).where(TeamSeason.team_id == team_id)
+        return list(self.db.scalars(stmt).all())
+
     def create_team(self, data: TeamCreate) -> Team:
         """
         Create a new team from a Pydantic schema.
