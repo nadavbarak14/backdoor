@@ -10,7 +10,6 @@ These tests ACTUALLY VERIFY data correctness by:
 Issue #193: The query_stats tool was returning inconsistent data.
 """
 
-
 import pytest
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -29,12 +28,12 @@ def parse_table_row(result: str, row_index: int = 0) -> dict | None:
 
     Returns dict mapping column headers to values.
     """
-    lines = result.strip().split('\n')
+    lines = result.strip().split("\n")
     header_line = None
     data_lines = []
 
     for line in lines:
-        if line.startswith('|') and '---' not in line:
+        if line.startswith("|") and "---" not in line:
             if header_line is None:
                 header_line = line
             else:
@@ -46,8 +45,8 @@ def parse_table_row(result: str, row_index: int = 0) -> dict | None:
     if row_index >= len(data_lines):
         return None
 
-    headers = [h.strip() for h in header_line.split('|') if h.strip()]
-    values = [v.strip() for v in data_lines[row_index].split('|') if v.strip()]
+    headers = [h.strip() for h in header_line.split("|") if h.strip()]
+    values = [v.strip() for v in data_lines[row_index].split("|") if v.strip()]
 
     if len(headers) != len(values):
         return None
@@ -57,10 +56,10 @@ def parse_table_row(result: str, row_index: int = 0) -> dict | None:
 
 def parse_numeric(value: str) -> float | None:
     """Parse a numeric value from table cell, handling %, +/- signs."""
-    if not value or value == 'N/A':
+    if not value or value == "N/A":
         return None
     # Remove % sign
-    value = value.replace('%', '').strip()
+    value = value.replace("%", "").strip()
     # Handle +/- prefix
     try:
         return float(value)
@@ -93,12 +92,14 @@ class TestMinutesAccuracy:
             pytest.skip("No season stats")
 
         for stat in season_stats:
-            result = query_stats.invoke({
-                "player_ids": [str(stat.player_id)],
-                "metrics": ["minutes"],
-                "per": "game",
-                "db": real_db,
-            })
+            result = query_stats.invoke(
+                {
+                    "player_ids": [str(stat.player_id)],
+                    "metrics": ["minutes"],
+                    "per": "game",
+                    "db": real_db,
+                }
+            )
 
             row = parse_table_row(result)
             if row and "MIN" in row:
@@ -135,19 +136,25 @@ class TestMinutesAccuracy:
         expected_total_minutes = total_seconds / 60  # Convert seconds to minutes
 
         # Query total minutes
-        result = query_stats.invoke({
-            "player_ids": [str(player_id)],
-            "metrics": ["minutes"],
-            "per": "total",
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "player_ids": [str(player_id)],
+                "metrics": ["minutes"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
         row = parse_table_row(result)
         if row and "MIN" in row:
             actual_minutes = parse_numeric(row["MIN"])
             if actual_minutes is not None and expected_total_minutes > 0:
                 # Allow 1% tolerance for rounding
-                assert abs(actual_minutes - expected_total_minutes) / expected_total_minutes < 0.01, (
+                assert (
+                    abs(actual_minutes - expected_total_minutes)
+                    / expected_total_minutes
+                    < 0.01
+                ), (
                     f"Total minutes mismatch: query_stats={actual_minutes}, "
                     f"expected={expected_total_minutes:.1f} (from {total_seconds} seconds)"
                 )
@@ -174,12 +181,14 @@ class TestPointsAccuracy:
         expected_ppg = season_stat.total_points / season_stat.games_played
 
         # Query per-game points
-        result = query_stats.invoke({
-            "player_ids": [str(season_stat.player_id)],
-            "metrics": ["points"],
-            "per": "game",
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "player_ids": [str(season_stat.player_id)],
+                "metrics": ["points"],
+                "per": "game",
+                "db": real_db,
+            }
+        )
 
         row = parse_table_row(result)
         if row and "PTS" in row:
@@ -213,20 +222,22 @@ class TestPointsAccuracy:
             .scalar()
         ) or 0
 
-        result = query_stats.invoke({
-            "player_ids": [str(player_id)],
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "player_ids": [str(player_id)],
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
         row = parse_table_row(result)
         if row and "PTS" in row:
             actual_total = parse_numeric(row["PTS"])
             if actual_total is not None:
-                assert actual_total == expected_total, (
-                    f"Total points mismatch: query_stats={actual_total}, expected={expected_total}"
-                )
+                assert (
+                    actual_total == expected_total
+                ), f"Total points mismatch: query_stats={actual_total}, expected={expected_total}"
 
 
 class TestFGPercentageAccuracy:
@@ -261,11 +272,13 @@ class TestFGPercentageAccuracy:
 
         expected_fg_pct = (totals.fgm / totals.fga) * 100
 
-        result = query_stats.invoke({
-            "player_ids": [str(season_stat.player_id)],
-            "metrics": ["fg_pct"],
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "player_ids": [str(season_stat.player_id)],
+                "metrics": ["fg_pct"],
+                "db": real_db,
+            }
+        )
 
         row = parse_table_row(result)
         if row and "FG%" in row:
@@ -284,20 +297,22 @@ class TestLeaderboardSorting:
         """
         Leaderboard with order=desc should return players sorted high to low.
         """
-        result = query_stats.invoke({
-            "order_by": "points",
-            "order": "desc",
-            "min_games": 3,
-            "limit": 10,
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "order_by": "points",
+                "order": "desc",
+                "min_games": 3,
+                "limit": 10,
+                "db": real_db,
+            }
+        )
 
         # Parse all rows and extract points
-        lines = result.strip().split('\n')
+        lines = result.strip().split("\n")
         pts_values = []
         for line in lines:
-            if line.startswith('|') and '---' not in line and 'Player' not in line:
-                cells = [c.strip() for c in line.split('|') if c.strip()]
+            if line.startswith("|") and "---" not in line and "Player" not in line:
+                cells = [c.strip() for c in line.split("|") if c.strip()]
                 # Find PTS column (should be 3rd after Player, Team)
                 if len(cells) >= 3:
                     pts = parse_numeric(cells[2])
@@ -307,27 +322,29 @@ class TestLeaderboardSorting:
         if len(pts_values) >= 2:
             # Verify descending order
             for i in range(len(pts_values) - 1):
-                assert pts_values[i] >= pts_values[i + 1], (
-                    f"Leaderboard not sorted descending: {pts_values[i]} should be >= {pts_values[i+1]}"
-                )
+                assert (
+                    pts_values[i] >= pts_values[i + 1]
+                ), f"Leaderboard not sorted descending: {pts_values[i]} should be >= {pts_values[i+1]}"
 
     def test_leaderboard_ascending_order_is_correct(self, real_db: Session):
         """
         Leaderboard with order=asc should return players sorted low to high.
         """
-        result = query_stats.invoke({
-            "order_by": "points",
-            "order": "asc",
-            "min_games": 3,
-            "limit": 10,
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "order_by": "points",
+                "order": "asc",
+                "min_games": 3,
+                "limit": 10,
+                "db": real_db,
+            }
+        )
 
-        lines = result.strip().split('\n')
+        lines = result.strip().split("\n")
         pts_values = []
         for line in lines:
-            if line.startswith('|') and '---' not in line and 'Player' not in line:
-                cells = [c.strip() for c in line.split('|') if c.strip()]
+            if line.startswith("|") and "---" not in line and "Player" not in line:
+                cells = [c.strip() for c in line.split("|") if c.strip()]
                 if len(cells) >= 3:
                     pts = parse_numeric(cells[2])
                     if pts is not None:
@@ -335,9 +352,9 @@ class TestLeaderboardSorting:
 
         if len(pts_values) >= 2:
             for i in range(len(pts_values) - 1):
-                assert pts_values[i] <= pts_values[i + 1], (
-                    f"Leaderboard not sorted ascending: {pts_values[i]} should be <= {pts_values[i+1]}"
-                )
+                assert (
+                    pts_values[i] <= pts_values[i + 1]
+                ), f"Leaderboard not sorted ascending: {pts_values[i]} should be <= {pts_values[i+1]}"
 
     def test_min_games_filter_actually_filters(self, real_db: Session):
         """
@@ -345,19 +362,21 @@ class TestLeaderboardSorting:
         """
         min_games = 10
 
-        result = query_stats.invoke({
-            "order_by": "points",
-            "min_games": min_games,
-            "limit": 20,
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "order_by": "points",
+                "min_games": min_games,
+                "limit": 20,
+                "db": real_db,
+            }
+        )
 
         # Get all players in result
-        lines = result.strip().split('\n')
+        lines = result.strip().split("\n")
         player_names = []
         for line in lines:
-            if line.startswith('|') and '---' not in line and 'Player' not in line:
-                cells = [c.strip() for c in line.split('|') if c.strip()]
+            if line.startswith("|") and "---" not in line and "Player" not in line:
+                cells = [c.strip() for c in line.split("|") if c.strip()]
                 if cells:
                     player_names.append(cells[0])
 
@@ -377,9 +396,9 @@ class TestLeaderboardSorting:
                         .filter(PlayerGameStats.player_id == player.id)
                         .scalar()
                     )
-                    assert games >= min_games, (
-                        f"Player {name} has {games} games but min_games={min_games}"
-                    )
+                    assert (
+                        games >= min_games
+                    ), f"Player {name} has {games} games but min_games={min_games}"
 
 
 class TestLastNGamesFilter:
@@ -393,7 +412,7 @@ class TestLastNGamesFilter:
         player_data = (
             real_db.query(
                 PlayerGameStats.player_id,
-                func.count(PlayerGameStats.id).label("game_count")
+                func.count(PlayerGameStats.id).label("game_count"),
             )
             .group_by(PlayerGameStats.player_id)
             .having(func.count() >= 10)
@@ -419,13 +438,15 @@ class TestLastNGamesFilter:
         expected_total_pts = sum(g.points or 0 for g in last_3_games)
         expected_ppg = expected_total_pts / n_games
 
-        result = query_stats.invoke({
-            "player_ids": [str(player_id)],
-            "last_n_games": n_games,
-            "metrics": ["points"],
-            "per": "game",
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "player_ids": [str(player_id)],
+                "last_n_games": n_games,
+                "metrics": ["points"],
+                "per": "game",
+                "db": real_db,
+            }
+        )
 
         row = parse_table_row(result)
         if row and "PTS" in row:
@@ -465,27 +486,31 @@ class TestHomeAwayFilter:
             pytest.skip("Team needs both home and away games")
 
         # Get home-only stats
-        result_home = query_stats.invoke({
-            "team_id": str(team.id),
-            "home_only": True,
-            "metrics": ["games", "points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_home = query_stats.invoke(
+            {
+                "team_id": str(team.id),
+                "home_only": True,
+                "metrics": ["games", "points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
         # Get all stats
-        result_all = query_stats.invoke({
-            "team_id": str(team.id),
-            "metrics": ["games", "points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_all = query_stats.invoke(
+            {
+                "team_id": str(team.id),
+                "metrics": ["games", "points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
         # Home games should be less than total
         # (We can't easily parse game count, but points should differ)
-        assert result_home != result_all or "No stats" in result_home, (
-            "Home-only stats should differ from all stats"
-        )
+        assert (
+            result_home != result_all or "No stats" in result_home
+        ), "Home-only stats should differ from all stats"
 
 
 class TestClutchFilter:
@@ -510,21 +535,25 @@ class TestClutchFilter:
             pytest.skip("No player with 5+ games")
 
         # Get total stats
-        result_total = query_stats.invoke({
-            "player_ids": [str(player_id[0])],
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_total = query_stats.invoke(
+            {
+                "player_ids": [str(player_id[0])],
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
         # Get clutch stats
-        result_clutch = query_stats.invoke({
-            "player_ids": [str(player_id[0])],
-            "clutch_only": True,
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_clutch = query_stats.invoke(
+            {
+                "player_ids": [str(player_id[0])],
+                "clutch_only": True,
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
         row_total = parse_table_row(result_total)
         row_clutch = parse_table_row(result_clutch)
@@ -534,9 +563,9 @@ class TestClutchFilter:
             clutch_pts = parse_numeric(row_clutch["PTS"])
 
             if total_pts is not None and clutch_pts is not None:
-                assert clutch_pts <= total_pts, (
-                    f"Clutch points ({clutch_pts}) cannot exceed total points ({total_pts})"
-                )
+                assert (
+                    clutch_pts <= total_pts
+                ), f"Clutch points ({clutch_pts}) cannot exceed total points ({total_pts})"
 
 
 class TestQuarterFilter:
@@ -565,21 +594,25 @@ class TestQuarterFilter:
             pytest.skip("No player with Q1 shot events")
 
         # Get full game stats
-        result_full = query_stats.invoke({
-            "player_ids": [str(player_with_q1[0])],
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_full = query_stats.invoke(
+            {
+                "player_ids": [str(player_with_q1[0])],
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
         # Get Q1 stats
-        result_q1 = query_stats.invoke({
-            "player_ids": [str(player_with_q1[0])],
-            "quarter": 1,
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_q1 = query_stats.invoke(
+            {
+                "player_ids": [str(player_with_q1[0])],
+                "quarter": 1,
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
         row_full = parse_table_row(result_full)
         row_q1 = parse_table_row(result_q1)
@@ -589,9 +622,9 @@ class TestQuarterFilter:
             q1_pts = parse_numeric(row_q1["PTS"])
 
             if full_pts is not None and q1_pts is not None:
-                assert q1_pts <= full_pts, (
-                    f"Q1 points ({q1_pts}) cannot exceed full game points ({full_pts})"
-                )
+                assert (
+                    q1_pts <= full_pts
+                ), f"Q1 points ({q1_pts}) cannot exceed full game points ({full_pts})"
 
     def test_all_quarters_sum_approximately_to_total(self, real_db: Session):
         """
@@ -617,13 +650,15 @@ class TestQuarterFilter:
         # Get each quarter's points
         quarter_pts = []
         for q in [1, 2, 3, 4]:
-            result = query_stats.invoke({
-                "player_ids": [str(player_with_pbp[0])],
-                "quarter": q,
-                "metrics": ["points"],
-                "per": "total",
-                "db": real_db,
-            })
+            result = query_stats.invoke(
+                {
+                    "player_ids": [str(player_with_pbp[0])],
+                    "quarter": q,
+                    "metrics": ["points"],
+                    "per": "total",
+                    "db": real_db,
+                }
+            )
             row = parse_table_row(result)
             if row and "PTS" in row:
                 pts = parse_numeric(row["PTS"])
@@ -634,27 +669,31 @@ class TestQuarterFilter:
         sum_quarters = sum(quarter_pts)
 
         # Get full game points
-        result_full = query_stats.invoke({
-            "player_ids": [str(player_with_pbp[0])],
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_full = query_stats.invoke(
+            {
+                "player_ids": [str(player_with_pbp[0])],
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
         row_full = parse_table_row(result_full)
 
         if row_full and "PTS" in row_full:
             full_pts = parse_numeric(row_full["PTS"])
             if full_pts and full_pts > 0:
                 # Allow some tolerance for OT and rounding
-                assert sum_quarters <= full_pts * 1.1, (
-                    f"Sum of quarters ({sum_quarters}) should be <= full game ({full_pts})"
-                )
+                assert (
+                    sum_quarters <= full_pts * 1.1
+                ), f"Sum of quarters ({sum_quarters}) should be <= full game ({full_pts})"
 
 
 class TestDataIntegrity:
     """Tests for fundamental data integrity."""
 
-    def test_player_with_points_has_nonzero_minutes_in_box_scores(self, real_db: Session):
+    def test_player_with_points_has_nonzero_minutes_in_box_scores(
+        self, real_db: Session
+    ):
         """
         If a player scored points, they must have played minutes.
         """
@@ -708,12 +747,12 @@ class TestDataIntegrity:
         )
 
         if game_totals.games > 0:
-            assert season_stat.games_played == game_totals.games, (
-                f"Games mismatch: season={season_stat.games_played}, sum={game_totals.games}"
-            )
-            assert season_stat.total_points == game_totals.points, (
-                f"Points mismatch: season={season_stat.total_points}, sum={game_totals.points}"
-            )
+            assert (
+                season_stat.games_played == game_totals.games
+            ), f"Games mismatch: season={season_stat.games_played}, sum={game_totals.games}"
+            assert (
+                season_stat.total_points == game_totals.points
+            ), f"Points mismatch: season={season_stat.total_points}, sum={game_totals.points}"
 
     def test_team_score_matches_sum_of_player_points(self, real_db: Session):
         """
@@ -784,22 +823,24 @@ class TestEachQuarterFilter:
         ) or 0
 
         # Query stats for this quarter
-        result = query_stats.invoke({
-            "player_ids": [str(player_id)],
-            "quarter": quarter,
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "player_ids": [str(player_id)],
+                "quarter": quarter,
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
         # Points should come from made shots (2pt or 3pt)
         # Can't verify exact value without knowing shot types, but verify non-zero
         row = parse_table_row(result)
         if row and "PTS" in row and made_shots > 0:
             pts = parse_numeric(row["PTS"])
-            assert pts is not None and pts > 0, (
-                f"Q{quarter} should have points for {made_shots} made shots"
-            )
+            assert (
+                pts is not None and pts > 0
+            ), f"Q{quarter} should have points for {made_shots} made shots"
 
     def test_first_half_combines_q1_q2(self, real_db: Session):
         """quarters=[1,2] should sum Q1 and Q2 stats."""
@@ -823,29 +864,35 @@ class TestEachQuarterFilter:
         player_id = player_with_shots[0]
 
         # Get Q1 + Q2 separately
-        result_q1 = query_stats.invoke({
-            "player_ids": [str(player_id)],
-            "quarter": 1,
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
-        result_q2 = query_stats.invoke({
-            "player_ids": [str(player_id)],
-            "quarter": 2,
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_q1 = query_stats.invoke(
+            {
+                "player_ids": [str(player_id)],
+                "quarter": 1,
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
+        result_q2 = query_stats.invoke(
+            {
+                "player_ids": [str(player_id)],
+                "quarter": 2,
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
         # Get first half
-        result_1h = query_stats.invoke({
-            "player_ids": [str(player_id)],
-            "quarters": [1, 2],
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_1h = query_stats.invoke(
+            {
+                "player_ids": [str(player_id)],
+                "quarters": [1, 2],
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
         row_q1 = parse_table_row(result_q1)
         row_q2 = parse_table_row(result_q2)
@@ -857,9 +904,9 @@ class TestEachQuarterFilter:
             first_half_pts = parse_numeric(row_1h.get("PTS", "0")) or 0
 
             expected_1h = q1_pts + q2_pts
-            assert abs(first_half_pts - expected_1h) < 1, (
-                f"1st Half ({first_half_pts}) should equal Q1 ({q1_pts}) + Q2 ({q2_pts})"
-            )
+            assert (
+                abs(first_half_pts - expected_1h) < 1
+            ), f"1st Half ({first_half_pts}) should equal Q1 ({q1_pts}) + Q2 ({q2_pts})"
 
 
 class TestAwayOnlyFilter:
@@ -886,26 +933,28 @@ class TestAwayOnlyFilter:
         if home_count == 0 or away_count == 0:
             pytest.skip("Need both home and away games")
 
-        result_home = query_stats.invoke({
-            "team_id": str(team.id),
-            "home_only": True,
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_home = query_stats.invoke(
+            {
+                "team_id": str(team.id),
+                "home_only": True,
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
-        result_away = query_stats.invoke({
-            "team_id": str(team.id),
-            "away_only": True,
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_away = query_stats.invoke(
+            {
+                "team_id": str(team.id),
+                "away_only": True,
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
         # Stats should be different
-        assert result_home != result_away, (
-            "Home and away stats should differ"
-        )
+        assert result_home != result_away, "Home and away stats should differ"
 
 
 class TestOpponentFilter:
@@ -926,13 +975,15 @@ class TestOpponentFilter:
         team1_id, team2_id = matchup
 
         # Get team1 stats vs team2
-        result = query_stats.invoke({
-            "team_id": str(team1_id),
-            "opponent_team_id": str(team2_id),
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "team_id": str(team1_id),
+                "opponent_team_id": str(team2_id),
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
         # Should return data (or no games message)
         assert "Error" not in result
@@ -955,20 +1006,24 @@ class TestSituationalFilters:
         if not player_id:
             pytest.skip("No player with games")
 
-        result_all = query_stats.invoke({
-            "player_ids": [str(player_id[0])],
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_all = query_stats.invoke(
+            {
+                "player_ids": [str(player_id[0])],
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
-        result_fastbreak = query_stats.invoke({
-            "player_ids": [str(player_id[0])],
-            "fast_break": True,
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_fastbreak = query_stats.invoke(
+            {
+                "player_ids": [str(player_id[0])],
+                "fast_break": True,
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
         row_all = parse_table_row(result_all)
         row_fb = parse_table_row(result_fastbreak)
@@ -978,9 +1033,9 @@ class TestSituationalFilters:
             fb_pts = parse_numeric(row_fb["PTS"]) or 0
 
             # Fast break points must be <= total points
-            assert fb_pts <= all_pts, (
-                f"Fast break points ({fb_pts}) cannot exceed total ({all_pts})"
-            )
+            assert (
+                fb_pts <= all_pts
+            ), f"Fast break points ({fb_pts}) cannot exceed total ({all_pts})"
 
     def test_contested_true_vs_false(self, real_db: Session):
         """contested=True and contested=False should be disjoint sets."""
@@ -994,28 +1049,34 @@ class TestSituationalFilters:
         if not player_id:
             pytest.skip("No player with games")
 
-        result_contested = query_stats.invoke({
-            "player_ids": [str(player_id[0])],
-            "contested": True,
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_contested = query_stats.invoke(
+            {
+                "player_ids": [str(player_id[0])],
+                "contested": True,
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
-        result_uncontested = query_stats.invoke({
-            "player_ids": [str(player_id[0])],
-            "contested": False,
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_uncontested = query_stats.invoke(
+            {
+                "player_ids": [str(player_id[0])],
+                "contested": False,
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
         # Both should not error
         assert "Error" not in result_contested
         assert "Error" not in result_uncontested
 
     @pytest.mark.parametrize("shot_type", ["PULL_UP", "CATCH_AND_SHOOT", "POST_UP"])
-    def test_shot_type_filter_runs_without_error(self, real_db: Session, shot_type: str):
+    def test_shot_type_filter_runs_without_error(
+        self, real_db: Session, shot_type: str
+    ):
         """Each shot_type filter should work without error."""
         player_id = (
             real_db.query(PlayerGameStats.player_id)
@@ -1027,12 +1088,14 @@ class TestSituationalFilters:
         if not player_id:
             pytest.skip("No player with games")
 
-        result = query_stats.invoke({
-            "player_ids": [str(player_id[0])],
-            "shot_type": shot_type,
-            "metrics": ["points", "fg_pct"],
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "player_ids": [str(player_id[0])],
+                "shot_type": shot_type,
+                "metrics": ["points", "fg_pct"],
+                "db": real_db,
+            }
+        )
 
         assert "Error" not in result, f"shot_type={shot_type} should work"
 
@@ -1048,20 +1111,24 @@ class TestSituationalFilters:
         if not player_id:
             pytest.skip("No player with 5+ games")
 
-        result_all = query_stats.invoke({
-            "player_ids": [str(player_id[0])],
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_all = query_stats.invoke(
+            {
+                "player_ids": [str(player_id[0])],
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
-        result_pullup = query_stats.invoke({
-            "player_ids": [str(player_id[0])],
-            "shot_type": "PULL_UP",
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_pullup = query_stats.invoke(
+            {
+                "player_ids": [str(player_id[0])],
+                "shot_type": "PULL_UP",
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
         row_all = parse_table_row(result_all)
         row_pu = parse_table_row(result_pullup)
@@ -1070,9 +1137,9 @@ class TestSituationalFilters:
             all_pts = parse_numeric(row_all["PTS"]) or 0
             pu_pts = parse_numeric(row_pu["PTS"]) or 0
 
-            assert pu_pts <= all_pts, (
-                f"Pull-up points ({pu_pts}) cannot exceed total ({all_pts})"
-            )
+            assert (
+                pu_pts <= all_pts
+            ), f"Pull-up points ({pu_pts}) cannot exceed total ({all_pts})"
 
 
 class TestScheduleFilters:
@@ -1084,21 +1151,25 @@ class TestScheduleFilters:
         if not team:
             pytest.skip("No teams")
 
-        result_b2b = query_stats.invoke({
-            "team_id": str(team.id),
-            "back_to_back": True,
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_b2b = query_stats.invoke(
+            {
+                "team_id": str(team.id),
+                "back_to_back": True,
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
-        result_non_b2b = query_stats.invoke({
-            "team_id": str(team.id),
-            "back_to_back": False,
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_non_b2b = query_stats.invoke(
+            {
+                "team_id": str(team.id),
+                "back_to_back": False,
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
         # Both should work
         assert "Error" not in result_b2b
@@ -1114,21 +1185,25 @@ class TestScheduleFilters:
             pytest.skip("No teams")
 
         # More rest days = fewer qualifying games = fewer points
-        result_0_rest = query_stats.invoke({
-            "team_id": str(team.id),
-            "min_rest_days": 0,
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_0_rest = query_stats.invoke(
+            {
+                "team_id": str(team.id),
+                "min_rest_days": 0,
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
-        result_3_rest = query_stats.invoke({
-            "team_id": str(team.id),
-            "min_rest_days": 3,
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_3_rest = query_stats.invoke(
+            {
+                "team_id": str(team.id),
+                "min_rest_days": 3,
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
         row_0 = parse_table_row(result_0_rest)
         row_3 = parse_table_row(result_3_rest)
@@ -1138,9 +1213,9 @@ class TestScheduleFilters:
             pts_3 = parse_numeric(row_3["PTS"]) or 0
 
             # 3+ rest days should have <= points than 0+ rest days
-            assert pts_3 <= pts_0, (
-                f"min_rest=3 points ({pts_3}) should be <= min_rest=0 ({pts_0})"
-            )
+            assert (
+                pts_3 <= pts_0
+            ), f"min_rest=3 points ({pts_3}) should be <= min_rest=0 ({pts_0})"
 
 
 class TestLineupFilters:
@@ -1166,11 +1241,13 @@ class TestLineupFilters:
         if len(players) < 2:
             pytest.skip("Need 2+ players on same team")
 
-        result = query_stats.invoke({
-            "player_ids": [str(p.id) for p in players],
-            "metrics": ["points", "plus_minus"],
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "player_ids": [str(p.id) for p in players],
+                "metrics": ["points", "plus_minus"],
+                "db": real_db,
+            }
+        )
 
         # Should show lineup stats or no games together
         assert "Error" not in result
@@ -1182,13 +1259,15 @@ class TestLineupFilters:
         if not team:
             pytest.skip("No teams")
 
-        result = query_stats.invoke({
-            "team_id": str(team.id),
-            "discover_lineups": True,
-            "lineup_size": 2,
-            "min_minutes": 1.0,
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "team_id": str(team.id),
+                "discover_lineups": True,
+                "lineup_size": 2,
+                "min_minutes": 1.0,
+                "db": real_db,
+            }
+        )
 
         assert "Error" not in result
         # Should show lineup combinations or no lineups found
@@ -1209,14 +1288,16 @@ class TestFilterCombinations:
             pytest.skip("No teams")
 
         # Q4 + home only
-        result = query_stats.invoke({
-            "team_id": str(team.id),
-            "quarter": 4,
-            "home_only": True,
-            "metrics": ["points"],
-            "per": "total",
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "team_id": str(team.id),
+                "quarter": 4,
+                "home_only": True,
+                "metrics": ["points"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
         # Should work without error
         assert "Error" not in result
@@ -1233,13 +1314,15 @@ class TestFilterCombinations:
         if not team:
             pytest.skip("No teams")
 
-        result = query_stats.invoke({
-            "team_id": str(team.id),
-            "quarter": 3,
-            "away_only": True,
-            "metrics": ["points"],
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "team_id": str(team.id),
+                "quarter": 3,
+                "away_only": True,
+                "metrics": ["points"],
+                "db": real_db,
+            }
+        )
 
         assert "Error" not in result
         assert ("Q3" in result and "Away" in result) or "No" in result
@@ -1260,13 +1343,15 @@ class TestFilterCombinations:
         if not player_id:
             pytest.skip("No player with 5+ games")
 
-        result = query_stats.invoke({
-            "player_ids": [str(player_id[0])],
-            "clutch_only": True,
-            "home_only": True,
-            "metrics": ["points"],
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "player_ids": [str(player_id[0])],
+                "clutch_only": True,
+                "home_only": True,
+                "metrics": ["points"],
+                "db": real_db,
+            }
+        )
 
         assert "Error" not in result
         assert ("Clutch" in result and "Home" in result) or "No" in result
@@ -1283,13 +1368,15 @@ class TestFilterCombinations:
         if not player_id:
             pytest.skip("No player with 10+ games")
 
-        result = query_stats.invoke({
-            "player_ids": [str(player_id[0])],
-            "last_n_games": 5,
-            "home_only": True,
-            "metrics": ["points"],
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "player_ids": [str(player_id[0])],
+                "last_n_games": 5,
+                "home_only": True,
+                "metrics": ["points"],
+                "db": real_db,
+            }
+        )
 
         assert "Error" not in result
         assert ("Last 5" in result and "Home" in result) or "No" in result
@@ -1300,13 +1387,15 @@ class TestFilterCombinations:
         if not team:
             pytest.skip("No teams")
 
-        result = query_stats.invoke({
-            "team_id": str(team.id),
-            "fast_break": True,
-            "back_to_back": True,
-            "metrics": ["points"],
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "team_id": str(team.id),
+                "fast_break": True,
+                "back_to_back": True,
+                "metrics": ["points"],
+                "db": real_db,
+            }
+        )
 
         assert "Error" not in result
         assert ("Fast Break" in result and "Back-to-Back" in result) or "No" in result
@@ -1327,13 +1416,15 @@ class TestFilterCombinations:
         if not player_id:
             pytest.skip("No player with games")
 
-        result = query_stats.invoke({
-            "player_ids": [str(player_id[0])],
-            "quarter": 1,
-            "fast_break": True,
-            "metrics": ["points"],
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "player_ids": [str(player_id[0])],
+                "quarter": 1,
+                "fast_break": True,
+                "metrics": ["points"],
+                "db": real_db,
+            }
+        )
 
         assert "Error" not in result
 
@@ -1349,13 +1440,15 @@ class TestFilterCombinations:
         if not player_id:
             pytest.skip("No player with games")
 
-        result = query_stats.invoke({
-            "player_ids": [str(player_id[0])],
-            "shot_type": "CATCH_AND_SHOOT",
-            "home_only": True,
-            "metrics": ["points", "fg_pct"],
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "player_ids": [str(player_id[0])],
+                "shot_type": "CATCH_AND_SHOOT",
+                "home_only": True,
+                "metrics": ["points", "fg_pct"],
+                "db": real_db,
+            }
+        )
 
         assert "Error" not in result
 
@@ -1376,13 +1469,15 @@ class TestFilterCombinations:
 
         team1_id, team2_id = matchup
 
-        result = query_stats.invoke({
-            "team_id": str(team1_id),
-            "opponent_team_id": str(team2_id),
-            "quarter": 4,
-            "metrics": ["points"],
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "team_id": str(team1_id),
+                "opponent_team_id": str(team2_id),
+                "quarter": 4,
+                "metrics": ["points"],
+                "db": real_db,
+            }
+        )
 
         assert "Error" not in result
 
@@ -1402,14 +1497,16 @@ class TestFilterCombinations:
         if not player_id:
             pytest.skip("No player with 10+ games")
 
-        result = query_stats.invoke({
-            "player_ids": [str(player_id[0])],
-            "quarter": 4,
-            "home_only": True,
-            "last_n_games": 5,
-            "metrics": ["points"],
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "player_ids": [str(player_id[0])],
+                "quarter": 4,
+                "home_only": True,
+                "last_n_games": 5,
+                "metrics": ["points"],
+                "db": real_db,
+            }
+        )
 
         assert "Error" not in result
 
@@ -1431,13 +1528,15 @@ class TestFilterCombinations:
             pytest.skip("No player with games")
 
         # Clutch is only Q4/OT, so quarter=4 + clutch makes sense
-        result = query_stats.invoke({
-            "player_ids": [str(player_id[0])],
-            "quarter": 4,
-            "clutch_only": True,
-            "metrics": ["points"],
-            "db": real_db,
-        })
+        result = query_stats.invoke(
+            {
+                "player_ids": [str(player_id[0])],
+                "quarter": 4,
+                "clutch_only": True,
+                "metrics": ["points"],
+                "db": real_db,
+            }
+        )
 
         # Should work (clutch is a subset of Q4)
         assert "Error" not in result
@@ -1458,19 +1557,23 @@ class TestPerGameVsTotalConsistency:
         if not player_id:
             pytest.skip("No player with 5+ games")
 
-        result_pergame = query_stats.invoke({
-            "player_ids": [str(player_id[0])],
-            "metrics": ["points", "games"],
-            "per": "game",
-            "db": real_db,
-        })
+        result_pergame = query_stats.invoke(
+            {
+                "player_ids": [str(player_id[0])],
+                "metrics": ["points", "games"],
+                "per": "game",
+                "db": real_db,
+            }
+        )
 
-        result_total = query_stats.invoke({
-            "player_ids": [str(player_id[0])],
-            "metrics": ["points", "games"],
-            "per": "total",
-            "db": real_db,
-        })
+        result_total = query_stats.invoke(
+            {
+                "player_ids": [str(player_id[0])],
+                "metrics": ["points", "games"],
+                "per": "total",
+                "db": real_db,
+            }
+        )
 
         row_pg = parse_table_row(result_pergame)
         row_t = parse_table_row(result_total)
@@ -1483,9 +1586,9 @@ class TestPerGameVsTotalConsistency:
             if games_t > 0 and ppg > 0:
                 expected_total = ppg * games_t
                 # Allow 1 point tolerance per game for rounding
-                assert abs(expected_total - total_pts) <= games_t, (
-                    f"PPG ({ppg}) * games ({games_t}) = {expected_total}, but total = {total_pts}"
-                )
+                assert (
+                    abs(expected_total - total_pts) <= games_t
+                ), f"PPG ({ppg}) * games ({games_t}) = {expected_total}, but total = {total_pts}"
 
 
 class TestValidationErrors:
@@ -1516,7 +1619,9 @@ class TestValidationErrors:
 
     def test_home_and_away_mutually_exclusive(self, real_db: Session):
         """Cannot specify both home_only and away_only."""
-        result = query_stats.invoke({"home_only": True, "away_only": True, "db": real_db})
+        result = query_stats.invoke(
+            {"home_only": True, "away_only": True, "db": real_db}
+        )
         assert "mutually exclusive" in result
 
     def test_invalid_quarter_value(self, real_db: Session):
@@ -1542,7 +1647,9 @@ class TestValidationErrors:
 
     def test_back_to_back_conflicts_with_min_rest(self, real_db: Session):
         """back_to_back=True conflicts with min_rest_days > 1."""
-        result = query_stats.invoke({"back_to_back": True, "min_rest_days": 3, "db": real_db})
+        result = query_stats.invoke(
+            {"back_to_back": True, "min_rest_days": 3, "db": real_db}
+        )
         assert "conflicts" in result
 
     def test_invalid_lineup_size(self, real_db: Session):
@@ -1552,12 +1659,14 @@ class TestValidationErrors:
             pytest.skip("No teams")
 
         for invalid_size in [1, 6, 0]:
-            result = query_stats.invoke({
-                "team_id": str(team.id),
-                "discover_lineups": True,
-                "lineup_size": invalid_size,
-                "db": real_db,
-            })
+            result = query_stats.invoke(
+                {
+                    "team_id": str(team.id),
+                    "discover_lineups": True,
+                    "lineup_size": invalid_size,
+                    "db": real_db,
+                }
+            )
             assert "Error" in result, f"lineup_size {invalid_size} should be invalid"
 
     def test_discover_lineups_requires_team(self, real_db: Session):
