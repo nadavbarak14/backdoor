@@ -46,16 +46,10 @@ app = FastAPI(
 )
 
 # CORS middleware for frontend development and production
-# Uses CORS_ORIGINS from settings, with localhost fallbacks for development
-cors_origins = settings.CORS_ORIGINS + [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:3001",
-]
+# Allow all origins in development for remote access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
