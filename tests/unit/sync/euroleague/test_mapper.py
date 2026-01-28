@@ -9,6 +9,7 @@ from datetime import date
 
 import pytest
 
+from src.schemas.game import EventType
 from src.sync.euroleague.mapper import EuroleagueMapper
 from src.sync.types import (
     RawBoxScore,
@@ -379,7 +380,7 @@ class TestMapPbpEvent:
         assert event.event_number == 1
         assert event.period == 1
         assert event.clock == "09:45"
-        assert event.event_type == "shot"
+        assert event.event_type == EventType.SHOT
         assert event.success is True
         assert event.team_external_id == "BER"
 
@@ -393,22 +394,22 @@ class TestMapPbpEvent:
         }
         event = mapper.map_pbp_event(data, 2)
 
-        assert event.event_type == "shot"
+        assert event.event_type == EventType.SHOT
         assert event.success is False
 
     def test_event_type_mapping(self, mapper):
-        """Test various event type mappings."""
+        """Test various event type mappings to canonical EventType."""
         event_mappings = [
-            ("2FGM", "shot"),
-            ("3FGA", "shot"),
-            ("FTM", "free_throw"),
-            ("O", "rebound"),
-            ("D", "rebound"),
-            ("AS", "assist"),
-            ("TO", "turnover"),
-            ("ST", "steal"),
-            ("BLK", "block"),
-            ("CM", "foul"),
+            ("2FGM", EventType.SHOT),
+            ("3FGA", EventType.SHOT),
+            ("FTM", EventType.FREE_THROW),
+            ("O", EventType.REBOUND),
+            ("D", EventType.REBOUND),
+            ("AS", EventType.ASSIST),
+            ("TO", EventType.TURNOVER),
+            ("ST", EventType.STEAL),
+            ("BLK", EventType.BLOCK),
+            ("CM", EventType.FOUL),
         ]
 
         for euro_type, expected_type in event_mappings:
@@ -417,6 +418,23 @@ class TestMapPbpEvent:
             assert (
                 event.event_type == expected_type
             ), f"{euro_type} should map to {expected_type}"
+
+    def test_skipped_event_types_return_none(self, mapper):
+        """Test that AG and RV events return None (skipped)."""
+        for skipped_type in ["AG", "RV"]:
+            data = {"PLAYTYPE": skipped_type, "PERIOD": 1, "MARKERTIME": "05:00"}
+            event = mapper.map_pbp_event(data, 1)
+            assert event is None, f"{skipped_type} should be skipped (return None)"
+
+    def test_rebound_subtype(self, mapper):
+        """Test that rebounds have OFFENSIVE/DEFENSIVE subtype."""
+        off_data = {"PLAYTYPE": "O", "PERIOD": 1, "MARKERTIME": "05:00"}
+        off_event = mapper.map_pbp_event(off_data, 1)
+        assert off_event.event_subtype == "OFFENSIVE"
+
+        def_data = {"PLAYTYPE": "D", "PERIOD": 1, "MARKERTIME": "05:00"}
+        def_event = mapper.map_pbp_event(def_data, 1)
+        assert def_event.event_subtype == "DEFENSIVE"
 
 
 class TestMapPbpFromLive:

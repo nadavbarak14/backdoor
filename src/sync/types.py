@@ -24,6 +24,7 @@ Usage:
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
+from src.schemas.game import EventType
 from src.sync.season import SeasonFormatError, validate_season_format
 
 
@@ -232,7 +233,7 @@ class RawPBPEvent:
         event_number: Sequential event number within the game
         period: Period/quarter number (1-4 for regulation, 5+ for OT)
         clock: Game clock time as string (e.g., "10:45")
-        event_type: Type of event (shot, rebound, foul, etc.)
+        event_type: Type of event using canonical EventType enum
         event_subtype: Subtype for detail (e.g., "lay-up", "3-pointer", "offensive")
         player_name: Name of the player involved, if applicable
         player_external_id: External ID of the player (for database linking)
@@ -247,8 +248,8 @@ class RawPBPEvent:
         ...     event_number=42,
         ...     period=1,
         ...     clock="08:32",
-        ...     event_type="shot",
-        ...     event_subtype="3-pointer",
+        ...     event_type=EventType.SHOT,
+        ...     event_subtype="3PT",
         ...     player_name="Stephen Curry",
         ...     player_external_id="1001",
         ...     team_external_id="team-123",
@@ -261,7 +262,7 @@ class RawPBPEvent:
     event_number: int
     period: int
     clock: str
-    event_type: str
+    event_type: EventType
     event_subtype: str | None = None
     player_name: str | None = None
     player_external_id: str | None = None

@@ -17,6 +17,7 @@ Usage:
 
 from datetime import date, datetime
 
+from src.schemas.game import EventType
 from src.sync.season import normalize_season_name
 from src.sync.types import (
     RawBoxScore,
@@ -44,29 +45,30 @@ class EuroleagueMapper:
         'E2024'
     """
 
-    # Event type mappings from Euroleague format to normalized format
-    EVENT_TYPE_MAP = {
-        "2FGM": "shot",
-        "2FGA": "shot",
-        "3FGM": "shot",
-        "3FGA": "shot",
-        "FTM": "free_throw",
-        "FTA": "free_throw",
-        "O": "rebound",  # Offensive rebound
-        "D": "rebound",  # Defensive rebound
-        "AS": "assist",
-        "TO": "turnover",
-        "ST": "steal",
-        "BLK": "block",
-        "FV": "block",  # Block in favor
-        "AG": "block_against",
-        "CM": "foul",  # Committed foul
-        "RV": "foul_received",  # Received foul
-        "BP": "begin_period",
-        "EP": "end_period",
-        "TPOFF": "tip_off",
-        "OUT": "substitution_out",
-        "IN": "substitution_in",
+    # Event type mappings from Euroleague format to canonical EventType
+    # None values indicate events that should be skipped (inferred from links)
+    EVENT_TYPE_MAP: dict[str, EventType | None] = {
+        "2FGM": EventType.SHOT,
+        "2FGA": EventType.SHOT,
+        "3FGM": EventType.SHOT,
+        "3FGA": EventType.SHOT,
+        "FTM": EventType.FREE_THROW,
+        "FTA": EventType.FREE_THROW,
+        "O": EventType.REBOUND,  # subtype: OFFENSIVE
+        "D": EventType.REBOUND,  # subtype: DEFENSIVE
+        "AS": EventType.ASSIST,
+        "TO": EventType.TURNOVER,
+        "ST": EventType.STEAL,
+        "BLK": EventType.BLOCK,
+        "FV": EventType.BLOCK,  # Block in favor
+        "AG": None,  # Skip - blocked player inferred from link
+        "CM": EventType.FOUL,  # Committed foul
+        "RV": None,  # Skip - fouled player inferred from link
+        "BP": EventType.PERIOD_START,
+        "EP": EventType.PERIOD_END,
+        "TPOFF": EventType.JUMP_BALL,
+        "IN": EventType.SUBSTITUTION,
+        "OUT": EventType.SUBSTITUTION,
     }
 
     def parse_minutes_to_seconds(self, minutes_str: str) -> int:
@@ -515,7 +517,7 @@ class EuroleagueMapper:
             away_players=away_players,
         )
 
-    def map_pbp_event(self, data: dict, event_num: int) -> RawPBPEvent:
+    def map_pbp_event(self, data: dict, event_num: int) -> RawPBPEvent | None:
         """
         Map a play-by-play event to RawPBPEvent.
 
@@ -524,7 +526,7 @@ class EuroleagueMapper:
             event_num: Event number to assign.
 
         Returns:
-            RawPBPEvent with mapped event data.
+            RawPBPEvent with mapped event data, or None if event should be skipped.
 
         Example:
             >>> mapper = EuroleagueMapper()
@@ -535,11 +537,15 @@ class EuroleagueMapper:
             ...     "TEAM": "BER"
             ... }, 1)
             >>> event.event_type
-            'shot'
+            EventType.SHOT
         """
         # Get event type
         play_type = str(data.get("PLAYTYPE", data.get("playtype", "")))
-        event_type = self.EVENT_TYPE_MAP.get(play_type, play_type.lower())
+        event_type = self.EVENT_TYPE_MAP.get(play_type)
+
+        # Skip events with None mapping (AG, RV - inferred from links)
+        if event_type is None:
+            return None
 
         # Determine success for shot events
         success = None
@@ -581,11 +587,19 @@ class EuroleagueMapper:
             except (ValueError, TypeError):
                 coord_y = None
 
+        # Determine subtype for rebounds
+        event_subtype = None
+        if play_type == "O":
+            event_subtype = "OFFENSIVE"
+        elif play_type == "D":
+            event_subtype = "DEFENSIVE"
+
         return RawPBPEvent(
             event_number=event_num,
             period=period,
             clock=str(data.get("MARKERTIME", data.get("markertime", ""))),
             event_type=event_type,
+            event_subtype=event_subtype,
             player_external_id=player_external_id,
             player_name=player_name,
             team_external_id=str(data.get("TEAM", data.get("team", ""))) or None,
@@ -603,7 +617,7 @@ class EuroleagueMapper:
             pbp_data: List of PBP event dictionaries.
 
         Returns:
-            List of RawPBPEvent objects.
+            List of RawPBPEvent objects (skipping None-mapped events).
 
         Example:
             >>> mapper = EuroleagueMapper()
@@ -614,7 +628,8 @@ class EuroleagueMapper:
         events = []
         for i, event_data in enumerate(pbp_data, start=1):
             event = self.map_pbp_event(event_data, i)
-            events.append(event)
+            if event is not None:
+                events.append(event)
         return events
 
     def map_pbp_from_live(self, live_pbp: dict) -> list[RawPBPEvent]:
@@ -627,7 +642,7 @@ class EuroleagueMapper:
             live_pbp: Live PBP dictionary with quarters.
 
         Returns:
-            List of RawPBPEvent objects.
+            List of RawPBPEvent objects (skipping None-mapped events).
 
         Example:
             >>> mapper = EuroleagueMapper()
@@ -658,7 +673,8 @@ class EuroleagueMapper:
                     event_data["PERIOD"] = i
 
                 event = self.map_pbp_event(event_data, event_num)
-                events.append(event)
+                if event is not None:
+                    events.append(event)
                 event_num += 1
 
         return events

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from src.schemas.game import EventType
 from src.sync.winner.mapper import WinnerMapper
 
 
