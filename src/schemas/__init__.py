@@ -29,6 +29,7 @@ from src.schemas.analytics import (
     TimeFilter,
 )
 from src.schemas.base import OrmBase, PaginatedResponse
+from src.schemas.enums import EventType, GameStatus, Position
 from src.schemas.chat import (
     ChatChunk,
     ChatMessage,
@@ -128,6 +129,10 @@ __all__ = [
     # Base utilities
     "OrmBase",
     "PaginatedResponse",
+    # Domain enums
+    "EventType",
+    "GameStatus",
+    "Position",
     # League schemas
     "LeagueCreate",
     "LeagueUpdate",

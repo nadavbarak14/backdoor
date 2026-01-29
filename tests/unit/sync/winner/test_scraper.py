@@ -20,6 +20,7 @@ import pytest
 from src.models.sync_cache import SyncCache
 from src.sync.winner.config import WinnerConfig
 from src.sync.winner.exceptions import WinnerAPIError, WinnerParseError
+from src.schemas.enums import Position
 from src.sync.winner.scraper import (
     HistoricalResults,
     PlayerProfile,
@@ -257,7 +258,7 @@ class TestWinnerScraperFetchTeamRoster:
         # Find John Smith
         john = next((p for p in roster.players if p.player_id == "1001"), None)
         assert john is not None
-        assert john.position == "G"
+        assert john.position == "G"  # Normalized to abbreviation
 
 
 class TestWinnerScraperParsePlayer:

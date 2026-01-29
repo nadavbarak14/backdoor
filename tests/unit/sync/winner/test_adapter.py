@@ -16,6 +16,7 @@ from src.sync.winner.adapter import WinnerAdapter
 from src.sync.winner.client import CacheResult
 from src.sync.winner.mapper import WinnerMapper
 from src.sync.winner.scraper import PlayerProfile, RosterPlayer, TeamRoster
+from src.schemas.enums import GameStatus
 
 
 @pytest.fixture
@@ -307,8 +308,8 @@ class TestGetSchedule:
 
         games = await adapter.get_schedule("2023-24")
 
-        assert games[0].status == "final"
-        assert games[1].status == "scheduled"
+        assert games[0].status == GameStatus.FINAL
+        assert games[1].status == GameStatus.SCHEDULED
 
 
 class TestGetGameBoxscore:
@@ -386,7 +387,7 @@ class TestIsGameFinal:
             home_team_external_id="100",
             away_team_external_id="101",
             game_date=datetime.now(),
-            status="final",
+            status=GameStatus.FINAL,
             home_score=85,
             away_score=78,
         )
@@ -400,7 +401,7 @@ class TestIsGameFinal:
             home_team_external_id="100",
             away_team_external_id="101",
             game_date=datetime.now(),
-            status="scheduled",
+            status=GameStatus.SCHEDULED,
             home_score=None,
             away_score=None,
         )
@@ -414,7 +415,7 @@ class TestIsGameFinal:
             home_team_external_id="100",
             away_team_external_id="101",
             game_date=datetime.now(),
-            status="final",
+            status=GameStatus.FINAL,
             home_score=None,
             away_score=None,
         )

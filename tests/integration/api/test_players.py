@@ -18,6 +18,7 @@ from src.schemas import (
     TeamCreate,
 )
 from src.services import LeagueService, PlayerService, SeasonService, TeamService
+from src.schemas.enums import Position
 
 
 class TestListPlayers:

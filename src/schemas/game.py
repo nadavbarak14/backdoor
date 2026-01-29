@@ -2,7 +2,7 @@
 Game Schema Module
 
 Pydantic schemas for game-related API operations:
-- GameStatus, EventType: Enums for game and event statuses
+- GameStatus, EventType: Enums for game and event statuses (re-exported from enums)
 - GameCreate, GameUpdate: Request validation for game CRUD
 - GameResponse, GameWithBoxScoreResponse: Response serialization for games
 - GameFilter: Query parameter validation for game filtering
@@ -17,82 +17,17 @@ Usage:
 """
 
 from datetime import date, datetime
-from enum import Enum
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 from src.schemas.base import OrmBase
 
+# Re-export enums from central location for backwards compatibility
+from src.schemas.enums import EventType, GameStatus
 
-class GameStatus(str, Enum):
-    """
-    Game status enumeration.
-
-    Represents the current state of a basketball game.
-
-    Values:
-        SCHEDULED: Game is scheduled but not yet started.
-        LIVE: Game is currently in progress.
-        FINAL: Game has completed.
-        POSTPONED: Game has been postponed.
-        CANCELLED: Game has been cancelled.
-
-    Example:
-        >>> status = GameStatus.FINAL
-        >>> print(status.value)
-        'FINAL'
-    """
-
-    SCHEDULED = "SCHEDULED"
-    LIVE = "LIVE"
-    FINAL = "FINAL"
-    POSTPONED = "POSTPONED"
-    CANCELLED = "CANCELLED"
-
-
-class EventType(str, Enum):
-    """
-    Play-by-play event type enumeration.
-
-    Represents the type of action that occurred during a game.
-
-    Values:
-        SHOT: Field goal attempt.
-        ASSIST: Assist on a made basket.
-        REBOUND: Offensive or defensive rebound.
-        TURNOVER: Turnover by a player.
-        STEAL: Steal by a player.
-        BLOCK: Blocked shot.
-        FOUL: Personal, technical, or flagrant foul.
-        FREE_THROW: Free throw attempt.
-        SUBSTITUTION: Player substitution.
-        TIMEOUT: Team or official timeout.
-        JUMP_BALL: Jump ball situation.
-        VIOLATION: Travelling, backcourt, etc.
-        PERIOD_START: Start of a period.
-        PERIOD_END: End of a period.
-
-    Example:
-        >>> event_type = EventType.SHOT
-        >>> print(event_type.value)
-        'SHOT'
-    """
-
-    SHOT = "SHOT"
-    ASSIST = "ASSIST"
-    REBOUND = "REBOUND"
-    TURNOVER = "TURNOVER"
-    STEAL = "STEAL"
-    BLOCK = "BLOCK"
-    FOUL = "FOUL"
-    FREE_THROW = "FREE_THROW"
-    SUBSTITUTION = "SUBSTITUTION"
-    TIMEOUT = "TIMEOUT"
-    JUMP_BALL = "JUMP_BALL"
-    VIOLATION = "VIOLATION"
-    PERIOD_START = "PERIOD_START"
-    PERIOD_END = "PERIOD_END"
+# Make these available for import from this module
+__all__ = ["EventType", "GameStatus"]
 
 
 class GameCreate(BaseModel):

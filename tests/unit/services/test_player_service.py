@@ -19,6 +19,7 @@ from src.schemas.team import TeamCreate
 from src.services.league import LeagueService, SeasonService
 from src.services.player import PlayerService
 from src.services.team import TeamService
+from src.schemas.enums import Position
 
 
 class TestPlayerService:
@@ -110,7 +111,7 @@ class TestPlayerService:
         updated = service.update_player(player.id, PlayerUpdate(position="PF"))
 
         assert updated is not None
-        assert updated.position == "PF"
+        assert updated.positions == [Position.POWER_FORWARD]
         assert updated.first_name == "LeBron"  # Unchanged
 
     def test_get_by_external_id_found(self, test_db: Session):
@@ -343,7 +344,7 @@ class TestPlayerService:
         assert result.team_id == lakers.id
         assert result.season_id == nba_season.id
         assert result.jersey_number == 23
-        assert result.position == "SF"
+        assert result.positions == [Position.SMALL_FORWARD]
 
     def test_add_to_team_already_exists(
         self, test_db: Session, nba_season: Season, lakers: Team

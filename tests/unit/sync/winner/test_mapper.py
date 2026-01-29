@@ -21,6 +21,7 @@ from src.sync.types import (
 )
 from src.sync.winner.mapper import WinnerMapper
 from src.sync.winner.scraper import PlayerProfile
+from src.schemas.enums import GameStatus, Position
 
 
 @pytest.fixture
@@ -350,7 +351,7 @@ class TestMapGame:
         assert game.away_team_external_id == "101"
         assert game.home_score == 85
         assert game.away_score == 78
-        assert game.status == "final"
+        assert game.status == GameStatus.FINAL
 
     def test_scheduled_game(self, mapper):
         """Test mapping a scheduled game."""
@@ -365,7 +366,7 @@ class TestMapGame:
         }
         game = mapper.map_game(data)
 
-        assert game.status == "scheduled"
+        assert game.status == GameStatus.SCHEDULED
         assert game.home_score is None
         assert game.away_score is None
 
@@ -546,7 +547,7 @@ class TestMapPlayerInfo:
         assert info.last_name == "Smith"
         assert info.height_cm == 198
         assert info.birth_date == date(1995, 5, 15)
-        assert info.position == "Guard"
+        assert info.positions == [Position.GUARD]
 
     def test_multi_part_last_name(self, mapper):
         """Test name splitting with multi-part last name."""

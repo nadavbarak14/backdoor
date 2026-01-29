@@ -118,12 +118,13 @@ class GameSyncer:
             return self._update_game(existing, raw)
 
         # Create new game
+        # raw.status is already a GameStatus enum - TypeDecorator handles DB conversion
         game = Game(
             season_id=season_id,
             home_team_id=home_team.id,
             away_team_id=away_team.id,
             game_date=raw.game_date,
-            status=raw.status.upper(),
+            status=raw.status,
             home_score=raw.home_score,
             away_score=raw.away_score,
             external_ids={source: raw.external_id},
@@ -243,12 +244,14 @@ class GameSyncer:
                 source,
             )
 
+            # raw_event.event_type is now an EventType enum
+            # Store the enum value (string) in the database
             event = PlayByPlayEvent(
                 game_id=game.id,
                 event_number=raw_event.event_number,
                 period=raw_event.period,
                 clock=raw_event.clock,
-                event_type=raw_event.event_type.upper(),
+                event_type=raw_event.event_type.value,
                 event_subtype=raw_event.event_subtype,
                 player_id=player_id,
                 team_id=team_id,
@@ -290,7 +293,8 @@ class GameSyncer:
 
     def _update_game(self, game: Game, raw: RawGame) -> Game:
         """Update an existing game with new data."""
-        game.status = raw.status.upper()
+        # raw.status is already a GameStatus enum - TypeDecorator handles DB conversion
+        game.status = raw.status
         game.home_score = raw.home_score
         game.away_score = raw.away_score
         self.db.flush()

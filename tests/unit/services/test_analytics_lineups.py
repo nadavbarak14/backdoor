@@ -20,6 +20,7 @@ from src.services.play_by_play import PlayByPlayService
 from src.services.player import PlayerService
 from src.services.stats import PlayerGameStatsService
 from src.services.team import TeamService
+from src.schemas.enums import GameStatus, Position
 
 
 class TestLineupStats:

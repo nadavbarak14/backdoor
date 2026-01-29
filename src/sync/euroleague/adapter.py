@@ -26,6 +26,7 @@ Usage:
     seasons = await adapter.get_seasons()
 """
 
+from src.schemas.enums import GameStatus
 from src.sync.adapters.base import BaseLeagueAdapter, BasePlayerInfoAdapter
 from src.sync.euroleague.client import EuroleagueClient
 from src.sync.euroleague.direct_client import EuroleagueDirectClient
@@ -330,7 +331,7 @@ class EuroleagueAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
             ...     boxscore = await adapter.get_game_boxscore(game.external_id)
         """
         return (
-            game.status == "final"
+            game.status == GameStatus.FINAL
             and game.home_score is not None
             and game.away_score is not None
         )

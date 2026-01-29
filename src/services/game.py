@@ -153,7 +153,8 @@ class GameService(BaseService[Game]):
             stmt = stmt.where(Game.game_date <= end_datetime)
 
         if filter_params.status:
-            stmt = stmt.where(Game.status == filter_params.status.value)
+            # Compare enum to enum (TypeDecorator handles serialization)
+            stmt = stmt.where(Game.status == filter_params.status)
 
         # Order by game date descending (most recent first)
         stmt = stmt.order_by(Game.game_date.desc())
@@ -283,8 +284,7 @@ class GameService(BaseService[Game]):
         game_data = data.model_dump()
         if game_data.get("external_ids") is None:
             game_data["external_ids"] = {}
-        if "status" in game_data and hasattr(game_data["status"], "value"):
-            game_data["status"] = game_data["status"].value
+        # status is now stored directly as GameStatus enum via TypeDecorator
         return self.create(game_data)
 
     def update_game(self, game_id: UUID, data: GameUpdate) -> Game | None:
@@ -308,8 +308,7 @@ class GameService(BaseService[Game]):
             >>> game = service.update_game(game_id, data)
         """
         update_data = data.model_dump(exclude_unset=True)
-        if "status" in update_data and hasattr(update_data["status"], "value"):
-            update_data["status"] = update_data["status"].value
+        # status is now stored directly as GameStatus enum via TypeDecorator
         return self.update(game_id, update_data)
 
     def update_score(

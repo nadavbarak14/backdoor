@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from src.models.game import Game
 from src.models.team import Team
-from src.schemas import LeagueCreate, SeasonCreate
+from src.schemas import GameStatus, LeagueCreate, SeasonCreate
 from src.services import LeagueService, SeasonService, SyncLogService
 
 
@@ -252,7 +252,7 @@ class TestSyncGame:
             home_team_id=setup["home_team"].id,
             away_team_id=setup["away_team"].id,
             game_date=datetime(2024, 12, 15, 19, 30, tzinfo=UTC),
-            status="FINAL",
+            status=GameStatus.FINAL,
             external_ids={"winner": "game-123"},
         )
         test_db.add(game)

@@ -22,6 +22,7 @@ Usage:
     seasons = await adapter.get_seasons()
 """
 
+from src.schemas.enums import GameStatus
 from src.sync.adapters.base import BaseLeagueAdapter
 from src.sync.nba.client import NBAClient
 from src.sync.nba.config import NBAConfig
@@ -215,7 +216,7 @@ class NBAAdapter(BaseLeagueAdapter):
                     existing.away_score = partial_game.away_score
 
                 # Update status if we have more info
-                if partial_game.status == "final":
+                if partial_game.status == GameStatus.FINAL:
                     existing.status = "final"
 
         # Cache and return
@@ -282,7 +283,7 @@ class NBAAdapter(BaseLeagueAdapter):
             ...     boxscore = await adapter.get_game_boxscore(game.external_id)
         """
         return (
-            game.status == "final"
+            game.status == GameStatus.FINAL
             and game.home_score is not None
             and game.away_score is not None
         )

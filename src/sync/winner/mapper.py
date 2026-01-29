@@ -18,7 +18,8 @@ Usage:
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from src.schemas.game import EventType
+from src.schemas.enums import EventType, GameStatus
+from src.sync.normalizers import Normalizers
 from src.sync.pbp import infer_pbp_links
 from src.sync.season import normalize_season_name
 from src.sync.types import (
@@ -423,8 +424,8 @@ class WinnerMapper:
         date_str = data.get("game_date_txt") or data.get("GameDate") or ""
 
         # Determine status
-        status = (data.get("Status") or "").lower()
-        if status not in ("scheduled", "live", "final"):
+        raw_status = (data.get("Status") or "").lower()
+        if raw_status not in ("scheduled", "live", "final"):
             # Real API uses isLive flag and scores to determine status
             # A game is "final" only if it has non-zero scores
             # 0-0 scores indicate a scheduled/unplayed game
@@ -433,7 +434,10 @@ class WinnerMapper:
                 and away_score is not None
                 and (home_score > 0 or away_score > 0)
             )
-            status = "final" if has_scores else "scheduled"
+            raw_status = "final" if has_scores else "scheduled"
+
+        # Normalize status to GameStatus enum
+        status = Normalizers.normalize_game_status(raw_status, "winner")
 
         return RawGame(
             external_id=str(game_id),
@@ -684,11 +688,10 @@ class WinnerMapper:
         away_team_id = str(away_team.get("TeamId", ""))
 
         # Determine game status
-        status = "final"
         home_score = home_team.get("Score")
         away_score = away_team.get("Score")
-        if home_score is None or away_score is None:
-            status = "scheduled"
+        raw_status = "final" if home_score is not None and away_score is not None else "scheduled"
+        status = Normalizers.normalize_game_status(raw_status, "winner")
 
         # Create game object
         game = RawGame(
@@ -769,7 +772,8 @@ class WinnerMapper:
 
         # Determine game status
         game_finished = game_info.get("gameFinished", False)
-        status = "final" if game_finished else "live"
+        raw_status = "final" if game_finished else "live"
+        status = Normalizers.normalize_game_status(raw_status, "winner")
 
         # Create game object
         game = RawGame(
@@ -1242,13 +1246,16 @@ class WinnerMapper:
             else:
                 birth_date = profile.birth_date  # type: ignore
 
+        # Normalize position to list of Position enums
+        positions = Normalizers.try_normalize_positions(profile.position, "winner") or []
+
         return RawPlayerInfo(
             external_id=profile.player_id,
             first_name=first_name,
             last_name=last_name,
             birth_date=birth_date,
             height_cm=profile.height_cm,
-            position=profile.position,
+            positions=positions,
         )
 
     def map_roster_player_info(self, roster_player: RosterPlayer) -> RawPlayerInfo:
@@ -1262,7 +1269,7 @@ class WinnerMapper:
             roster_player: RosterPlayer from team roster scrape.
 
         Returns:
-            RawPlayerInfo with available data (position from roster).
+            RawPlayerInfo with available data (positions from roster).
 
         Example:
             >>> mapper = WinnerMapper()
@@ -1273,8 +1280,8 @@ class WinnerMapper:
             ...     position="G"
             ... )
             >>> info = mapper.map_roster_player_info(player)
-            >>> info.position
-            'G'
+            >>> info.positions
+            [<Position.GUARD: 'G'>]
         """
         # Split name into first and last
         first_name = ""
@@ -1287,12 +1294,15 @@ class WinnerMapper:
             elif len(parts) == 1:
                 last_name = parts[0]
 
+        # Normalize position to list of Position enums
+        positions = Normalizers.try_normalize_positions(roster_player.position, "winner") or []
+
         return RawPlayerInfo(
             external_id=roster_player.player_id,
             first_name=first_name,
             last_name=last_name,
             birth_date=None,  # Not available from roster page
             height_cm=None,  # Not available from roster page without profile fetch
-            position=roster_player.position,
+            positions=positions,
             jersey_number=roster_player.jersey_number,
         )

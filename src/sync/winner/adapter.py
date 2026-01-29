@@ -24,6 +24,7 @@ Usage:
     teams = await adapter.get_teams(seasons[0].external_id)
 """
 
+from src.schemas.enums import GameStatus
 from src.sync.adapters.base import BaseLeagueAdapter, BasePlayerInfoAdapter
 from src.sync.types import (
     RawBoxScore,
@@ -441,7 +442,7 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
             ...     boxscore = await adapter.get_game_boxscore(game.external_id)
         """
         return (
-            game.status == "final"
+            game.status == GameStatus.FINAL
             and game.home_score is not None
             and game.away_score is not None
         )
@@ -542,7 +543,7 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         Example:
             >>> roster = await adapter.get_team_roster("100")
             >>> for player_id, name, info in roster:
-            ...     print(f"{name}: {info.position if info else 'N/A'}")
+            ...     print(f"{name}: {info.positions if info else 'N/A'}")
         """
         results: list[tuple[str, str, RawPlayerInfo | None]] = []
 

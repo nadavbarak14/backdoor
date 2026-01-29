@@ -19,6 +19,7 @@ from src.models.player import Player
 from src.models.stats import PlayerSeasonStats
 from src.models.team import Team
 from src.services.stats_calculation import StatsCalculationService
+from src.schemas.enums import Position
 
 
 def create_test_data(test_db: Session) -> dict:
@@ -54,7 +55,7 @@ def create_test_data(test_db: Session) -> dict:
         first_name="Test",
         last_name="Player",
         nationality="Test",
-        position="SG",
+        positions=[Position.SHOOTING_GUARD],
     )
     test_db.add(player)
     test_db.flush()
@@ -473,7 +474,7 @@ class TestRecalculateUpdatesExisting:
             first_name="Second",
             last_name="Player",
             nationality="Test",
-            position="PF",
+            positions=[Position.POWER_FORWARD],
         )
         test_db.add(player2)
         test_db.flush()

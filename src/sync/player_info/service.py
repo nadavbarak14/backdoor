@@ -233,8 +233,8 @@ class PlayerInfoService:
             updates["birth_date"] = merged.birth_date
         if merged.height_cm is not None:
             updates["height_cm"] = merged.height_cm
-        if merged.position is not None:
-            updates["position"] = merged.position
+        if merged.positions:
+            updates["positions"] = merged.positions
 
         return updates
 

@@ -7,6 +7,7 @@ Tests the NBAMapper class which transforms NBA API V3 data to Raw types.
 from datetime import date, datetime
 
 from src.sync.nba.mapper import NBAMapper
+from src.schemas.enums import EventType, GameStatus
 
 
 class TestNBAMapperMinutesParser:
@@ -182,7 +183,7 @@ class TestNBAMapperGame:
         assert game.external_id == "0022300001"
         assert game.home_team_external_id == "1610612737"
         assert game.away_team_external_id == ""
-        assert game.status == "final"
+        assert game.status == GameStatus.FINAL
         assert game.home_score == 112
         assert game.away_score is None
 
@@ -203,7 +204,7 @@ class TestNBAMapperGame:
         assert game.external_id == "0022300001"
         assert game.home_team_external_id == ""
         assert game.away_team_external_id == "1610612747"
-        assert game.status == "final"
+        assert game.status == GameStatus.FINAL
         assert game.home_score is None
         assert game.away_score == 108
 
@@ -222,7 +223,7 @@ class TestNBAMapperGame:
         )
 
         assert game.external_id == "0022300100"
-        assert game.status == "scheduled"
+        assert game.status == GameStatus.SCHEDULED
         assert game.home_score is None
         assert game.away_score is None
 
@@ -385,7 +386,7 @@ class TestNBAMapperPBPV3:
         assert event.event_number == 4
         assert event.period == 1
         assert event.clock == "12:00"
-        assert event.event_type == "jump_ball"
+        assert event.event_type == EventType.JUMP_BALL
         assert event.team_external_id == "1610612738"
         assert event.player_name == "A. Horford"
 
@@ -405,7 +406,7 @@ class TestNBAMapperPBPV3:
             }
         )
 
-        assert event.event_type == "shot"
+        assert event.event_type == EventType.SHOT
         assert event.success is True
         assert event.coord_x == -168
         assert event.coord_y == 205
@@ -423,7 +424,7 @@ class TestNBAMapperPBPV3:
             }
         )
 
-        assert event.event_type == "shot"
+        assert event.event_type == EventType.SHOT
         assert event.success is False
 
     def test_map_pbp_event_rebound(self):
@@ -440,7 +441,7 @@ class TestNBAMapperPBPV3:
             }
         )
 
-        assert event.event_type == "rebound"
+        assert event.event_type == EventType.REBOUND
         assert event.player_name == "Z. Risacher"
 
     def test_map_pbp_event_no_team(self):
@@ -456,7 +457,7 @@ class TestNBAMapperPBPV3:
             }
         )
 
-        assert event.event_type == "period_event"
+        assert event.event_type == EventType.PERIOD_START
         assert event.team_external_id is None
 
     def test_map_pbp_events(self):

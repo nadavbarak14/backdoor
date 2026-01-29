@@ -29,6 +29,7 @@ Usage:
     teams = await adapter.get_teams(seasons[0].external_id)
 """
 
+from src.schemas.enums import GameStatus
 from src.sync.adapters.base import BaseLeagueAdapter, BasePlayerInfoAdapter
 from src.sync.ibasketball.api_client import IBasketballApiClient
 from src.sync.ibasketball.config import IBasketballConfig
@@ -363,7 +364,7 @@ class IBasketballAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
             ...     boxscore = await adapter.get_game_boxscore(game.external_id)
         """
         return (
-            game.status == "final"
+            game.status == GameStatus.FINAL
             and game.home_score is not None
             and game.away_score is not None
         )

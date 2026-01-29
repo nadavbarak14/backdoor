@@ -945,7 +945,7 @@ class SyncManager:
         """
         Update a player's bio data, team history, and external_id.
 
-        Updates both Player fields and PlayerTeamHistory.position.
+        Updates both Player fields and PlayerTeamHistory.positions.
 
         Returns True if any field was updated.
         """
@@ -960,14 +960,14 @@ class SyncManager:
 
         # Update bio fields if we have player_info
         if player_info:
-            # Update Player.position
-            if player_info.position and not player.position:
-                player.position = player_info.position
+            # Update Player.positions
+            if player_info.positions and not player.positions:
+                player.positions = player_info.positions
                 updated = True
 
-            # Update PlayerTeamHistory.position (always update if different)
-            if player_info.position and history.position != player_info.position:
-                history.position = player_info.position
+            # Update PlayerTeamHistory.positions (always update if different)
+            if player_info.positions and history.positions != player_info.positions:
+                history.positions = player_info.positions
                 updated = True
 
             if player_info.height_cm and not player.height_cm:

@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from src.schemas.enums import Position
 from src.models import (
     Base,
     League,
@@ -117,7 +118,7 @@ def sample_player(db_session: Session) -> Player:
         birth_date=date(1984, 12, 30),
         nationality="USA",
         height_cm=206,
-        position="SF",
+        positions=[Position.SMALL_FORWARD],
     )
     db_session.add(player)
     db_session.commit()

@@ -49,6 +49,8 @@ Usage:
 
 from datetime import date, datetime
 
+from src.schemas.enums import EventType, GameStatus
+from src.sync.normalizers import Normalizers
 from src.sync.season import normalize_season_name
 from src.sync.types import (
     RawBoxScore,
@@ -74,22 +76,22 @@ class NBAMapper:
         'NBA2023-24'
     """
 
-    # Event type mappings from NBA V3 actionType to normalized format
-    EVENT_TYPE_MAP = {
-        "Made Shot": "shot",
-        "Missed Shot": "shot",
-        "Free Throw": "free_throw",
-        "Rebound": "rebound",
-        "Turnover": "turnover",
-        "Steal": "steal",
-        "Block": "block",
-        "Foul": "foul",
-        "Violation": "violation",
-        "Substitution": "substitution",
-        "Timeout": "timeout",
-        "Jump Ball": "jump_ball",
-        "period": "period_event",
-        "game": "game_event",
+    # Event type mappings from NBA V3 actionType to canonical EventType enums
+    EVENT_TYPE_MAP: dict[str, EventType | None] = {
+        "Made Shot": EventType.SHOT,
+        "Missed Shot": EventType.SHOT,
+        "Free Throw": EventType.FREE_THROW,
+        "Rebound": EventType.REBOUND,
+        "Turnover": EventType.TURNOVER,
+        "Steal": EventType.STEAL,
+        "Block": EventType.BLOCK,
+        "Foul": EventType.FOUL,
+        "Violation": EventType.VIOLATION,
+        "Substitution": EventType.SUBSTITUTION,
+        "Timeout": EventType.TIMEOUT,
+        "Jump Ball": EventType.JUMP_BALL,
+        "period": EventType.PERIOD_START,  # Period events
+        "game": None,  # Skip game events
     }
 
     def parse_minutes_to_seconds(self, minutes_str: str) -> int:
@@ -320,8 +322,9 @@ class NBAMapper:
         # Matchup format: "ATL vs. CHI" (home) or "ATL @ CHI" (away)
         is_home = " vs. " in matchup
 
-        # Determine status
-        status = "final" if wl is not None else "scheduled"
+        # Determine status - normalize to GameStatus enum
+        raw_status = "final" if wl is not None else "scheduled"
+        status = Normalizers.normalize_game_status(raw_status, "nba")
 
         return RawGame(
             external_id=game_id,
@@ -449,13 +452,17 @@ class NBAMapper:
         home_score = home_stats.get("points")
         away_score = away_stats.get("points")
 
+        # Determine status - normalize to GameStatus enum
+        raw_status = "final" if home_score is not None else "scheduled"
+        status = Normalizers.normalize_game_status(raw_status, "nba")
+
         # Create game record
         game = RawGame(
             external_id=game_id,
             home_team_external_id=home_team_id,
             away_team_external_id=away_team_id,
             game_date=datetime.now(),  # V3 doesn't include date in boxscore
-            status="final" if home_score is not None else "scheduled",
+            status=status,
             home_score=home_score,
             away_score=away_score,
         )
@@ -477,7 +484,7 @@ class NBAMapper:
             away_players=away_players,
         )
 
-    def map_pbp_event(self, data: dict) -> RawPBPEvent:
+    def map_pbp_event(self, data: dict) -> RawPBPEvent | None:
         """
         Map a play-by-play event from PlayByPlayV3 to RawPBPEvent.
 
@@ -487,7 +494,7 @@ class NBAMapper:
             data: Event dictionary from PlayByPlayV3 actions array.
 
         Returns:
-            RawPBPEvent with mapped event data.
+            RawPBPEvent with mapped event data, or None if event should be skipped.
 
         Example:
             >>> mapper = NBAMapper()
@@ -499,11 +506,18 @@ class NBAMapper:
             ...     "teamId": 1610612737
             ... })
             >>> event.event_type
-            'jump_ball'
+            <EventType.JUMP_BALL: 'JUMP_BALL'>
         """
-        # Get event type
+        # Get event type - use enum from map or try normalizer for unknown types
         action_type = data.get("actionType", "")
-        event_type = self.EVENT_TYPE_MAP.get(action_type, action_type.lower())
+        event_type = self.EVENT_TYPE_MAP.get(action_type)
+
+        if event_type is None:
+            # Try to normalize unknown action types
+            event_type = Normalizers.try_normalize_event_type(action_type, "nba")
+            if event_type is None:
+                # Skip events that can't be mapped
+                return None
 
         # Determine success for shot events
         success = None
@@ -567,7 +581,7 @@ class NBAMapper:
             pbp_data: List of action dictionaries from game.actions.
 
         Returns:
-            List of RawPBPEvent objects.
+            List of RawPBPEvent objects (skipping None-mapped events).
 
         Example:
             >>> mapper = NBAMapper()
@@ -578,5 +592,6 @@ class NBAMapper:
         events = []
         for event_data in pbp_data:
             event = self.map_pbp_event(event_data)
-            events.append(event)
+            if event is not None:
+                events.append(event)
         return events

@@ -17,6 +17,7 @@ import pytest
 
 from src.sync.types import RawGame
 from src.sync.winner.mapper import WinnerMapper
+from src.schemas.enums import GameStatus
 
 
 @pytest.fixture
@@ -293,7 +294,7 @@ class TestMapGameDeterminesStatus:
         }
         game = mapper.map_game(game_data)
 
-        assert game.status == "final"
+        assert game.status == GameStatus.FINAL
 
     def test_scheduled_when_no_scores(self, mapper: WinnerMapper) -> None:
         """Test status is 'scheduled' when scores are null."""
@@ -308,7 +309,7 @@ class TestMapGameDeterminesStatus:
         }
         game = mapper.map_game(game_data)
 
-        assert game.status == "scheduled"
+        assert game.status == GameStatus.SCHEDULED
 
     def test_scheduled_when_scores_missing(self, mapper: WinnerMapper) -> None:
         """Test status is 'scheduled' when score fields are absent."""
@@ -321,7 +322,7 @@ class TestMapGameDeterminesStatus:
         }
         game = mapper.map_game(game_data)
 
-        assert game.status == "scheduled"
+        assert game.status == GameStatus.SCHEDULED
 
     def test_real_api_completed_game_status(
         self, mapper: WinnerMapper, real_api_game_data: dict
@@ -330,7 +331,7 @@ class TestMapGameDeterminesStatus:
         game = mapper.map_game(real_api_game_data)
 
         # Has scores (79-84), so should be final
-        assert game.status == "final"
+        assert game.status == GameStatus.FINAL
 
     def test_real_api_scheduled_game_status(
         self, mapper: WinnerMapper, scheduled_game_data: dict
@@ -339,7 +340,7 @@ class TestMapGameDeterminesStatus:
         game = mapper.map_game(scheduled_game_data)
 
         # No scores, so should be scheduled
-        assert game.status == "scheduled"
+        assert game.status == GameStatus.SCHEDULED
 
 
 class TestMapGameExternalId:
@@ -402,4 +403,4 @@ class TestMapGameReturnsRawGame:
         assert game.game_date.day == 21
         assert game.home_score == 79
         assert game.away_score == 84
-        assert game.status == "final"
+        assert game.status == GameStatus.FINAL

@@ -22,6 +22,7 @@ from sqlalchemy.pool import StaticPool
 
 from src.models import Base, Game, League, Player, Season, Team
 from src.models.play_by_play import PlayByPlayEvent, PlayByPlayEventLink
+from src.schemas.enums import Position
 
 
 @pytest.fixture(scope="function")
@@ -114,7 +115,7 @@ def sample_player(db_session: Session) -> Player:
         birth_date=date(1984, 12, 30),
         nationality="USA",
         height_cm=206,
-        position="SF",
+        positions=[Position.SMALL_FORWARD],
     )
     db_session.add(player)
     db_session.commit()
@@ -130,7 +131,7 @@ def sample_player2(db_session: Session) -> Player:
         birth_date=date(1993, 3, 11),
         nationality="USA",
         height_cm=208,
-        position="PF",
+        positions=[Position.POWER_FORWARD],
     )
     db_session.add(player)
     db_session.commit()

@@ -27,8 +27,41 @@ from sqlalchemy.types import String
 from src.models.league import Season
 from src.models.player import Player, PlayerTeamHistory
 from src.models.team import Team
+from src.schemas.enums import Position
 from src.schemas.player import PlayerCreate, PlayerFilter, PlayerUpdate
 from src.services.base import BaseService
+
+
+def _position_str_to_list(position: str | None) -> list[Position]:
+    """
+    Convert a position string to a list of Position enums.
+
+    Handles single position strings like "PG" and multi-position
+    strings like "G/F" or "G-F".
+
+    Args:
+        position: Position string or None.
+
+    Returns:
+        List of Position enums (empty if position is None/empty).
+    """
+    if not position:
+        return []
+
+    # Handle multi-position strings
+    import re
+
+    parts = re.split(r"[-/,]", position)
+    positions = []
+    for part in parts:
+        part = part.strip().upper()
+        if part:
+            try:
+                positions.append(Position(part))
+            except ValueError:
+                # Unknown position - skip it (API shouldn't fail on unknown position)
+                pass
+    return positions
 
 
 class PlayerService(BaseService[Player]):
@@ -130,7 +163,13 @@ class PlayerService(BaseService[Player]):
             stmt = stmt.distinct()
 
         if filter_params.position:
-            stmt = stmt.where(Player.position == filter_params.position)
+            # positions is stored as JSON array, search for the position value in the array
+            # Using SQLite JSON contains pattern: json_extract returns the array,
+            # and we check if it contains the position string
+            position_pattern = f'%"{filter_params.position.upper()}"%'
+            stmt = stmt.where(
+                cast(Player.positions, String).like(position_pattern)
+            )
 
         if filter_params.nationality:
             stmt = stmt.where(Player.nationality == filter_params.nationality)
@@ -203,6 +242,11 @@ class PlayerService(BaseService[Player]):
         player_data = data.model_dump()
         if player_data.get("external_ids") is None:
             player_data["external_ids"] = {}
+
+        # Convert position string to positions list
+        position_str = player_data.pop("position", None)
+        player_data["positions"] = _position_str_to_list(position_str)
+
         return self.create(player_data)
 
     def update_player(self, player_id: UUID, data: PlayerUpdate) -> Player | None:
@@ -221,7 +265,14 @@ class PlayerService(BaseService[Player]):
             >>> data = PlayerUpdate(position="PF")
             >>> player = service.update_player(player_id, data)
         """
-        return self.update(player_id, data.model_dump(exclude_unset=True))
+        update_data = data.model_dump(exclude_unset=True)
+
+        # Convert position string to positions list if provided
+        if "position" in update_data:
+            position_str = update_data.pop("position")
+            update_data["positions"] = _position_str_to_list(position_str)
+
+        return self.update(player_id, update_data)
 
     def add_to_team(
         self,
@@ -284,7 +335,7 @@ class PlayerService(BaseService[Player]):
             team_id=team_id,
             season_id=season_id,
             jersey_number=jersey_number,
-            position=position,
+            positions=_position_str_to_list(position),
         )
         self.db.add(history)
         self.db.commit()

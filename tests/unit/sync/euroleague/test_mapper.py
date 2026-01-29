@@ -9,6 +9,7 @@ from datetime import date
 
 import pytest
 
+from src.schemas.enums import GameStatus, Position
 from src.schemas.game import EventType
 from src.sync.euroleague.mapper import EuroleagueMapper
 from src.sync.types import (
@@ -256,7 +257,7 @@ class TestMapGame:
         assert game.away_team_external_id == "PAN"
         assert game.home_score == 77
         assert game.away_score == 87
-        assert game.status == "final"
+        assert game.status == GameStatus.FINAL
 
     def test_scheduled_game(self, mapper):
         """Test mapping a scheduled game."""
@@ -270,7 +271,7 @@ class TestMapGame:
         }
         game = mapper.map_game(data, 2024, "E")
 
-        assert game.status == "scheduled"
+        assert game.status == GameStatus.SCHEDULED
         assert game.home_score is None
         assert game.away_score is None
 
@@ -494,7 +495,7 @@ class TestMapPlayerInfo:
         assert info.last_name == "EDWARDS"
         assert info.height_cm == 180
         assert info.birth_date == date(1998, 3, 12)
-        assert info.position == "Guard"
+        assert info.positions == [Position.GUARD]
 
     def test_multi_part_last_name(self, mapper):
         """Test name with only last name provided."""
@@ -520,4 +521,4 @@ class TestMapPlayerFromRoster:
         assert info.external_id == "P007025"
         assert info.first_name == "JONAS"
         assert info.last_name == "MATTISSECK"
-        assert info.position == "Guard"
+        assert info.positions == [Position.GUARD]

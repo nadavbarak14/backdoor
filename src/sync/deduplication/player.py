@@ -122,6 +122,7 @@ class PlayerDeduplicator:
             The matched or newly created Player entity.
 
         Example:
+            >>> from src.schemas.enums import Position
             >>> player = dedup.find_or_create_player(
             ...     source="winner",
             ...     external_id="player-123",
@@ -130,7 +131,7 @@ class PlayerDeduplicator:
             ...         first_name="LeBron",
             ...         last_name="James",
             ...         birth_date=date(1984, 12, 30),
-            ...         position="SF"
+            ...         positions=[Position.SMALL_FORWARD]
             ...     ),
             ...     team_id=team.id
             ... )
@@ -539,7 +540,7 @@ class PlayerDeduplicator:
             last_name=player_data.last_name,
             birth_date=player_data.birth_date,
             height_cm=player_data.height_cm,
-            position=player_data.position,
+            positions=player_data.positions,
             external_ids={source: external_id},
         )
 

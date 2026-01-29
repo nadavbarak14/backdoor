@@ -273,7 +273,8 @@ class SyncCoverageService:
             select(Player)
             .where(
                 Player.id.in_(select(player_ids_in_season.c.player_id)),
-                Player.position.is_(None),
+                # positions is a JSON array - check if empty
+                func.json_array_length(Player.positions) == 0,
                 Player.height_cm.is_(None),
             )
             .order_by(Player.last_name, Player.first_name)
@@ -342,7 +343,9 @@ class SyncCoverageService:
             .select_from(Player)
             .where(
                 Player.id.in_(select(player_ids.c.player_id)),
-                (Player.position.isnot(None)) | (Player.height_cm.isnot(None)),
+                # positions is a JSON array - check if not empty OR height exists
+                (func.json_array_length(Player.positions) > 0)
+                | (Player.height_cm.isnot(None)),
             )
         )
         return self.db.execute(stmt).scalar() or 0

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from src.models.league import League, Season
 from src.models.sync import SyncLog
 from src.models.team import Team
+from src.schemas.enums import GameStatus
 from src.sync.adapters.base import BaseLeagueAdapter
 from src.sync.config import SyncConfig, SyncSourceConfig
 from src.sync.manager import SyncManager
@@ -148,7 +149,7 @@ class TestSyncSeason:
             home_team_external_id="mta-123",
             away_team_external_id="hjr-456",
             game_date=datetime(2024, 12, 15, 19, 30, tzinfo=UTC),
-            status="final",
+            status=GameStatus.FINAL,
             home_score=100,
             away_score=95,
         )
@@ -210,7 +211,7 @@ class TestSyncSeason:
             home_team_external_id="mta-123",
             away_team_external_id="hjr-456",
             game_date=datetime(2024, 12, 20, 19, 30, tzinfo=UTC),
-            status="final",
+            status=GameStatus.FINAL,
             home_score=110,
             away_score=105,
         )

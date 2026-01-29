@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.schemas.enums import EventType, GameStatus
 from src.sync.ibasketball.adapter import IBasketballAdapter
 from src.sync.ibasketball.api_client import CacheResult
 from src.sync.ibasketball.config import IBasketballConfig
@@ -237,7 +238,7 @@ class TestIBasketballAdapter:
             events = await adapter.get_game_pbp("123")
 
             assert len(events) == 1
-            assert events[0].event_type == "shot"
+            assert events[0].event_type == EventType.SHOT
             mock_scraper.fetch_game_pbp.assert_called_once_with("team-a-vs-team-b")
 
     class TestIsGameFinal:
@@ -250,7 +251,7 @@ class TestIBasketballAdapter:
                 home_team_external_id="100",
                 away_team_external_id="101",
                 game_date=MagicMock(),
-                status="final",
+                status=GameStatus.FINAL,
                 home_score=85,
                 away_score=78,
             )
@@ -264,7 +265,7 @@ class TestIBasketballAdapter:
                 home_team_external_id="100",
                 away_team_external_id="101",
                 game_date=MagicMock(),
-                status="final",
+                status=GameStatus.FINAL,
                 home_score=None,
                 away_score=None,
             )
@@ -278,7 +279,7 @@ class TestIBasketballAdapter:
                 home_team_external_id="100",
                 away_team_external_id="101",
                 game_date=MagicMock(),
-                status="scheduled",
+                status=GameStatus.SCHEDULED,
                 home_score=None,
                 away_score=None,
             )

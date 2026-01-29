@@ -19,6 +19,7 @@ from src.models.league import League, Season
 from src.models.play_by_play import PlayByPlayEvent, PlayByPlayEventLink
 from src.models.player import Player, PlayerTeamHistory
 from src.models.team import Team
+from src.schemas.enums import EventType, GameStatus
 from src.sync.deduplication import PlayerDeduplicator, TeamMatcher
 from src.sync.entities import GameSyncer
 from src.sync.types import RawBoxScore, RawGame, RawPBPEvent, RawPlayerStats
@@ -160,7 +161,7 @@ def raw_game(home_team: Team, away_team: Team) -> RawGame:
         home_team_external_id="home-123",
         away_team_external_id="away-456",
         game_date=datetime(2024, 12, 15, 19, 30, tzinfo=UTC),
-        status="final",
+        status=GameStatus.FINAL,
         home_score=100,
         away_score=95,
     )
@@ -244,7 +245,7 @@ class TestSyncGame:
             home_team_external_id="nonexistent-home",
             away_team_external_id="nonexistent-away",
             game_date=datetime(2024, 12, 15, 19, 30, tzinfo=UTC),
-            status="final",
+            status=GameStatus.FINAL,
         )
 
         with pytest.raises(ValueError, match="Teams not found"):
@@ -369,7 +370,7 @@ class TestSyncPbp:
                 event_number=1,
                 period=1,
                 clock="10:00",
-                event_type="shot",
+                event_type=EventType.SHOT,
                 player_name="Home Player",
                 team_external_id="home-123",
                 success=True,
@@ -378,7 +379,7 @@ class TestSyncPbp:
                 event_number=2,
                 period=1,
                 clock="10:00",
-                event_type="assist",
+                event_type=EventType.ASSIST,
                 player_name="Home Player",
                 team_external_id="home-123",
                 related_event_numbers=[1],
@@ -407,7 +408,7 @@ class TestSyncPbp:
                 event_number=1,
                 period=1,
                 clock="10:00",
-                event_type="shot",
+                event_type=EventType.SHOT,
                 team_external_id="home-123",
                 success=True,
             ),
@@ -415,7 +416,7 @@ class TestSyncPbp:
                 event_number=2,
                 period=1,
                 clock="10:00",
-                event_type="assist",
+                event_type=EventType.ASSIST,
                 team_external_id="home-123",
                 related_event_numbers=[1],
             ),
@@ -444,7 +445,7 @@ class TestSyncPbp:
                 event_number=1,
                 period=1,
                 clock="10:00",
-                event_type="shot",
+                event_type=EventType.SHOT,
                 team_external_id="home-123",
             ),
         ]

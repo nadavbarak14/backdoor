@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from src.models import Base, Player
+from src.schemas.enums import Position
 from src.schemas.player import (
     PlayerCreate,
     PlayerFilter,

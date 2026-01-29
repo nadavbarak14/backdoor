@@ -23,6 +23,7 @@ from src.services.game import GameService
 from src.services.league import LeagueService, SeasonService
 from src.services.player import PlayerService
 from src.services.team import TeamService
+from src.schemas.enums import GameStatus, Position
 
 
 class TestGameService:
@@ -88,7 +89,7 @@ class TestGameService:
             PlayerCreate(
                 first_name="LeBron",
                 last_name="James",
-                position="SF",
+                positions=[Position.SMALL_FORWARD],
             )
         )
 
@@ -100,7 +101,7 @@ class TestGameService:
             PlayerCreate(
                 first_name="Jayson",
                 last_name="Tatum",
-                position="SF",
+                positions=[Position.SMALL_FORWARD],
             )
         )
 

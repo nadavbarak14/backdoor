@@ -282,6 +282,6 @@ class BasePlayerInfoAdapter(ABC):
         Example:
             >>> roster = await adapter.get_team_roster("100")
             >>> for player_id, name, info in roster:
-            ...     print(f"{name}: {info.position if info else 'N/A'}")
+            ...     print(f"{name}: {info.positions if info else 'N/A'}")
         """
         return []

@@ -23,6 +23,7 @@ from pathlib import Path
 import pytest
 
 from src.sync.winner.mapper import WinnerMapper
+from src.schemas.enums import GameStatus
 
 FIXTURES_DIR = Path(__file__).parent.parent.parent / "fixtures" / "winner"
 
@@ -69,7 +70,7 @@ class TestSegevstatsBoxscoreParsing:
         assert boxscore.game.away_score == 84
 
         # Game should be marked as final
-        assert boxscore.game.status == "final"
+        assert boxscore.game.status == GameStatus.FINAL
 
     def test_home_players_parsed(
         self, mapper: WinnerMapper, boxscore_fixture: dict

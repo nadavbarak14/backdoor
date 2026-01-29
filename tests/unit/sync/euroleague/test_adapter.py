@@ -15,6 +15,7 @@ from src.sync.euroleague.adapter import EuroleagueAdapter
 from src.sync.euroleague.direct_client import CacheResult
 from src.sync.euroleague.mapper import EuroleagueMapper
 from src.sync.types import RawBoxScore, RawGame
+from src.schemas.enums import GameStatus
 
 
 @pytest.fixture
@@ -327,8 +328,8 @@ class TestGetSchedule:
 
         assert len(games) == 2
         assert games[0].external_id == "E2024_1"
-        assert games[0].status == "final"
-        assert games[1].status == "scheduled"
+        assert games[0].status == GameStatus.FINAL
+        assert games[1].status == GameStatus.SCHEDULED
 
 
 class TestGetGameBoxscore:
@@ -403,7 +404,7 @@ class TestIsGameFinal:
             home_team_external_id="BER",
             away_team_external_id="PAN",
             game_date=datetime.now(),
-            status="final",
+            status=GameStatus.FINAL,
             home_score=77,
             away_score=87,
         )
@@ -417,7 +418,7 @@ class TestIsGameFinal:
             home_team_external_id="BER",
             away_team_external_id="PAN",
             game_date=datetime.now(),
-            status="scheduled",
+            status=GameStatus.SCHEDULED,
             home_score=None,
             away_score=None,
         )

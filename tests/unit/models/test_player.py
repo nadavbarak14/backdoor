@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from src.models import Base, League, Player, PlayerTeamHistory, Season, Team
+from src.schemas.enums import Position
 
 
 @pytest.fixture(scope="function")
@@ -98,7 +99,7 @@ class TestPlayerModel:
             birth_date=date(1984, 12, 30),
             nationality="USA",
             height_cm=206,
-            position="SF",
+            positions=[Position.SMALL_FORWARD],
             external_ids={"nba": "2544", "winner": "abc123"},
         )
         db_session.add(player)
@@ -112,7 +113,7 @@ class TestPlayerModel:
         assert player.birth_date == date(1984, 12, 30)
         assert player.nationality == "USA"
         assert player.height_cm == 206
-        assert player.position == "SF"
+        assert player.positions == [Position.SMALL_FORWARD]
         assert player.external_ids == {"nba": "2544", "winner": "abc123"}
         assert player.created_at is not None
         assert player.updated_at is not None
@@ -130,7 +131,7 @@ class TestPlayerModel:
         assert player.birth_date is None
         assert player.nationality is None
         assert player.height_cm is None
-        assert player.position is None
+        assert player.positions == []
         assert player.external_ids == {}
 
     def test_player_full_name_property(self, db_session: Session):
@@ -180,7 +181,7 @@ class TestPlayerModel:
         player = Player(
             first_name="LeBron",
             last_name="James",
-            position="SF",
+            positions=[Position.SMALL_FORWARD],
         )
         db_session.add(player)
         db_session.commit()
@@ -208,7 +209,7 @@ class TestPlayerTeamHistoryModel:
             team_id=sample_team.id,
             season_id=sample_season.id,
             jersey_number=23,
-            position="SF",
+            positions=[Position.SMALL_FORWARD],
         )
         db_session.add(history)
         db_session.commit()
@@ -220,7 +221,7 @@ class TestPlayerTeamHistoryModel:
         assert history.team_id == sample_team.id
         assert history.season_id == sample_season.id
         assert history.jersey_number == 23
-        assert history.position == "SF"
+        assert history.positions == [Position.SMALL_FORWARD]
 
     def test_player_team_history_optional_fields(
         self,
@@ -243,7 +244,7 @@ class TestPlayerTeamHistoryModel:
         db_session.refresh(history)
 
         assert history.jersey_number is None
-        assert history.position is None
+        assert history.positions == []
 
     def test_player_team_history_unique_constraint(
         self,

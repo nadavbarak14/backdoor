@@ -50,6 +50,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, TimestampMixin, UUIDMixin
+from src.models.types import GameStatusType
+from src.schemas.enums import GameStatus
 
 
 class Game(UUIDMixin, TimestampMixin, Base):
@@ -114,7 +116,9 @@ class Game(UUIDMixin, TimestampMixin, Base):
         nullable=False,
     )
     game_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="SCHEDULED")
+    status: Mapped[GameStatus] = mapped_column(
+        GameStatusType, nullable=False, default=GameStatus.SCHEDULED
+    )
     home_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     away_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     venue: Mapped[str | None] = mapped_column(String(200), nullable=True)

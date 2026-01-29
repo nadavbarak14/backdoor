@@ -14,6 +14,7 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from src.models import League, Player, PlayerTeamHistory, Season, Team, TeamSeason
+from src.schemas.enums import Position
 
 
 class TestBrowseLeagues:
@@ -263,8 +264,8 @@ class TestBrowsePlayers:
         test_db.add(team)
         test_db.flush()
 
-        player1 = Player(first_name="Stephen", last_name="Curry", position="PG")
-        player2 = Player(first_name="Klay", last_name="Thompson", position="SG")
+        player1 = Player(first_name="Stephen", last_name="Curry", positions=[Position.POINT_GUARD])
+        player2 = Player(first_name="Klay", last_name="Thompson", positions=[Position.SHOOTING_GUARD])
         test_db.add_all([player1, player2])
         test_db.flush()
 
