@@ -34,6 +34,15 @@ Usage:
 
 # Base infrastructure
 from src.sync.adapters import BaseLeagueAdapter, BasePlayerInfoAdapter
+
+# Completeness detection
+from src.sync.completeness import (
+    get_games_without_pbp,
+    get_games_without_stats,
+    get_incomplete_players,
+    get_incomplete_teams,
+    get_sync_completeness_report,
+)
 from src.sync.config import SyncConfig, SyncSourceConfig
 
 # Deduplication
@@ -134,6 +143,12 @@ __all__ = [
     "SyncSourceConfig",
     # Base infrastructure - Tracking
     "SyncTracker",
+    # Completeness detection
+    "get_incomplete_players",
+    "get_games_without_stats",
+    "get_games_without_pbp",
+    "get_incomplete_teams",
+    "get_sync_completeness_report",
     # Sync manager
     "SyncManager",
     # Entity syncers
