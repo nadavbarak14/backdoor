@@ -1092,3 +1092,207 @@ async def resync_incomplete_games(
             results["errors"].append(f"Game {game.id}: {e!s}")
 
     return results
+
+
+@router.post(
+    "/historical",
+    response_model=SyncLogResponse,
+    summary="Sync Historical Season",
+    description="Sync all games from a historical season.",
+)
+async def sync_historical_season(
+    source: str = Query(
+        ...,
+        description="Data source (e.g., 'winner', 'euroleague')",
+    ),
+    season: str = Query(
+        ...,
+        description="Season identifier (e.g., '2023-24')",
+    ),
+    include_boxscores: bool = Query(
+        default=True,
+        description="Whether to sync boxscore data",
+    ),
+    include_pbp: bool = Query(
+        default=True,
+        description="Whether to sync play-by-play data",
+    ),
+    db: Session = Depends(get_db),
+) -> SyncLogResponse:
+    """
+    Sync all games from a historical season.
+
+    This endpoint syncs all final games from a specified season,
+    including boxscore and optionally play-by-play data. Use this
+    for initial setup or backfilling historical data.
+
+    Args:
+        source: Data source name.
+        season: Season identifier.
+        include_boxscores: Whether to sync boxscore data.
+        include_pbp: Whether to sync play-by-play data.
+        db: Database session (injected).
+
+    Returns:
+        SyncLogResponse with sync operation results.
+
+    Example:
+        >>> response = client.post(
+        ...     "/api/v1/sync/historical",
+        ...     params={"source": "euroleague", "season": "2023-24"}
+        ... )
+    """
+    manager = _get_sync_manager(db)
+
+    try:
+        # Use the existing sync_season method
+        sync_log = await manager.sync_season(
+            source=source,
+            season_external_id=season,
+            include_pbp=include_pbp,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Historical sync failed: {e}")
+
+    return SyncLogResponse(
+        id=sync_log.id,
+        source=sync_log.source,
+        entity_type=sync_log.entity_type,
+        status=SyncStatus(sync_log.status),
+        season_id=sync_log.season_id,
+        season_name=sync_log.season.name if sync_log.season else None,
+        game_id=sync_log.game_id,
+        records_processed=sync_log.records_processed,
+        records_created=sync_log.records_created,
+        records_updated=sync_log.records_updated,
+        records_skipped=sync_log.records_skipped,
+        error_message=sync_log.error_message,
+        error_details=sync_log.error_details,
+        started_at=sync_log.started_at,
+        completed_at=sync_log.completed_at,
+    )
+
+
+@router.post(
+    "/recent",
+    response_model=SyncLogResponse,
+    summary="Sync Recent Games",
+    description="Sync games from the last N days.",
+)
+async def sync_recent_games(
+    source: str = Query(
+        ...,
+        description="Data source (e.g., 'winner', 'euroleague')",
+    ),
+    days: int = Query(
+        default=7,
+        ge=1,
+        le=90,
+        description="Number of days to look back",
+    ),
+    include_pbp: bool = Query(
+        default=True,
+        description="Whether to sync play-by-play data",
+    ),
+    db: Session = Depends(get_db),
+) -> SyncLogResponse:
+    """
+    Sync games from the last N days.
+
+    This endpoint syncs recent games that haven't been synced yet.
+    Useful for daily sync jobs to keep data up-to-date.
+
+    Args:
+        source: Data source name.
+        days: Number of days to look back (default 7, max 90).
+        include_pbp: Whether to sync play-by-play data.
+        db: Database session (injected).
+
+    Returns:
+        SyncLogResponse with sync operation results.
+
+    Example:
+        >>> response = client.post(
+        ...     "/api/v1/sync/recent",
+        ...     params={"source": "winner", "days": 7}
+        ... )
+    """
+    manager = _get_sync_manager(db)
+
+    try:
+        sync_log = await manager.sync_recent(
+            source=source,
+            days=days,
+            include_pbp=include_pbp,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Recent sync failed: {e}")
+
+    return SyncLogResponse(
+        id=sync_log.id,
+        source=sync_log.source,
+        entity_type=sync_log.entity_type,
+        status=SyncStatus(sync_log.status),
+        season_id=sync_log.season_id,
+        season_name=sync_log.season.name if sync_log.season else None,
+        game_id=sync_log.game_id,
+        records_processed=sync_log.records_processed,
+        records_created=sync_log.records_created,
+        records_updated=sync_log.records_updated,
+        records_skipped=sync_log.records_skipped,
+        error_message=sync_log.error_message,
+        error_details=sync_log.error_details,
+        started_at=sync_log.started_at,
+        completed_at=sync_log.completed_at,
+    )
+
+
+@router.get(
+    "/available-seasons",
+    summary="Get Available Seasons",
+    description="Get list of available seasons for a data source.",
+)
+async def get_available_seasons(
+    source: str = Query(
+        ...,
+        description="Data source (e.g., 'winner', 'euroleague')",
+    ),
+    db: Session = Depends(get_db),
+) -> dict:
+    """
+    Get list of available seasons for sync.
+
+    Returns the season identifiers that can be used with
+    historical sync operations.
+
+    Args:
+        source: Data source name.
+        db: Database session (injected).
+
+    Returns:
+        Dict with list of available season names.
+
+    Example:
+        >>> response = client.get("/api/v1/sync/available-seasons?source=euroleague")
+        >>> data = response.json()
+        >>> print(data["seasons"])
+        ["2024-25", "2023-24", "2022-23"]
+    """
+    manager = _get_sync_manager(db)
+
+    try:
+        adapter = manager._get_adapter(source)
+        seasons = await adapter.get_available_seasons()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get seasons: {e}")
+
+    return {
+        "source": source,
+        "seasons": seasons,
+    }

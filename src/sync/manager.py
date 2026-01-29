@@ -702,6 +702,118 @@ class SyncManager:
                 },
             }
 
+    async def sync_recent(
+        self,
+        source: str,
+        days: int = 7,
+        include_pbp: bool = True,
+        delay_seconds: float = 0.5,
+    ) -> SyncLog:
+        """
+        Sync games from the last N days.
+
+        Fetches recent games from the source and syncs those that haven't
+        been synced yet. Useful for daily sync jobs.
+
+        Args:
+            source: The data source name (e.g., "winner").
+            days: Number of days to look back (default 7).
+            include_pbp: Whether to sync play-by-play data.
+            delay_seconds: Delay between game syncs for rate limiting.
+
+        Returns:
+            SyncLog with sync operation results.
+
+        Example:
+            >>> sync_log = await manager.sync_recent(
+            ...     source="winner",
+            ...     days=7
+            ... )
+            >>> print(f"Synced {sync_log.records_created} recent games")
+        """
+        import asyncio
+        from datetime import timedelta
+
+        adapter = self._get_adapter(source)
+
+        # Calculate date range
+        from datetime import datetime
+
+        since = datetime.now() - timedelta(days=days)
+
+        # Get recent games
+        recent_games = await adapter.get_games_since(since)
+
+        # Start sync log
+        sync_log = self.sync_log_service.start_sync(
+            source=source,
+            entity_type="recent",
+        )
+
+        records_processed = 0
+        records_created = 0
+        records_updated = 0
+        records_skipped = 0
+
+        try:
+            # Get unsynced games
+            all_external_ids = [g.external_id for g in recent_games]
+            unsynced_ids = self.tracker.get_unsynced_games(source, all_external_ids)
+            unsynced_games = [g for g in recent_games if g.external_id in unsynced_ids]
+
+            # Sync each game
+            for raw_game in unsynced_games:
+                records_processed += 1
+
+                try:
+                    # Sync game
+                    game = self.game_syncer.sync_game(raw_game, None, source)
+                    self.db.flush()
+
+                    # Sync boxscore
+                    boxscore = await adapter.get_game_boxscore(raw_game.external_id)
+                    self.game_syncer.sync_boxscore(boxscore, game, source)
+                    self.db.flush()
+
+                    # Sync PBP if requested
+                    if include_pbp:
+                        try:
+                            pbp_events = await adapter.get_game_pbp(raw_game.external_id)
+                            self.game_syncer.sync_pbp(pbp_events, game, source)
+                        except Exception:
+                            pass  # PBP failure doesn't fail game sync
+
+                    self.db.commit()
+
+                    # Mark as synced
+                    self.tracker.mark_game_synced(source, raw_game.external_id, game.id)
+                    records_created += 1
+
+                    # Rate limiting
+                    if delay_seconds > 0:
+                        await asyncio.sleep(delay_seconds)
+
+                except Exception:
+                    self.db.rollback()
+                    # Continue with next game
+
+            # Complete sync log
+            return self.sync_log_service.complete_sync(
+                sync_id=sync_log.id,
+                records_processed=records_processed,
+                records_created=records_created,
+                records_updated=records_updated,
+                records_skipped=records_skipped,
+            )
+
+        except Exception as e:
+            self.db.rollback()
+            return self.sync_log_service.fail_sync(
+                sync_id=sync_log.id,
+                error_message=str(e),
+                error_details={"traceback": traceback.format_exc()},
+            )
+
     async def sync_game(
         self,
         source: str,
