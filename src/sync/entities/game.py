@@ -245,13 +245,13 @@ class GameSyncer:
             )
 
             # raw_event.event_type is now an EventType enum
-            # Store the enum value (string) in the database
+            # TypeDecorator handles conversion to string for storage
             event = PlayByPlayEvent(
                 game_id=game.id,
                 event_number=raw_event.event_number,
                 period=raw_event.period,
                 clock=raw_event.clock,
-                event_type=raw_event.event_type.value,
+                event_type=raw_event.event_type,
                 event_subtype=raw_event.event_subtype,
                 player_id=player_id,
                 team_id=team_id,

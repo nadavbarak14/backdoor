@@ -117,6 +117,162 @@ New Game Synced → Stats Service → Update Aggregated Tables
 
 ---
 
+## Data Storage Philosophy
+
+### Core Principle
+
+**All persisted data in the database must be normalized/processed through our own domain models, not raw scraped values.**
+
+The database stores canonical, validated data that has passed through our normalization layer. Raw data from external sources is transformed at the sync boundary before storage.
+
+### What We Store (Normalized Data)
+
+| Category | Examples | How Stored |
+|----------|----------|------------|
+| **Our Enums** | `Position`, `GameStatus`, `EventType` | TypeDecorator validates on write |
+| **Our Data Types** | Birthdates as `date`, heights in cm | Pydantic validation |
+| **Our Identifiers** | UUIDs for all entities | Generated at creation |
+| **External ID Mappings** | Source IDs for deduplication | JSON field: `{"winner": "123", "euroleague": "ABC"}` |
+
+### What We Don't Store (Raw Scraped Data)
+
+- Raw position strings from sources (e.g., "Guard-Forward", "G/F", "גארד")
+- Raw event type strings from play-by-play (e.g., "2PT", "FT_MADE", "REB_O")
+- Raw game status strings (e.g., "FT", "SCHEDULED", "IN_PROGRESS")
+- Unprocessed name formats
+- Source-specific field values that haven't been mapped to our domain
+
+### What We Can Display (Ephemeral Raw Data)
+
+- Raw data can be fetched on-demand and displayed in the UI
+- Source-specific details that don't fit our schema can be shown but not persisted
+- Original source links/references
+
+### Implementation Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       SYNC BOUNDARY (Normalization Point)               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   External API ──▶ Client ──▶ Mapper ──▶ Normalizers ──▶ RawTypes     │
+│                                               │                         │
+│                         ┌─────────────────────┼────────────────────┐   │
+│                         │ NORMALIZATION       │                    │   │
+│                         │                     ▼                    │   │
+│                         │  ┌──────────────────────────────────┐   │   │
+│                         │  │        Normalizers Class          │   │   │
+│                         │  │  • normalize_position()           │   │   │
+│                         │  │  • normalize_game_status()        │   │   │
+│                         │  │  • normalize_event_type()         │   │   │
+│                         │  │  (FAIL LOUDLY on unknown values)  │   │   │
+│                         │  └──────────────────────────────────┘   │   │
+│                         └──────────────────────────────────────────┘   │
+│                                               │                         │
+│                                               ▼                         │
+│                                          RawTypes                       │
+│                                    (with enum values)                   │
+│                                               │                         │
+└───────────────────────────────────────────────┼─────────────────────────┘
+                                                │
+                                                ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       DATABASE BOUNDARY (Validation Point)              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   RawTypes ──▶ Deduplication ──▶ SQLAlchemy Models ──▶ Database        │
+│                                        │                                │
+│                    ┌───────────────────┼───────────────────────┐       │
+│                    │  TYPE DECORATORS  │                       │       │
+│                    │                   ▼                       │       │
+│                    │  ┌────────────────────────────────┐      │       │
+│                    │  │  • GameStatusType              │      │       │
+│                    │  │  • PositionListType            │      │       │
+│                    │  │  • EventTypeType               │      │       │
+│                    │  │  (Validates enum on DB write)  │      │       │
+│                    │  └────────────────────────────────┘      │       │
+│                    └───────────────────────────────────────────┘       │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Enum Definitions
+
+All categorical data must map to defined enums in `src/schemas/enums.py`:
+
+```python
+# Position - Basketball player positions
+Position.POINT_GUARD, Position.SHOOTING_GUARD, Position.SMALL_FORWARD,
+Position.POWER_FORWARD, Position.CENTER, Position.GUARD, Position.FORWARD
+
+# GameStatus - Game state
+GameStatus.SCHEDULED, GameStatus.LIVE, GameStatus.FINAL,
+GameStatus.POSTPONED, GameStatus.CANCELLED
+
+# EventType - Play-by-play events
+EventType.SHOT, EventType.ASSIST, EventType.REBOUND, EventType.TURNOVER,
+EventType.STEAL, EventType.BLOCK, EventType.FOUL, EventType.FREE_THROW,
+EventType.SUBSTITUTION, EventType.TIMEOUT, EventType.JUMP_BALL,
+EventType.VIOLATION, EventType.PERIOD_START, EventType.PERIOD_END
+```
+
+### Normalization Rules
+
+The `Normalizers` class in `src/sync/normalizers.py` handles all mappings with a **fail-loudly** approach:
+
+```python
+# Positions - Maps 30+ formats to canonical enums
+"PG" → Position.POINT_GUARD
+"Guard (Point)" → Position.POINT_GUARD  # Euroleague format
+"גארד" → Position.GUARD                 # Hebrew (Winner/iBasketball)
+"G/F" → [Position.GUARD, Position.FORWARD]  # Multi-position
+
+# Game Status - Maps 15+ formats
+"FT" → GameStatus.FINAL          # Euroleague
+"finished" → GameStatus.FINAL    # Winner
+"live" → GameStatus.LIVE
+
+# Event Types - Maps 30+ formats
+"2PT" → EventType.SHOT
+"FT_MADE" → EventType.FREE_THROW
+"REB_O" → EventType.REBOUND
+```
+
+If a value cannot be normalized, `NormalizationError` is raised to prevent storage of unknown data.
+
+### Example: Correct vs Incorrect Storage
+
+```python
+# ❌ WRONG: Storing raw scraped position
+player.position = "Guard-Forward"  # Raw from Euroleague
+player.position = "גארד"           # Raw Hebrew from Winner
+
+# ✅ CORRECT: Storing normalized position enum
+player.positions = [Position.GUARD, Position.FORWARD]  # Canonical enum values
+
+# ❌ WRONG: Storing raw game status
+game.status = "FT"          # Raw from API
+game.status = "In Progress" # Raw string
+
+# ✅ CORRECT: Storing normalized status enum
+game.status = GameStatus.FINAL  # Canonical enum value
+```
+
+### Adapter Requirements
+
+All sync adapters **must** normalize data before returning:
+
+1. **Client** fetches raw JSON/HTML from external API
+2. **Mapper** transforms raw response to `RawTypes` dataclasses
+3. **Mapper calls Normalizers** for all categorical fields:
+   - `Normalizers.normalize_position(raw_pos, source_name)`
+   - `Normalizers.normalize_game_status(raw_status, source_name)`
+   - `Normalizers.normalize_event_type(raw_type, source_name)`
+4. **RawTypes** contain only valid enum values
+5. **TypeDecorators** provide final validation at DB boundary
+
+---
+
 # EPICS
 
 ---

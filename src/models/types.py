@@ -236,7 +236,7 @@ class EventTypeType(TypeDecorator):
         >>> # Stored in DB as: "SHOT"
     """
 
-    impl = String(20)
+    impl = String(50)  # Match existing column size
     cache_ok = True
 
     def process_bind_param(self, value: Any, dialect: Dialect) -> str | None:
