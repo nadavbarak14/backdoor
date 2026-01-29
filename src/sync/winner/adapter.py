@@ -372,7 +372,7 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
                     away_team_external_id=away_team_id,
                     home_score=boxscore.game.home_score,
                     away_score=boxscore.game.away_score,
-                    status="final" if boxscore.game.home_score else "scheduled",
+                    status=GameStatus.FINAL if boxscore.game.home_score else GameStatus.SCHEDULED,
                 )
                 games.append(game)
 
@@ -560,6 +560,8 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
                     try:
                         profile = self.scraper.fetch_player(player.player_id)
                         player_info = self.mapper.map_player_info(profile)
+                        # Preserve jersey_number from roster (not in profile)
+                        player_info.jersey_number = player.jersey_number
                     except Exception:
                         # Fall back to roster data if profile fetch fails
                         player_info = self.mapper.map_roster_player_info(player)

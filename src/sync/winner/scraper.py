@@ -443,6 +443,15 @@ class WinnerScraper:
             title_element = soup.find("title")
             if title_element:
                 title = title_element.get_text(strip=True)
+
+                # Detect error pages (Hebrew: "אופס! תקלה" = "Oops! Error")
+                if "אופס" in title or "תקלה" in title or "error" in title.lower():
+                    raise WinnerParseError(
+                        f"Error page returned for player {player_id}",
+                        resource_type="player_page",
+                        resource_id=player_id,
+                    )
+
                 if "|" in title:
                     # Player name is the last part
                     name = title.split("|")[-1].strip()
