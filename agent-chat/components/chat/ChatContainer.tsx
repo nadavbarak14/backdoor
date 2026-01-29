@@ -120,7 +120,14 @@ export function ChatContainer({
       <CourtBackground />
       <ChatHeader />
 
-      <main data-slot="chat-main" className="chat-main">
+      <main
+        data-slot="chat-main"
+        className="chat-main"
+        style={{
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
         {children}
       </main>
 

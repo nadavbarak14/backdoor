@@ -57,6 +57,11 @@
   box-sizing: border-box;
 }
 
+html, body {
+  height: 100%;
+  height: 100dvh;
+}
+
 body {
   font-family: var(--font-sans), system-ui, sans-serif;
   background: var(--bg-primary);
@@ -75,6 +80,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh; /* Accounts for mobile browser chrome (address bar, nav bar) */
   width: 100%;
   overflow: hidden;
 }
@@ -282,7 +288,7 @@ body {
 .chat-main {
   position: relative;
   z-index: 10;
-  flex: 1;
+  flex: 1 1 0; /* Explicit flex-basis: 0 for proper shrinking */
   display: flex;
   flex-direction: column;
   min-height: 0; /* Allow flex child to shrink for scrolling */
@@ -396,6 +402,7 @@ body {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+  touch-action: pan-y; /* Allow vertical touch scrolling */
   padding: 2rem;
   display: flex;
   flex-direction: column;
@@ -777,11 +784,19 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .messages-container {
-    padding: 1rem;
-    /* Mobile scroll fix */
-    touch-action: pan-y;
+  /* Mobile scroll fix */
+  .chat-main {
+    overflow-y: auto;
+    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .messages-container,
+  .welcome-state {
+    flex: none;
+    min-height: min-content;
+    overflow: visible;
+    padding: 1rem;
   }
 
   .message {

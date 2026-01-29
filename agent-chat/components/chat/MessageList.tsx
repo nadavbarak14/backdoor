@@ -71,6 +71,7 @@ export function MessageList({
       role="log"
       aria-live="polite"
       aria-label="Chat messages"
+      style={{ overflow: 'visible', flex: 'none' }}
       {...props}
     >
       {messages.map((message) => (
