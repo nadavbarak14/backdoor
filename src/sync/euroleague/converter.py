@@ -35,6 +35,7 @@ from src.sync.canonical import (
     ShotType,
     parse_birthdate,
 )
+from src.sync.season import normalize_season_name
 
 
 class EuroleagueConverter(BaseLeagueConverter):
@@ -751,13 +752,13 @@ class EuroleagueConverter(BaseLeagueConverter):
         if not external_id:
             raise ConversionError("Season missing external_id")
 
-        # Generate name from code if not provided
+        # Generate name from code if not provided using centralized normalization
         name = raw.get("name") or raw.get("season_name")
         if not name:
             try:
-                # Extract year from code (E2024 → 2024)
+                # Extract year from code (E2024 → 2024, which is the START year)
                 year = int(external_id[1:]) if external_id[0] in ("E", "U") else int(external_id)
-                name = f"{year}-{str(year + 1)[2:]}"
+                name = normalize_season_name(year)
             except (ValueError, IndexError):
                 name = external_id
 

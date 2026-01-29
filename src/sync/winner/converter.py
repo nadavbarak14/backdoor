@@ -35,6 +35,7 @@ from src.sync.canonical import (
     parse_birthdate,
     parse_height,
 )
+from src.sync.season import normalize_season_name
 
 
 class WinnerConverter(BaseLeagueConverter):
@@ -675,12 +676,14 @@ class WinnerConverter(BaseLeagueConverter):
         if not external_id:
             raise ConversionError("Season missing external_id")
 
-        # Generate name from year if not provided
+        # Generate name from year if not provided using centralized normalization
         name = raw.get("name") or raw.get("season_name")
         if not name:
             try:
-                year = int(external_id)
-                name = f"{year - 1}-{str(year)[2:]}"
+                # Winner's game_year is the END year (2025 = 2024-25 season)
+                end_year = int(external_id)
+                start_year = end_year - 1
+                name = normalize_season_name(start_year)
             except ValueError:
                 name = external_id
 
