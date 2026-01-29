@@ -250,10 +250,10 @@ class TestGetSeasons:
         seasons = await adapter.get_seasons()
 
         assert len(seasons) == 2
-        # external_id is now normalized YYYY-YY format
-        assert seasons[0].external_id == "2024-25"
-        assert seasons[1].external_id == "2023-24"
-        # source_id preserves original Euroleague format
+        # external_id is source-specific for API calls
+        assert seasons[0].external_id == "E2024"
+        assert seasons[1].external_id == "E2023"
+        # source_id also preserves original Euroleague format
         assert seasons[0].source_id == "E2024"
         assert seasons[1].source_id == "E2023"
 

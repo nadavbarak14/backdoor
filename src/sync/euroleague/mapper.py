@@ -215,14 +215,14 @@ class EuroleagueMapper:
             >>> s.source_id
             'E2024'
         """
-        # Normalize to standard YYYY-YY format
+        # Normalize to standard YYYY-YY format for display name
         normalized_name = normalize_season_name(season)
-        # Store source-specific ID (e.g., "E2024") for external reference
+        # Source-specific ID (e.g., "E2024") is used for API calls
         source_id = f"{competition}{season}"
 
         return RawSeason(
-            external_id=normalized_name,
-            name=normalized_name,
+            external_id=source_id,  # Use source ID for API calls
+            name=normalized_name,   # Normalized for display/storage
             source_id=source_id,
             start_date=date(season, 10, 1),  # Season typically starts in October
             end_date=date(season + 1, 5, 31),  # Season ends in May

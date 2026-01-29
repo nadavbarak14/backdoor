@@ -192,7 +192,7 @@ class TestMapSeason:
 
         assert isinstance(season, RawSeason)
         assert season.name == "2024-25"  # Normalized format
-        assert season.external_id == "2024-25"  # Same as name
+        assert season.external_id == "E2024"  # Source-specific for API calls
         assert season.source_id == "E2024"  # Original Euroleague ID preserved
         assert season.start_date == date(2024, 10, 1)
         assert season.end_date == date(2025, 5, 31)
@@ -202,7 +202,7 @@ class TestMapSeason:
         season = mapper.map_season(2024, "U")
 
         assert season.name == "2024-25"  # Normalized format
-        assert season.external_id == "2024-25"
+        assert season.external_id == "U2024"  # Source-specific for API calls
         assert season.source_id == "U2024"  # Original EuroCup ID preserved
 
     def test_season_source_id_for_external_reference(self, mapper):

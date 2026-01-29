@@ -15,7 +15,7 @@ import sys
 from datetime import datetime
 
 # Add project root to path
-sys.path.insert(0, "/root/projects/3backdoor")
+sys.path.insert(0, "/root/projects/backdoor")
 
 from src.core.database import SessionLocal
 from src.sync import SyncConfig
