@@ -31,7 +31,12 @@ from src.sync.types import (
     RawSeason,
     RawTeam,
 )
-from src.sync.winner.scraper import PlayerProfile, RosterPlayer
+from src.sync.winner.scraper import (
+    BoxscorePlayerStats,
+    GameZoneBoxscore,
+    PlayerProfile,
+    RosterPlayer,
+)
 
 
 @dataclass
@@ -408,6 +413,11 @@ class WinnerMapper:
         # Extract game ID (try real API field first, then legacy)
         game_id = data.get("ExternalID") or data.get("GameId") or ""
 
+        # Extract basket.co.il internal ID (for game-zone.asp)
+        source_game_id = data.get("id")
+        if source_game_id is not None:
+            source_game_id = str(source_game_id)
+
         # Extract team IDs (try real API fields first, then legacy)
         home_team_id = data.get("team1") or data.get("HomeTeamId") or ""
         away_team_id = data.get("team2") or data.get("AwayTeamId") or ""
@@ -447,6 +457,7 @@ class WinnerMapper:
             status=status,
             home_score=home_score,
             away_score=away_score,
+            source_game_id=source_game_id,  # basket.co.il ID for game-zone.asp
         )
 
     def _parse_int(self, value: str | int | None, default: int = 0) -> int:
@@ -800,6 +811,118 @@ class WinnerMapper:
             game=game,
             home_players=home_players,
             away_players=away_players,
+        )
+
+    def map_gamezone_boxscore(
+        self,
+        boxscore: GameZoneBoxscore,
+        game_date: datetime | None = None,
+    ) -> RawBoxScore:
+        """
+        Map boxscore scraped from basket.co.il game-zone to RawBoxScore.
+
+        This uses the correct basket.co.il player IDs directly, avoiding
+        the need for jersey number matching that segevstats requires.
+
+        Args:
+            boxscore: GameZoneBoxscore scraped from game-zone.asp.
+            game_date: Game date (not available in game-zone page).
+
+        Returns:
+            RawBoxScore with correct basket.co.il player IDs.
+
+        Example:
+            >>> scraped = scraper.fetch_game_boxscore("26493")
+            >>> raw_boxscore = mapper.map_gamezone_boxscore(scraped)
+            >>> raw_boxscore.home_players[0].player_external_id
+            '21828'  # basket.co.il ID, not segevstats ID
+        """
+        # Determine game status from scores
+        home_score = boxscore.home_score
+        away_score = boxscore.away_score
+        status = (
+            GameStatus.FINAL
+            if home_score is not None and away_score is not None
+            else GameStatus.SCHEDULED
+        )
+
+        # Create game object
+        game = RawGame(
+            external_id=boxscore.game_id,
+            home_team_external_id=boxscore.home_team_id or "",
+            away_team_external_id=boxscore.away_team_id or "",
+            game_date=game_date or datetime.now(),
+            status=status,
+            home_score=home_score,
+            away_score=away_score,
+        )
+
+        # Map player stats
+        home_players = [
+            self._map_gamezone_player_stats(p) for p in boxscore.home_players
+        ]
+        away_players = [
+            self._map_gamezone_player_stats(p) for p in boxscore.away_players
+        ]
+
+        return RawBoxScore(
+            game=game,
+            home_players=home_players,
+            away_players=away_players,
+        )
+
+    def _map_gamezone_player_stats(
+        self, player: BoxscorePlayerStats
+    ) -> RawPlayerStats:
+        """
+        Map a single player's stats from GameZoneBoxscore.
+
+        Args:
+            player: BoxscorePlayerStats from scraped game-zone.
+
+        Returns:
+            RawPlayerStats with basket.co.il player ID.
+        """
+        # Parse minutes to seconds
+        minutes_seconds = 0
+        if player.minutes:
+            try:
+                parts = player.minutes.split(":")
+                if len(parts) == 2:
+                    minutes_seconds = int(parts[0]) * 60 + int(parts[1])
+                elif len(parts) == 1:
+                    minutes_seconds = int(parts[0]) * 60
+            except (ValueError, IndexError):
+                pass
+
+        # Calculate field goals (2PT + 3PT)
+        fg_made = player.two_pt_made + player.three_pt_made
+        fg_attempted = player.two_pt_attempted + player.three_pt_attempted
+
+        return RawPlayerStats(
+            player_external_id=player.player_id,  # basket.co.il ID!
+            player_name=player.player_name,
+            team_external_id=player.team_id or "",
+            minutes_played=minutes_seconds,
+            is_starter=False,  # Not available in game-zone
+            points=player.points,
+            field_goals_made=fg_made,
+            field_goals_attempted=fg_attempted,
+            two_pointers_made=player.two_pt_made,
+            two_pointers_attempted=player.two_pt_attempted,
+            three_pointers_made=player.three_pt_made,
+            three_pointers_attempted=player.three_pt_attempted,
+            free_throws_made=player.ft_made,
+            free_throws_attempted=player.ft_attempted,
+            offensive_rebounds=player.offensive_rebounds,
+            defensive_rebounds=player.defensive_rebounds,
+            total_rebounds=player.total_rebounds,
+            assists=player.assists,
+            turnovers=player.turnovers,
+            steals=player.steals,
+            blocks=player.blocks,
+            personal_fouls=player.fouls,
+            plus_minus=player.plus_minus,
         )
 
     def map_pbp_event(self, data: dict, event_num: int) -> RawPBPEvent:

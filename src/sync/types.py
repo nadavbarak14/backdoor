@@ -144,6 +144,7 @@ class RawGame:
     status: GameStatus  # Must be GameStatus enum
     home_score: int | None = None
     away_score: int | None = None
+    source_game_id: str | None = None  # basket.co.il internal ID for game-zone.asp
 
 
 @dataclass

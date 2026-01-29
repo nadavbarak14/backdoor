@@ -175,6 +175,102 @@ class HistoricalResults:
     raw_html: str | None = field(default=None, repr=False)
 
 
+@dataclass
+class BoxscorePlayerStats:
+    """
+    Player stats from basket.co.il game-zone boxscore.
+
+    Contains player stats with the correct basket.co.il player ID.
+
+    Attributes:
+        player_id: basket.co.il player ID (e.g., "21828").
+        player_name: Player name.
+        jersey_number: Jersey number.
+        team_id: Team ID (home or away from game).
+        is_home: True if player is on home team.
+        minutes: Minutes played string (e.g., "20:30").
+        points: Points scored.
+        two_pt_made: Two-pointers made.
+        two_pt_attempted: Two-pointers attempted.
+        three_pt_made: Three-pointers made.
+        three_pt_attempted: Three-pointers attempted.
+        ft_made: Free throws made.
+        ft_attempted: Free throws attempted.
+        offensive_rebounds: Offensive rebounds.
+        defensive_rebounds: Defensive rebounds.
+        total_rebounds: Total rebounds.
+        assists: Assists.
+        steals: Steals.
+        blocks: Blocks.
+        turnovers: Turnovers.
+        fouls: Personal fouls.
+        plus_minus: Plus/minus (if available).
+
+    Example:
+        >>> for player in boxscore.home_players:
+        ...     print(f"#{player.jersey_number} {player.player_name}: {player.points} pts")
+    """
+
+    player_id: str
+    player_name: str
+    jersey_number: int | None = None
+    team_id: str | None = None
+    is_home: bool = True
+    minutes: str | None = None
+    points: int = 0
+    two_pt_made: int = 0
+    two_pt_attempted: int = 0
+    three_pt_made: int = 0
+    three_pt_attempted: int = 0
+    ft_made: int = 0
+    ft_attempted: int = 0
+    offensive_rebounds: int = 0
+    defensive_rebounds: int = 0
+    total_rebounds: int = 0
+    assists: int = 0
+    steals: int = 0
+    blocks: int = 0
+    turnovers: int = 0
+    fouls: int = 0
+    plus_minus: int | None = None
+
+
+@dataclass
+class GameZoneBoxscore:
+    """
+    Boxscore data scraped from basket.co.il game-zone.asp.
+
+    Contains player stats with correct basket.co.il player IDs.
+
+    Attributes:
+        game_id: basket.co.il game ID.
+        home_team_id: Home team ID.
+        away_team_id: Away team ID.
+        home_team_name: Home team name.
+        away_team_name: Away team name.
+        home_score: Home team final score.
+        away_score: Away team final score.
+        home_players: List of home team player stats.
+        away_players: List of away team player stats.
+        raw_html: Original HTML for debugging.
+
+    Example:
+        >>> boxscore = scraper.fetch_game_boxscore("26493")
+        >>> print(f"{boxscore.home_team_name} {boxscore.home_score} - {boxscore.away_score} {boxscore.away_team_name}")
+    """
+
+    game_id: str
+    home_team_id: str | None = None
+    away_team_id: str | None = None
+    home_team_name: str | None = None
+    away_team_name: str | None = None
+    home_score: int | None = None
+    away_score: int | None = None
+    home_players: list[BoxscorePlayerStats] = field(default_factory=list)
+    away_players: list[BoxscorePlayerStats] = field(default_factory=list)
+    raw_html: str | None = field(default=None, repr=False)
+
+
 class WinnerScraper:
     """
     Scraper for Winner League HTML pages.
@@ -995,3 +1091,274 @@ class WinnerScraper:
         if match:
             return match.group(1)
         return None
+
+    def fetch_game_boxscore(
+        self,
+        basket_game_id: str,
+        force: bool = False,
+    ) -> GameZoneBoxscore:
+        """
+        Fetch boxscore from basket.co.il game-zone page.
+
+        Scrapes the boxscore directly from basket.co.il which has the correct
+        player IDs (not segevstats internal IDs). This allows direct player
+        matching without jersey number fallback.
+
+        Args:
+            basket_game_id: The basket.co.il game ID (e.g., "26493").
+            force: If True, bypass cache and fetch from source.
+
+        Returns:
+            GameZoneBoxscore with player stats and correct player IDs.
+
+        Raises:
+            WinnerParseError: If the boxscore cannot be parsed.
+
+        Example:
+            >>> boxscore = scraper.fetch_game_boxscore("26493")
+            >>> for p in boxscore.home_players:
+            ...     print(f"#{p.jersey_number} {p.player_name}: {p.points} pts")
+        """
+        resource_type = "game_zone_page"
+        resource_id = basket_game_id
+
+        # Check cache first
+        html = None
+        if not force:
+            cache = self._get_cache(resource_type, resource_id)
+            if cache:
+                html = cache.raw_data.get("html", "")
+
+        # Fetch if not cached
+        if not html:
+            url = f"https://basket.co.il/game-zone.asp?GameId={basket_game_id}&lang=en"
+            html = self._fetch_html(url, resource_type, resource_id)
+            self._save_cache(resource_type, resource_id, html, http_status=200)
+
+        return self._parse_game_boxscore(html, basket_game_id)
+
+    def _parse_game_boxscore(self, html: str, game_id: str) -> GameZoneBoxscore:
+        """
+        Parse boxscore from game-zone HTML.
+
+        Args:
+            html: HTML content from game-zone.asp.
+            game_id: basket.co.il game ID.
+
+        Returns:
+            GameZoneBoxscore with parsed player stats.
+        """
+        import re
+
+        soup = BeautifulSoup(html, "html.parser")
+
+        boxscore = GameZoneBoxscore(game_id=game_id, raw_html=html)
+
+        # Find team names and scores from the scoreboard
+        # Look for team name links
+        team_links = soup.find_all("a", href=re.compile(r"team\.asp\?TeamId=\d+"))
+        team_ids = []
+        team_names = []
+        for link in team_links:
+            href = link.get("href", "")
+            match = re.search(r"TeamId=(\d+)", href)
+            if match:
+                team_id = match.group(1)
+                if team_id not in team_ids:
+                    team_ids.append(team_id)
+                    team_names.append(link.get_text(strip=True))
+
+        if len(team_ids) >= 2:
+            boxscore.home_team_id = team_ids[0]
+            boxscore.away_team_id = team_ids[1]
+            boxscore.home_team_name = team_names[0] if team_names else None
+            boxscore.away_team_name = team_names[1] if len(team_names) > 1 else None
+
+        # Find all boxscore tables (there should be 2: home and away)
+        # Look for tables with player stats - they have player links
+        tables = soup.find_all("table")
+
+        player_tables = []
+        for table in tables:
+            # Check if table contains player links
+            player_links = table.find_all("a", href=re.compile(r"player\.asp\?PlayerId=\d+"))
+            if player_links:
+                player_tables.append(table)
+
+        # Parse each table
+        for idx, table in enumerate(player_tables[:2]):  # Max 2 teams
+            is_home = idx == 0
+            team_id = boxscore.home_team_id if is_home else boxscore.away_team_id
+
+            players = self._parse_boxscore_table(table, team_id, is_home)
+
+            if is_home:
+                boxscore.home_players = players
+            else:
+                boxscore.away_players = players
+
+        # Extract scores from the page
+        score_pattern = re.compile(r"(\d+)\s*[-:]\s*(\d+)")
+        # Look for score in page title or header
+        title = soup.find("title")
+        if title:
+            match = score_pattern.search(title.get_text())
+            if match:
+                boxscore.home_score = int(match.group(1))
+                boxscore.away_score = int(match.group(2))
+
+        return boxscore
+
+    def _parse_boxscore_table(
+        self,
+        table,
+        team_id: str | None,
+        is_home: bool,
+    ) -> list[BoxscorePlayerStats]:
+        """
+        Parse a single team's boxscore table.
+
+        Handles the basket.co.il game-zone boxscore table format:
+        - Row 0: Team name
+        - Row 1: Category headers (2PT, 3PT, 1PT, Rebounds, etc.)
+        - Row 2: Column headers (#, Player Name, SF, Min, Pts, M/A, %, etc.)
+        - Row 3: Team totals
+        - Row 4+: Player rows
+
+        Column indices (0-based):
+        0: # (jersey), 1: Player Name, 2: SF (starter flag), 3: Min, 4: Pts,
+        5: 2PT M/A, 6: 2PT %, 7: 3PT M/A, 8: 3PT %, 9: FT M/A, 10: FT %,
+        11: DR, 12: OR, 13: TR, 14: PF, 15: FA, 16: ST, 17: TO, 18: AS,
+        19: BKF, 20: BKA, 21: VAL, 22: +/-
+
+        Args:
+            table: BeautifulSoup table element.
+            team_id: Team ID for all players.
+            is_home: True if home team.
+
+        Returns:
+            List of BoxscorePlayerStats.
+        """
+        import re
+
+        players = []
+        rows = table.find_all("tr")
+
+        # Fixed column indices for basket.co.il game-zone format
+        COL_JERSEY = 0
+        COL_MIN = 3
+        COL_PTS = 4
+        COL_2PT_MA = 5
+        COL_3PT_MA = 7
+        COL_FT_MA = 9
+        COL_DR = 11
+        COL_OR = 12
+        COL_TR = 13
+        COL_PF = 14
+        COL_ST = 16
+        COL_TO = 17
+        COL_AS = 18
+        COL_BKF = 19
+        COL_PLUSMINUS = 22
+
+        for row in rows:
+            cells = row.find_all(["th", "td"])
+            if len(cells) < 5:
+                continue
+
+            # Look for player link in the NAME column (index 1), not jersey column
+            # The table has player links in both column 0 (jersey) and column 1 (name)
+            name_cell = cells[1] if len(cells) > 1 else None
+            if not name_cell:
+                continue
+
+            player_link = name_cell.find(
+                "a", href=re.compile(r"player\.asp\?PlayerId=\d+")
+            )
+            if not player_link:
+                continue
+
+            href = player_link.get("href", "")
+            match = re.search(r"PlayerId=(\d+)", href)
+            if not match:
+                continue
+
+            player_id = match.group(1)
+            player_name = player_link.get_text(strip=True)
+
+            # Skip the "Team" totals row
+            if player_name.lower() == "team":
+                continue
+            cell_texts = [c.get_text(strip=True) for c in cells]
+
+            stats = BoxscorePlayerStats(
+                player_id=player_id,
+                player_name=player_name,
+                team_id=team_id,
+                is_home=is_home,
+            )
+
+            # Helper to safely get cell value
+            def get_cell(idx: int) -> str:
+                return cell_texts[idx] if idx < len(cell_texts) else ""
+
+            def parse_int(idx: int) -> int:
+                """Parse integer from cell, return 0 on failure."""
+                try:
+                    return int(get_cell(idx))
+                except ValueError:
+                    return 0
+
+            def parse_made_attempted(idx: int) -> tuple[int, int]:
+                """Parse M/A format (e.g., '3/5') into (made, attempted)."""
+                text = get_cell(idx)
+                if "/" in text:
+                    parts = text.split("/")
+                    if len(parts) == 2:
+                        try:
+                            return int(parts[0]), int(parts[1])
+                        except ValueError:
+                            pass
+                return 0, 0
+
+            # Parse jersey number
+            jersey_text = get_cell(COL_JERSEY)
+            if jersey_text.isdigit():
+                stats.jersey_number = int(jersey_text)
+
+            # Parse minutes
+            stats.minutes = get_cell(COL_MIN) or None
+
+            # Parse points
+            stats.points = parse_int(COL_PTS)
+
+            # Parse shooting stats (M/A format)
+            stats.two_pt_made, stats.two_pt_attempted = parse_made_attempted(COL_2PT_MA)
+            stats.three_pt_made, stats.three_pt_attempted = parse_made_attempted(
+                COL_3PT_MA
+            )
+            stats.ft_made, stats.ft_attempted = parse_made_attempted(COL_FT_MA)
+
+            # Parse rebounds
+            stats.defensive_rebounds = parse_int(COL_DR)
+            stats.offensive_rebounds = parse_int(COL_OR)
+            stats.total_rebounds = parse_int(COL_TR)
+
+            # Parse other stats
+            stats.fouls = parse_int(COL_PF)
+            stats.steals = parse_int(COL_ST)
+            stats.turnovers = parse_int(COL_TO)
+            stats.assists = parse_int(COL_AS)
+            stats.blocks = parse_int(COL_BKF)
+
+            # Parse plus/minus (may be empty or have a value)
+            pm_text = get_cell(COL_PLUSMINUS)
+            if pm_text:
+                try:
+                    stats.plus_minus = int(pm_text)
+                except ValueError:
+                    pass
+
+            players.append(stats)
+
+        return players

@@ -94,6 +94,8 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         self._historical_schedule_cache: dict[str, list[RawGame]] = {}
         # Cache for historical team info (keyed by segevstats team_id)
         self._historical_teams_cache: dict[str, RawTeam] = {}
+        # Cache mapping segevstats external_id -> basket.co.il source_game_id
+        self._game_id_mapping: dict[str, str] = {}
 
     def _get_current_season_id(self) -> str:
         """
@@ -286,7 +288,11 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
             games_data = self._get_games_data()
             games = []
             for game_data in games_data.get("games", []):
-                games.append(self.mapper.map_game(game_data))
+                raw_game = self.mapper.map_game(game_data)
+                games.append(raw_game)
+                # Cache mapping from segevstats ID to basket.co.il ID
+                if raw_game.source_game_id:
+                    self._game_id_mapping[raw_game.external_id] = raw_game.source_game_id
             return games
         else:
             # Historical season: scrape results page for game IDs
@@ -384,8 +390,11 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         """
         Fetch the box score for a completed game.
 
+        Uses basket.co.il game-zone page to get boxscore with correct player IDs.
+        Falls back to segevstats if game-zone scraping fails.
+
         Args:
-            game_id: External game identifier.
+            game_id: External game identifier (segevstats ID).
 
         Returns:
             RawBoxScore containing game info and player stats.
@@ -399,6 +408,19 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
             >>> for player in boxscore.home_players:
             ...     print(f"{player.player_name}: {player.points} pts")
         """
+        # Try to get basket.co.il game ID from cache
+        basket_game_id = self._game_id_mapping.get(game_id)
+
+        if basket_game_id:
+            try:
+                # Use scraper to get boxscore with correct player IDs
+                gamezone_boxscore = self.scraper.fetch_game_boxscore(basket_game_id)
+                return self.mapper.map_gamezone_boxscore(gamezone_boxscore)
+            except Exception:
+                # Fall back to segevstats if scraping fails
+                pass
+
+        # Fallback: use segevstats (player IDs won't match)
         result = self.client.fetch_boxscore(game_id)
         return self.mapper.map_boxscore(result.data)
 
