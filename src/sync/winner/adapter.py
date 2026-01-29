@@ -379,8 +379,12 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
                     home_score=boxscore.game.home_score,
                     away_score=boxscore.game.away_score,
                     status="final" if boxscore.game.home_score else "scheduled",
+                    source_game_id=basket_game_id,  # basket.co.il ID for boxscore
                 )
                 games.append(game)
+
+                # Cache mapping for get_game_boxscore to use basket.co.il
+                self._game_id_mapping[segevstats_id] = basket_game_id
 
         # Cache the results
         self._historical_schedule_cache[season_id] = games
@@ -408,8 +412,14 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
             >>> for player in boxscore.home_players:
             ...     print(f"{player.player_name}: {player.points} pts")
         """
-        # Try to get basket.co.il game ID from cache
+        # Try to get basket.co.il game ID from memory cache
         basket_game_id = self._game_id_mapping.get(game_id)
+
+        # If not in memory, try to find it from sync cache
+        if not basket_game_id:
+            basket_game_id = self._lookup_basket_id_from_cache(game_id)
+            if basket_game_id:
+                self._game_id_mapping[game_id] = basket_game_id
 
         if basket_game_id:
             try:
@@ -423,6 +433,41 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         # Fallback: use segevstats (player IDs won't match)
         result = self.client.fetch_boxscore(game_id)
         return self.mapper.map_boxscore(result.data)
+
+    def _lookup_basket_id_from_cache(self, segevstats_id: str) -> str | None:
+        """
+        Look up basket.co.il game ID from sync cache.
+
+        Searches cached game-zone pages to find one that contains the
+        given segevstats ID.
+
+        Args:
+            segevstats_id: The segevstats external ID (e.g., "136").
+
+        Returns:
+            The basket.co.il game ID, or None if not found.
+        """
+        import re
+
+        from src.models.sync_cache import SyncCache
+
+        # Query all cached game-zone pages
+        caches = (
+            self.scraper.db.query(SyncCache)
+            .filter(
+                SyncCache.source == "winner",
+                SyncCache.resource_type == "game_zone_page",
+            )
+            .all()
+        )
+
+        for cache in caches:
+            html = cache.raw_data.get("html", "")
+            match = re.search(r"game_id=(\d+)", html)
+            if match and match.group(1) == segevstats_id:
+                return cache.resource_id
+
+        return None
 
     async def get_game_pbp(
         self, game_id: str
