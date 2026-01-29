@@ -1,9 +1,9 @@
 """
-Canonical Types Package
+Canonical Package
 
-Provides the "layer of truth" for normalized data types used across
-the Basketball Analytics Platform. All league adapters convert their
-raw data to these validated types before storage.
+Provides the "layer of truth" for normalized data types and entities
+used across the Basketball Analytics Platform. All league adapters
+convert their raw data to these validated types before storage.
 
 This package exports:
     Types:
@@ -13,6 +13,17 @@ This package exports:
         - EventType: Play-by-play event type enum
         - ShotType, ReboundType, FoulType, TurnoverType: Event subtypes
         - GameStatus: Game state enum
+
+    Entities:
+        - CanonicalPlayer: Player with positions, height, nationality
+        - CanonicalTeam: Team with name, city, country
+        - CanonicalGame: Game with teams, date, score, status
+        - CanonicalPlayerStats: Box score statistics
+        - CanonicalPBPEvent: Play-by-play event
+        - CanonicalSeason: Season with dates
+
+    Converter:
+        - BaseLeagueConverter: ABC that all league converters must implement
 
     Parse Functions:
         - parse_position(): Parse single position
@@ -32,6 +43,8 @@ Usage:
         Height, parse_height,
         Nationality, parse_nationality,
         EventType, GameStatus,
+        CanonicalPlayer, CanonicalTeam,
+        BaseLeagueConverter,
     )
 
     # Parse raw data to canonical types
@@ -40,6 +53,15 @@ Usage:
     nationality = parse_nationality("Israel")  # Nationality(code="ISR")
 """
 
+from src.sync.canonical.converter import BaseLeagueConverter
+from src.sync.canonical.entities import (
+    CanonicalGame,
+    CanonicalPBPEvent,
+    CanonicalPlayer,
+    CanonicalPlayerStats,
+    CanonicalSeason,
+    CanonicalTeam,
+)
 from src.sync.canonical.types import (
     ConversionError,
     # Event types
@@ -89,6 +111,15 @@ __all__ = [
     # Game status
     "GameStatus",
     "parse_game_status",
+    # Entities
+    "CanonicalPlayer",
+    "CanonicalTeam",
+    "CanonicalGame",
+    "CanonicalPlayerStats",
+    "CanonicalPBPEvent",
+    "CanonicalSeason",
+    # Converter
+    "BaseLeagueConverter",
     # Exceptions
     "ValidationError",
     "ConversionError",
