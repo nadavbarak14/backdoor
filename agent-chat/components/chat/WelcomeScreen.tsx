@@ -54,6 +54,7 @@ export function WelcomeScreen({
     <div
       data-slot="welcome-screen"
       className={cn("welcome-state", className)}
+      style={{ overflow: 'visible', flex: 'none' }}
       {...props}
     >
       <div className="welcome-content">
