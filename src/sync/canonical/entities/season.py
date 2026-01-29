@@ -20,6 +20,8 @@ Usage:
 from dataclasses import dataclass, field
 from datetime import date
 
+from src.sync.season import SeasonFormatError, validate_season_format
+
 
 @dataclass
 class CanonicalSeason:
@@ -53,3 +55,8 @@ class CanonicalSeason:
     start_date: date | None
     end_date: date | None
     is_current: bool = field(default=False)
+
+    def __post_init__(self) -> None:
+        """Validate season name format on creation."""
+        if not validate_season_format(self.name):
+            raise SeasonFormatError(self.name)

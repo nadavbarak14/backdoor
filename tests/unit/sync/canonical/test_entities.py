@@ -2,6 +2,8 @@
 
 from datetime import date, datetime
 
+import pytest
+
 from src.sync.canonical import (
     CanonicalGame,
     CanonicalPBPEvent,
@@ -15,6 +17,7 @@ from src.sync.canonical import (
     Position,
     ShotType,
 )
+from src.sync.season import SeasonFormatError
 
 
 class TestCanonicalPlayer:
@@ -354,3 +357,25 @@ class TestCanonicalSeason:
             end_date=None,
         )
         assert season.is_current is False
+
+    def test_season_invalid_format_raises_error(self) -> None:
+        """Test that invalid season name format raises SeasonFormatError."""
+        with pytest.raises(SeasonFormatError):
+            CanonicalSeason(
+                external_id="E2024",
+                source="euroleague",
+                name="E2024",  # Invalid - not YYYY-YY format
+                start_date=None,
+                end_date=None,
+            )
+
+    def test_season_wrong_suffix_raises_error(self) -> None:
+        """Test that wrong year suffix raises SeasonFormatError."""
+        with pytest.raises(SeasonFormatError):
+            CanonicalSeason(
+                external_id="E2024",
+                source="euroleague",
+                name="2024-26",  # Invalid - should be 2024-25
+                start_date=None,
+                end_date=None,
+            )
