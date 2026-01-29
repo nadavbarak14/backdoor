@@ -525,17 +525,20 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         return results
 
     async def get_team_roster(
-        self, team_external_id: str
+        self, team_external_id: str, fetch_profiles: bool = True
     ) -> list[tuple[str, str, RawPlayerInfo | None]]:
         """
-        Fetch team roster with player IDs and bio data from roster page.
+        Fetch team roster with player IDs and bio data.
 
         Returns list of tuples: (player_id, player_name, RawPlayerInfo or None).
-        Bio data (position) is extracted from the roster page directly for
-        efficiency - no individual player profile fetches are needed.
+
+        When fetch_profiles=True (default), fetches individual player profiles
+        to get full bio data (height, birthdate). This is slower but provides
+        complete player information.
 
         Args:
             team_external_id: External team identifier.
+            fetch_profiles: If True, fetch individual player profiles for bio data.
 
         Returns:
             List of (player_id, player_name, player_info) tuples.
@@ -543,15 +546,27 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         Example:
             >>> roster = await adapter.get_team_roster("100")
             >>> for player_id, name, info in roster:
-            ...     print(f"{name}: {info.positions if info else 'N/A'}")
+            ...     print(f"{name}: height={info.height_cm if info else 'N/A'}")
         """
         results: list[tuple[str, str, RawPlayerInfo | None]] = []
 
         try:
             roster = self.scraper.fetch_team_roster(team_external_id)
             for player in roster.players:
-                # Create RawPlayerInfo from roster data (no profile fetch needed)
-                player_info = self.mapper.map_roster_player_info(player)
+                player_info = None
+
+                if fetch_profiles and player.player_id:
+                    # Fetch individual player profile for full bio data
+                    try:
+                        profile = self.scraper.fetch_player(player.player_id)
+                        player_info = self.mapper.map_player_info(profile)
+                    except Exception:
+                        # Fall back to roster data if profile fetch fails
+                        player_info = self.mapper.map_roster_player_info(player)
+                else:
+                    # Just use roster data (position only)
+                    player_info = self.mapper.map_roster_player_info(player)
+
                 results.append((player.player_id, player.name, player_info))
         except Exception:
             # Roster fetch failed

@@ -437,14 +437,19 @@ class WinnerScraper:
         try:
             soup = BeautifulSoup(html, "html.parser")
 
-            # Extract player name - typically in a heading or title
+            # Extract player name - from title (last pipe-separated part)
+            # Title format: "LEAGUE | ... | Team Name | Player Name"
             name = ""
-            name_element = soup.find("h1") or soup.find("title")
-            if name_element:
-                name = name_element.get_text(strip=True)
-                # Clean up title if it contains site name
-                if " - " in name:
-                    name = name.split(" - ")[0].strip()
+            title_element = soup.find("title")
+            if title_element:
+                title = title_element.get_text(strip=True)
+                if "|" in title:
+                    # Player name is the last part
+                    name = title.split("|")[-1].strip()
+                elif " - " in title:
+                    name = title.split(" - ")[0].strip()
+                else:
+                    name = title
 
             # Try to find player info table/div
             profile = PlayerProfile(
@@ -453,28 +458,42 @@ class WinnerScraper:
                 raw_html=html,
             )
 
-            # Look for info table with player details
-            info_tables = soup.find_all("table")
-            for table in info_tables:
-                rows = table.find_all("tr")
-                for row in rows:
-                    cells = row.find_all(["td", "th"])
-                    if len(cells) >= 2:
-                        label = cells[0].get_text(strip=True).lower()
-                        value = cells[1].get_text(strip=True)
+            # Look for player info in div.p_info structure (current site format)
+            # Format: <span class="p_info_title">Label:</span>Value<br />
+            p_info_div = soup.find("div", class_="p_info")
+            if p_info_div:
+                for span in p_info_div.find_all("span", class_="p_info_title"):
+                    label = span.get_text(strip=True).lower().rstrip(":")
+                    # Value is the next sibling text node
+                    next_sibling = span.next_sibling
+                    if next_sibling:
+                        value = str(next_sibling).strip()
+                        # Clean up &nbsp; and other entities
+                        value = value.replace("\xa0", "").strip()
 
                         if "team" in label or "קבוצה" in label:
-                            profile.team_name = value
+                            # Team might be a link
+                            team_link = span.find_next("a")
+                            if team_link:
+                                profile.team_name = team_link.get_text(strip=True)
+                            else:
+                                profile.team_name = value
                         elif "number" in label or "מספר" in label:
                             profile.jersey_number = value
                         elif "position" in label or "עמדה" in label:
                             profile.position = value
                         elif "height" in label or "גובה" in label:
                             try:
-                                # Extract numeric height
-                                height_str = "".join(c for c in value if c.isdigit())
-                                if height_str:
-                                    profile.height_cm = int(height_str)
+                                # Height can be "1.93" (meters) or "193" (cm)
+                                height_str = value.replace(",", ".")
+                                if "." in height_str:
+                                    # Meters format like "1.93"
+                                    profile.height_cm = int(float(height_str) * 100)
+                                else:
+                                    # Already cm
+                                    height_num = "".join(c for c in value if c.isdigit())
+                                    if height_num:
+                                        profile.height_cm = int(height_num)
                             except ValueError:
                                 pass
                         elif "nationality" in label or "לאום" in label:
@@ -492,6 +511,45 @@ class WinnerScraper:
                                         continue
                             except ValueError:
                                 pass
+
+            # Fallback: Look for info table with player details (legacy format)
+            if not profile.height_cm and not profile.birth_date:
+                info_tables = soup.find_all("table")
+                for table in info_tables:
+                    rows = table.find_all("tr")
+                    for row in rows:
+                        cells = row.find_all(["td", "th"])
+                        if len(cells) >= 2:
+                            label = cells[0].get_text(strip=True).lower()
+                            value = cells[1].get_text(strip=True)
+
+                            if "team" in label or "קבוצה" in label:
+                                profile.team_name = value
+                            elif "number" in label or "מספר" in label:
+                                profile.jersey_number = value
+                            elif "position" in label or "עמדה" in label:
+                                profile.position = value
+                            elif "height" in label or "גובה" in label:
+                                try:
+                                    height_str = "".join(c for c in value if c.isdigit())
+                                    if height_str:
+                                        profile.height_cm = int(height_str)
+                                except ValueError:
+                                    pass
+                            elif "nationality" in label or "לאום" in label:
+                                profile.nationality = value
+                            elif "birth" in label or "תאריך" in label or "dob" in label:
+                                try:
+                                    for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%d.%m.%Y"]:
+                                        try:
+                                            profile.birth_date = datetime.strptime(
+                                                value, fmt
+                                            )
+                                            break
+                                        except ValueError:
+                                            continue
+                                except ValueError:
+                                    pass
 
             return profile
 
