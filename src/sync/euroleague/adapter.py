@@ -290,7 +290,9 @@ class EuroleagueAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
 
         return boxscore
 
-    async def get_game_pbp(self, game_id: str) -> list[RawPBPEvent]:
+    async def get_game_pbp(
+        self, game_id: str
+    ) -> tuple[list[RawPBPEvent], dict[str, int]]:
         """
         Fetch play-by-play events for a game.
 
@@ -298,13 +300,14 @@ class EuroleagueAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
             game_id: External game identifier (e.g., "E2024_1").
 
         Returns:
-            List of RawPBPEvent objects.
+            Tuple of (events, player_id_to_jersey). Jersey mapping is empty
+            for Euroleague since external IDs match database.
 
         Raises:
             EuroleagueAPIError: If the game doesn't exist or request fails.
 
         Example:
-            >>> events = await adapter.get_game_pbp("E2024_1")
+            >>> events, _ = await adapter.get_game_pbp("E2024_1")
             >>> for event in events[:5]:
             ...     print(f"{event.clock} - {event.event_type}")
         """
@@ -313,7 +316,7 @@ class EuroleagueAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         # Use live PBP API
         result = self.direct_client.fetch_live_pbp(season, gamecode)
 
-        return self.mapper.map_pbp_from_live(result.data)
+        return self.mapper.map_pbp_from_live(result.data), {}
 
     def is_game_final(self, game: RawGame) -> bool:
         """

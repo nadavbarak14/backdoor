@@ -245,7 +245,9 @@ class NBAAdapter(BaseLeagueAdapter):
         boxscore_data = self.client.get_boxscore(game_id)
         return self.mapper.map_boxscore(boxscore_data, game_id)
 
-    async def get_game_pbp(self, game_id: str) -> list[RawPBPEvent]:
+    async def get_game_pbp(
+        self, game_id: str
+    ) -> tuple[list[RawPBPEvent], dict[str, int]]:
         """
         Fetch play-by-play events for a game.
 
@@ -253,19 +255,20 @@ class NBAAdapter(BaseLeagueAdapter):
             game_id: External game identifier (e.g., "0022300001").
 
         Returns:
-            List of RawPBPEvent objects.
+            Tuple of (events, player_id_to_jersey). Jersey mapping is empty
+            for NBA since external IDs match database.
 
         Raises:
             NBANotFoundError: If the game doesn't exist.
             NBAAPIError: If PBP data is unavailable or request fails.
 
         Example:
-            >>> events = await adapter.get_game_pbp("0022300001")
+            >>> events, _ = await adapter.get_game_pbp("0022300001")
             >>> for event in events[:5]:
             ...     print(f"{event.clock} - {event.event_type}")
         """
         pbp_data = self.client.get_pbp(game_id)
-        return self.mapper.map_pbp_events(pbp_data)
+        return self.mapper.map_pbp_events(pbp_data), {}
 
     def is_game_final(self, game: RawGame) -> bool:
         """

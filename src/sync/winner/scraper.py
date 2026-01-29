@@ -89,6 +89,8 @@ class RosterPlayer:
         name: Player name.
         jersey_number: Jersey number.
         position: Playing position.
+        height_cm: Height in centimeters.
+        birth_date: Date of birth.
 
     Example:
         >>> for player in roster.players:
@@ -99,6 +101,8 @@ class RosterPlayer:
     name: str
     jersey_number: str | None = None
     position: str | None = None
+    height_cm: int | None = None
+    birth_date: datetime | None = None
 
 
 @dataclass
@@ -622,15 +626,44 @@ class WinnerScraper:
                 num_div = box.find("div", class_="role_num")
                 jersey_number = num_div.get_text(strip=True) if num_div else None
 
-                # Extract position from role_desc div
+                # Extract position, height, and birthdate from role_desc div
+                # Format: <strong>G | 1.93</strong><br />04/12/1994
                 position = None
+                height_cm = None
+                birth_date = None
                 desc_div = box.find("div", class_="role_desc")
                 if desc_div:
                     strong = desc_div.find("strong")
                     if strong:
                         pos_height = strong.get_text(strip=True)
+                        # Replace &nbsp; with regular space
+                        pos_height = pos_height.replace("\xa0", " ")
                         if "|" in pos_height:
-                            position = pos_height.split("|")[0].strip()
+                            parts = pos_height.split("|")
+                            position = parts[0].strip()
+                            # Height is in meters like "1.93"
+                            if len(parts) > 1:
+                                height_str = parts[1].strip()
+                                try:
+                                    height_cm = int(float(height_str) * 100)
+                                except ValueError:
+                                    pass
+
+                    # Birthdate is after the <strong> tag
+                    # Get all text in desc_div except the strong tag
+                    desc_text = desc_div.get_text(separator=" ", strip=True)
+                    # Remove the position|height part
+                    if strong:
+                        strong_text = strong.get_text(strip=True)
+                        desc_text = desc_text.replace(strong_text, "").strip()
+                    # Try to parse date (format: DD/MM/YYYY)
+                    if desc_text:
+                        for fmt in ["%d/%m/%Y", "%Y-%m-%d", "%d.%m.%Y"]:
+                            try:
+                                birth_date = datetime.strptime(desc_text, fmt)
+                                break
+                            except ValueError:
+                                continue
 
                 roster.players.append(
                     RosterPlayer(
@@ -638,6 +671,8 @@ class WinnerScraper:
                         name=player_name,
                         jersey_number=jersey_number,
                         position=position,
+                        height_cm=height_cm,
+                        birth_date=birth_date,
                     )
                 )
 

@@ -386,12 +386,13 @@ class TestGetGamePbp:
             cache_id="test",
         )
 
-        events = await adapter.get_game_pbp("E2024_1")
+        events, player_id_to_jersey = await adapter.get_game_pbp("E2024_1")
 
         assert len(events) == 3
         assert events[0].event_type == EventType.SHOT
         assert events[0].period == 1
         assert events[2].period == 2
+        assert player_id_to_jersey == {}  # Euroleague doesn't need jersey mapping
 
 
 class TestIsGameFinal:

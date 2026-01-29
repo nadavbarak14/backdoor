@@ -369,12 +369,13 @@ class TestGetGamePbp:
             cache_id="test",
         )
 
-        events = await adapter.get_game_pbp("12345")
+        events, player_id_to_jersey = await adapter.get_game_pbp("12345")
 
         assert len(events) == 2
         assert events[0].event_type == EventType.SHOT
         assert events[0].success is True
         assert events[1].event_type == EventType.TURNOVER
+        assert isinstance(player_id_to_jersey, dict)  # Winner returns jersey mapping
 
 
 class TestIsGameFinal:

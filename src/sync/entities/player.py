@@ -305,17 +305,30 @@ class PlayerSyncer:
                     canonical, team_id, source, season_id
                 )
 
-        # Fall back to jersey matching
-        if canonical.jersey_number is not None:
-            jersey_str = str(canonical.jersey_number)
-            if jersey_str.isdigit():
-                return self.deduplicator.match_player_by_jersey(
-                    team_id=team_id,
-                    season_id=season_id,
-                    jersey_number=int(jersey_str),
-                )
-
         return None
+
+    def match_player_by_jersey(
+        self,
+        team_id: UUID,
+        season_id: UUID,
+        jersey_number: int,
+    ) -> Player | None:
+        """
+        Match player by jersey number on team roster.
+
+        Args:
+            team_id: UUID of the team.
+            season_id: UUID of the season.
+            jersey_number: Jersey number to match.
+
+        Returns:
+            Player if found, None otherwise.
+        """
+        return self.deduplicator.match_player_by_jersey(
+            team_id=team_id,
+            season_id=season_id,
+            jersey_number=jersey_number,
+        )
 
     def _update_player_from_canonical(
         self,

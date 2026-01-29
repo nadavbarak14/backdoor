@@ -108,28 +108,53 @@ def raw_player_stats_to_canonical(raw: RawPlayerStats) -> CanonicalPlayerStats:
     )
 
 
-def raw_boxscore_to_canonical_stats(raw: RawBoxScore) -> list[CanonicalPlayerStats]:
+def raw_boxscore_to_canonical_stats(
+    raw: RawBoxScore,
+    home_team_external_id: str | None = None,
+    away_team_external_id: str | None = None,
+) -> tuple[list[CanonicalPlayerStats], list[str | None]]:
     """
-    Convert RawBoxScore to list of CanonicalPlayerStats.
+    Convert RawBoxScore to list of CanonicalPlayerStats and jersey numbers.
 
     Args:
         raw: RawBoxScore with home_players and away_players.
+        home_team_external_id: Override team ID for home players. Required when
+            boxscore API returns internal IDs different from actual team IDs
+            (e.g., segevstats returns "2" instead of basket.co.il "1109").
+        away_team_external_id: Override team ID for away players.
 
     Returns:
-        List of CanonicalPlayerStats for all players.
+        Tuple of (stats_list, jersey_numbers) where jersey_numbers is a parallel
+        list for player matching when boxscore lacks player names/IDs.
 
     Example:
-        >>> stats = raw_boxscore_to_canonical_stats(boxscore)
+        >>> # Use correct team IDs from game schedule, not boxscore
+        >>> stats, jerseys = raw_boxscore_to_canonical_stats(
+        ...     boxscore,
+        ...     home_team_external_id=game.home_team_external_id,
+        ...     away_team_external_id=game.away_team_external_id,
+        ... )
     """
     canonical_stats: list[CanonicalPlayerStats] = []
+    jersey_numbers: list[str | None] = []
 
     for player_stats in raw.home_players:
-        canonical_stats.append(raw_player_stats_to_canonical(player_stats))
+        canonical = raw_player_stats_to_canonical(player_stats)
+        # Override with correct team ID if provided
+        if home_team_external_id:
+            canonical.team_external_id = home_team_external_id
+        canonical_stats.append(canonical)
+        jersey_numbers.append(player_stats.jersey_number)
 
     for player_stats in raw.away_players:
-        canonical_stats.append(raw_player_stats_to_canonical(player_stats))
+        canonical = raw_player_stats_to_canonical(player_stats)
+        # Override with correct team ID if provided
+        if away_team_external_id:
+            canonical.team_external_id = away_team_external_id
+        canonical_stats.append(canonical)
+        jersey_numbers.append(player_stats.jersey_number)
 
-    return canonical_stats
+    return canonical_stats, jersey_numbers
 
 
 def raw_pbp_to_canonical(raw: RawPBPEvent) -> CanonicalPBPEvent:
@@ -170,20 +195,38 @@ def raw_pbp_to_canonical(raw: RawPBPEvent) -> CanonicalPBPEvent:
     )
 
 
-def raw_pbp_list_to_canonical(events: list[RawPBPEvent]) -> list[CanonicalPBPEvent]:
+def raw_pbp_list_to_canonical(
+    events: list[RawPBPEvent],
+    team_id_map: dict[str, str] | None = None,
+) -> list[CanonicalPBPEvent]:
     """
     Convert list of RawPBPEvent to list of CanonicalPBPEvent.
 
     Args:
         events: List of RawPBPEvent from adapter.
+        team_id_map: Optional mapping from internal team IDs to real team IDs.
+            E.g., {"1": "1109", "2": "1112"} maps segevstats IDs to basket.co.il IDs.
 
     Returns:
         List of CanonicalPBPEvent.
 
     Example:
-        >>> canonical_events = raw_pbp_list_to_canonical(raw_events)
+        >>> # Map segevstats team IDs to real IDs
+        >>> canonical_events = raw_pbp_list_to_canonical(
+        ...     raw_events,
+        ...     team_id_map={"1": "1112", "2": "1109"},
+        ... )
     """
-    return [raw_pbp_to_canonical(e) for e in events]
+    canonical_events = []
+    for e in events:
+        canonical = raw_pbp_to_canonical(e)
+        # Remap team ID if mapping provided
+        if team_id_map and canonical.team_external_id:
+            canonical.team_external_id = team_id_map.get(
+                canonical.team_external_id, canonical.team_external_id
+            )
+        canonical_events.append(canonical)
+    return canonical_events
 
 
 def _parse_clock_to_seconds(clock: str) -> int:

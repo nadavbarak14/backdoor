@@ -205,9 +205,10 @@ class TestIBasketballAdapter:
             """Test getting PBP without scraper returns empty."""
             adapter.scraper = None
 
-            events = await adapter.get_game_pbp("123")
+            events, player_id_to_jersey = await adapter.get_game_pbp("123")
 
             assert events == []
+            assert player_id_to_jersey == {}
 
         @pytest.mark.asyncio
         async def test_get_game_pbp_with_scraper(
@@ -235,10 +236,11 @@ class TestIBasketballAdapter:
             ]
             mock_scraper.fetch_game_pbp.return_value = mock_pbp
 
-            events = await adapter.get_game_pbp("123")
+            events, player_id_to_jersey = await adapter.get_game_pbp("123")
 
             assert len(events) == 1
             assert events[0].event_type == EventType.SHOT
+            assert player_id_to_jersey == {}  # iBasketball doesn't need jersey mapping
             mock_scraper.fetch_game_pbp.assert_called_once_with("team-a-vs-team-b")
 
     class TestIsGameFinal:

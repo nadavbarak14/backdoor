@@ -151,24 +151,31 @@ class BaseLeagueAdapter(ABC):
         ...
 
     @abstractmethod
-    async def get_game_pbp(self, game_id: str) -> list[RawPBPEvent]:
+    async def get_game_pbp(
+        self, game_id: str
+    ) -> tuple[list[RawPBPEvent], dict[str, int]]:
         """
         Fetch play-by-play events for a game.
 
-        Returns all recorded events from the game in chronological order.
+        Returns all recorded events from the game in chronological order,
+        plus a mapping from internal player IDs to jersey numbers for
+        sources where internal IDs don't match database external IDs.
 
         Args:
             game_id: External game identifier
 
         Returns:
-            List of RawPBPEvent objects in chronological order
+            Tuple of (events, player_id_to_jersey) where:
+            - events: List of RawPBPEvent objects in chronological order
+            - player_id_to_jersey: Dict mapping internal player ID to jersey number
+              (empty dict if not needed for this source)
 
         Raises:
             GameNotFoundError: If the game doesn't exist
             AdapterError: If PBP data is unavailable or request fails
 
         Example:
-            >>> events = await adapter.get_game_pbp("game-123")
+            >>> events, player_jerseys = await adapter.get_game_pbp("game-123")
             >>> shots = [e for e in events if e.event_type == "shot"]
         """
         ...

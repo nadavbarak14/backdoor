@@ -434,12 +434,30 @@ class SyncManager:
             )
             records_processed = len(final_games)
 
+            # Build lookup from ext_id to raw_game for team ID mapping
+            final_games_by_id = {g.external_id: g for g in final_games}
+
             # Sync PBP for existing games that don't have it
             for ext_id, game in games_needing_pbp:
                 try:
-                    pbp_events = await adapter.get_game_pbp(ext_id)
-                    canonical_pbp = raw_pbp_list_to_canonical(pbp_events)
-                    self.game_syncer.sync_pbp_from_canonical(canonical_pbp, game, source)
+                    pbp_events, player_id_to_jersey = await adapter.get_game_pbp(ext_id)
+                    # Get team ID mapping from schedule data
+                    raw_game = final_games_by_id.get(ext_id)
+                    if raw_game:
+                        # Fetch boxscore to get segevstats team IDs
+                        boxscore = await adapter.get_game_boxscore(ext_id)
+                        team_id_map = {
+                            boxscore.game.home_team_external_id: raw_game.home_team_external_id,
+                            boxscore.game.away_team_external_id: raw_game.away_team_external_id,
+                        }
+                        canonical_pbp = raw_pbp_list_to_canonical(
+                            pbp_events, team_id_map=team_id_map
+                        )
+                    else:
+                        canonical_pbp = raw_pbp_list_to_canonical(pbp_events)
+                    self.game_syncer.sync_pbp_from_canonical(
+                        canonical_pbp, game, source, player_id_to_jersey=player_id_to_jersey
+                    )
                     records_updated += 1
                     self.db.commit()
                 except Exception as e:
@@ -457,22 +475,35 @@ class SyncManager:
                         canonical_game, season.id
                     )
 
-                    # Sync box score
+                    # Sync box score - use team IDs from schedule, not boxscore
+                    # (segevstats boxscore returns internal IDs like "2" instead of "1109")
                     boxscore = await adapter.get_game_boxscore(raw_game.external_id)
-                    canonical_stats = raw_boxscore_to_canonical_stats(boxscore)
+                    canonical_stats, jersey_numbers = raw_boxscore_to_canonical_stats(
+                        boxscore,
+                        home_team_external_id=raw_game.home_team_external_id,
+                        away_team_external_id=raw_game.away_team_external_id,
+                    )
                     self.game_syncer.sync_boxscore_from_canonical(
-                        canonical_stats, game, source
+                        canonical_stats, game, source, jersey_numbers=jersey_numbers
                     )
 
                     # Sync PBP if requested
                     if include_pbp:
                         try:
-                            pbp_events = await adapter.get_game_pbp(
+                            pbp_events, player_id_to_jersey = await adapter.get_game_pbp(
                                 raw_game.external_id
                             )
-                            canonical_pbp = raw_pbp_list_to_canonical(pbp_events)
+                            # Build team ID mapping: segevstats ID -> real ID
+                            team_id_map = {
+                                boxscore.game.home_team_external_id: raw_game.home_team_external_id,
+                                boxscore.game.away_team_external_id: raw_game.away_team_external_id,
+                            }
+                            canonical_pbp = raw_pbp_list_to_canonical(
+                                pbp_events, team_id_map=team_id_map
+                            )
                             self.game_syncer.sync_pbp_from_canonical(
-                                canonical_pbp, game, source
+                                canonical_pbp, game, source,
+                                player_id_to_jersey=player_id_to_jersey
                             )
                         except Exception:
                             # PBP is optional, don't fail the whole sync
@@ -589,6 +620,9 @@ class SyncManager:
 
             total_to_sync = len(unsynced_games) + len(games_needing_pbp)
 
+            # Build lookup from ext_id to raw_game for team ID mapping
+            final_games_by_id = {g.external_id: g for g in final_games}
+
             # Emit start event
             yield {
                 "event": "start",
@@ -610,9 +644,23 @@ class SyncManager:
                     "status": "syncing_pbp",
                 }
                 try:
-                    pbp_events = await adapter.get_game_pbp(ext_id)
-                    canonical_pbp = raw_pbp_list_to_canonical(pbp_events)
-                    self.game_syncer.sync_pbp_from_canonical(canonical_pbp, game, source)
+                    pbp_events, player_id_to_jersey = await adapter.get_game_pbp(ext_id)
+                    # Get team ID mapping from schedule data
+                    raw_game = final_games_by_id.get(ext_id)
+                    if raw_game:
+                        boxscore = await adapter.get_game_boxscore(ext_id)
+                        team_id_map = {
+                            boxscore.game.home_team_external_id: raw_game.home_team_external_id,
+                            boxscore.game.away_team_external_id: raw_game.away_team_external_id,
+                        }
+                        canonical_pbp = raw_pbp_list_to_canonical(
+                            pbp_events, team_id_map=team_id_map
+                        )
+                    else:
+                        canonical_pbp = raw_pbp_list_to_canonical(pbp_events)
+                    self.game_syncer.sync_pbp_from_canonical(
+                        canonical_pbp, game, source, player_id_to_jersey=player_id_to_jersey
+                    )
                     records_updated += 1
                     self.db.commit()
                     yield {"event": "synced", "game_id": ext_id}
@@ -641,22 +689,35 @@ class SyncManager:
                         canonical_game, season.id
                     )
 
-                    # Sync box score
+                    # Sync box score - use team IDs from schedule, not boxscore
+                    # (segevstats boxscore returns internal IDs like "2" instead of "1109")
                     boxscore = await adapter.get_game_boxscore(raw_game.external_id)
-                    canonical_stats = raw_boxscore_to_canonical_stats(boxscore)
+                    canonical_stats, jersey_numbers = raw_boxscore_to_canonical_stats(
+                        boxscore,
+                        home_team_external_id=raw_game.home_team_external_id,
+                        away_team_external_id=raw_game.away_team_external_id,
+                    )
                     self.game_syncer.sync_boxscore_from_canonical(
-                        canonical_stats, game, source
+                        canonical_stats, game, source, jersey_numbers=jersey_numbers
                     )
 
                     # Sync PBP if requested
                     if include_pbp:
                         try:
-                            pbp_events = await adapter.get_game_pbp(
+                            pbp_events, player_id_to_jersey = await adapter.get_game_pbp(
                                 raw_game.external_id
                             )
-                            canonical_pbp = raw_pbp_list_to_canonical(pbp_events)
+                            # Build team ID mapping: segevstats ID -> real ID
+                            team_id_map = {
+                                boxscore.game.home_team_external_id: raw_game.home_team_external_id,
+                                boxscore.game.away_team_external_id: raw_game.away_team_external_id,
+                            }
+                            canonical_pbp = raw_pbp_list_to_canonical(
+                                pbp_events, team_id_map=team_id_map
+                            )
                             self.game_syncer.sync_pbp_from_canonical(
-                                canonical_pbp, game, source
+                                canonical_pbp, game, source,
+                                player_id_to_jersey=player_id_to_jersey
                             )
                         except Exception:
                             # PBP is optional, don't fail the whole sync
@@ -804,21 +865,37 @@ class SyncManager:
                     )
                     self.db.flush()
 
-                    # Sync boxscore
+                    # Sync boxscore - use team IDs from schedule, not boxscore
                     boxscore = await adapter.get_game_boxscore(raw_game.external_id)
-                    canonical_stats = raw_boxscore_to_canonical_stats(boxscore)
+                    canonical_stats, jersey_numbers = raw_boxscore_to_canonical_stats(
+                        boxscore,
+                        home_team_external_id=raw_game.home_team_external_id,
+                        away_team_external_id=raw_game.away_team_external_id,
+                    )
                     self.game_syncer.sync_boxscore_from_canonical(
-                        canonical_stats, game, source
+                        canonical_stats, game, source, jersey_numbers=jersey_numbers
                     )
                     self.db.flush()
 
                     # Sync PBP if requested
                     if include_pbp:
                         try:
-                            pbp_events = await adapter.get_game_pbp(raw_game.external_id)
-                            canonical_pbp = raw_pbp_list_to_canonical(pbp_events)
+                            pbp_events, player_id_to_jersey = await adapter.get_game_pbp(
+                                raw_game.external_id
+                            )
+                            # Build team ID mapping: segevstats ID -> real ID
+                            team_id_map = {
+                                boxscore.game.home_team_external_id: raw_game.home_team_external_id,
+                                boxscore.game.away_team_external_id: raw_game.away_team_external_id,
+                            }
+                            canonical_pbp = raw_pbp_list_to_canonical(
+                                pbp_events, team_id_map=team_id_map
+                            )
                             self.game_syncer.sync_pbp_from_canonical(
-                                canonical_pbp, game, source
+                                canonical_pbp,
+                                game,
+                                source,
+                                player_id_to_jersey=player_id_to_jersey,
                             )
                         except Exception:
                             pass  # PBP failure doesn't fail game sync
@@ -928,16 +1005,39 @@ class SyncManager:
             canonical_game = raw_game_to_canonical(raw_game, source, season_external_id)
             game = self.game_syncer.sync_game_from_canonical(canonical_game, season.id)
 
-            # Sync box score
-            canonical_stats = raw_boxscore_to_canonical_stats(boxscore)
-            self.game_syncer.sync_boxscore_from_canonical(canonical_stats, game, source)
+            # Sync box score - use team IDs from raw_game
+            # Note: For single game sync via boxscore, team IDs may still be segevstats internal IDs
+            # This is a limitation - prefer using sync_season which has correct schedule data
+            canonical_stats, jersey_numbers = raw_boxscore_to_canonical_stats(
+                boxscore,
+                home_team_external_id=raw_game.home_team_external_id,
+                away_team_external_id=raw_game.away_team_external_id,
+            )
+            self.game_syncer.sync_boxscore_from_canonical(
+                canonical_stats, game, source, jersey_numbers=jersey_numbers
+            )
 
             # Sync PBP if requested
+            # Note: For single game sync, team IDs may be segevstats internal IDs
+            # This is a limitation - prefer using sync_season which has schedule data
             if include_pbp:
                 try:
-                    pbp_events = await adapter.get_game_pbp(game_external_id)
-                    canonical_pbp = raw_pbp_list_to_canonical(pbp_events)
-                    self.game_syncer.sync_pbp_from_canonical(canonical_pbp, game, source)
+                    pbp_events, player_id_to_jersey = await adapter.get_game_pbp(
+                        game_external_id
+                    )
+                    team_id_map = {
+                        boxscore.game.home_team_external_id: raw_game.home_team_external_id,
+                        boxscore.game.away_team_external_id: raw_game.away_team_external_id,
+                    }
+                    canonical_pbp = raw_pbp_list_to_canonical(
+                        pbp_events, team_id_map=team_id_map
+                    )
+                    self.game_syncer.sync_pbp_from_canonical(
+                        canonical_pbp,
+                        game,
+                        source,
+                        player_id_to_jersey=player_id_to_jersey,
+                    )
                 except Exception:
                     pass  # PBP is optional
 
@@ -1184,8 +1284,8 @@ class SyncManager:
 
             records_processed = len(results)
 
-            # Fetch team roster from source
-            roster = await adapter.get_team_roster(team_external_id)
+            # Fetch team roster from source (no profile fetches - data is on roster page)
+            roster = await adapter.get_team_roster(team_external_id, fetch_profiles=False)
 
             if not roster:
                 # No roster available, skip
@@ -1538,7 +1638,10 @@ class SyncManager:
             # If adapter supports roster fetching, sync roster too
             if isinstance(adapter, BasePlayerInfoAdapter):
                 try:
-                    roster = await adapter.get_team_roster(raw_team.external_id)
+                    # fetch_profiles=False: get all data from roster page (faster)
+                    roster = await adapter.get_team_roster(
+                        raw_team.external_id, fetch_profiles=False
+                    )
                     if roster:
                         self.team_syncer.sync_roster_from_info(
                             roster, team, season, source

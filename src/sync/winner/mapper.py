@@ -950,6 +950,41 @@ class WinnerMapper:
 
         return PlayerRoster(players=players)
 
+    def extract_player_id_to_jersey(self, pbp_data: dict) -> dict[str, int]:
+        """
+        Extract mapping from segevstats player IDs to jersey numbers.
+
+        Used to match PBP events to players when segevstats IDs don't
+        match database external IDs.
+
+        Args:
+            pbp_data: Full PBP JSON-RPC response.
+
+        Returns:
+            Dict mapping segevstats player ID to jersey number.
+
+        Example:
+            >>> mapper = WinnerMapper()
+            >>> mapping = mapper.extract_player_id_to_jersey(pbp_data)
+            >>> mapping["1000"]
+            1
+        """
+        player_id_to_jersey: dict[str, int] = {}
+
+        result = pbp_data.get("result", {})
+        game_info = result.get("gameInfo", {})
+
+        # Extract from both teams
+        for team_key in ("homeTeam", "awayTeam"):
+            team = game_info.get(team_key, {})
+            for player in team.get("players", []):
+                player_id = str(player.get("id", ""))
+                jersey = player.get("jerseyNumber")
+                if player_id and jersey is not None:
+                    player_id_to_jersey[player_id] = int(jersey)
+
+        return player_id_to_jersey
+
     def map_segevstats_pbp_events(self, data: dict) -> list[RawPBPEvent]:
         """
         Map play-by-play events from segevstats JSON-RPC format.
@@ -1297,12 +1332,17 @@ class WinnerMapper:
         # Normalize position to list of Position enums
         positions = Normalizers.try_normalize_positions(roster_player.position, "winner") or []
 
+        # Get birth_date - convert datetime to date if present
+        birth_date = None
+        if roster_player.birth_date:
+            birth_date = roster_player.birth_date.date()
+
         return RawPlayerInfo(
             external_id=roster_player.player_id,
             first_name=first_name,
             last_name=last_name,
-            birth_date=None,  # Not available from roster page
-            height_cm=None,  # Not available from roster page without profile fetch
+            birth_date=birth_date,
+            height_cm=roster_player.height_cm,
             positions=positions,
             jersey_number=roster_player.jersey_number,
         )

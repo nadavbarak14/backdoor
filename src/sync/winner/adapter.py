@@ -402,29 +402,40 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         result = self.client.fetch_boxscore(game_id)
         return self.mapper.map_boxscore(result.data)
 
-    async def get_game_pbp(self, game_id: str) -> list[RawPBPEvent]:
+    async def get_game_pbp(
+        self, game_id: str
+    ) -> tuple[list[RawPBPEvent], dict[str, int]]:
         """
         Fetch play-by-play events for a game.
 
         Events are returned with inferred links between related events
         (e.g., assists linked to shots, rebounds linked to misses).
 
+        Also returns a mapping from internal player IDs to jersey numbers
+        for player matching when internal IDs don't match database.
+
         Args:
             game_id: External game identifier.
 
         Returns:
-            List of RawPBPEvent objects with inferred links.
+            Tuple of (events, player_id_to_jersey) where:
+            - events: List of RawPBPEvent objects with inferred links
+            - player_id_to_jersey: Dict mapping internal player ID to jersey number
 
         Raises:
             WinnerAPIError: If the game doesn't exist or request fails.
 
         Example:
-            >>> events = await adapter.get_game_pbp("12345")
+            >>> events, player_jerseys = await adapter.get_game_pbp("12345")
             >>> for event in events[:5]:
             ...     print(f"{event.clock} - {event.event_type}")
+            >>> player_jerseys["1000"]  # Player 1000 wears jersey #1
+            1
         """
         result = self.client.fetch_pbp(game_id)
-        return self.mapper.map_pbp_events(result.data)
+        events = self.mapper.map_pbp_events(result.data)
+        player_id_to_jersey = self.mapper.extract_player_id_to_jersey(result.data)
+        return events, player_id_to_jersey
 
     def is_game_final(self, game: RawGame) -> bool:
         """

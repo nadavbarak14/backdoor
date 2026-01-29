@@ -285,6 +285,7 @@ class GameSyncer:
         player_stats_list: list[CanonicalPlayerStats],
         game: Game,
         source: str,
+        jersey_numbers: list[str | None] | None = None,
     ) -> tuple[list[PlayerGameStats], list[TeamGameStats]]:
         """
         Sync box score from canonical player stats.
@@ -296,13 +297,16 @@ class GameSyncer:
             player_stats_list: List of CanonicalPlayerStats from converter.
             game: The Game entity to sync stats for.
             source: Data source name for player matching.
+            jersey_numbers: Optional parallel list of jersey numbers for matching.
+                Used when boxscore doesn't have player names/IDs that match roster.
 
         Returns:
             Tuple of (player_stats, team_stats) lists.
 
         Example:
             >>> player_stats, team_stats = syncer.sync_boxscore_from_canonical(
-            ...     canonical_stats, game, "euroleague"
+            ...     canonical_stats, game, "euroleague",
+            ...     jersey_numbers=["1", "5", "23", ...]
             ... )
         """
         # Delete existing stats for this game (re-sync)
@@ -312,7 +316,7 @@ class GameSyncer:
         home_player_stats: list[PlayerGameStats] = []
         away_player_stats: list[PlayerGameStats] = []
 
-        for canonical in player_stats_list:
+        for idx, canonical in enumerate(player_stats_list):
             # Resolve team_id from external_id
             team = self.team_syncer.get_by_external_id(
                 source, canonical.team_external_id
@@ -330,6 +334,16 @@ class GameSyncer:
                 season_id=game.season_id,
                 source=source,
             )
+
+            # Fall back to jersey number matching if player not found
+            if player is None and jersey_numbers and idx < len(jersey_numbers):
+                jersey = jersey_numbers[idx]
+                if jersey and jersey.isdigit():
+                    player = self.player_syncer.match_player_by_jersey(
+                        team_id=team_id,
+                        season_id=game.season_id,
+                        jersey_number=int(jersey),
+                    )
 
             if player is None:
                 continue
@@ -395,6 +409,7 @@ class GameSyncer:
         events: list[CanonicalPBPEvent],
         game: Game,
         source: str,
+        player_id_to_jersey: dict[str, int] | None = None,
     ) -> list[PlayByPlayEvent]:
         """
         Sync play-by-play events from canonical data.
@@ -406,13 +421,16 @@ class GameSyncer:
             events: List of CanonicalPBPEvent from converter.
             game: The Game entity to sync events for.
             source: The data source name.
+            player_id_to_jersey: Mapping from external player IDs to jersey numbers.
+                Used when external IDs don't match database (e.g., segevstats IDs).
 
         Returns:
             List of created PlayByPlayEvent entities.
 
         Example:
             >>> pbp_events = syncer.sync_pbp_from_canonical(
-            ...     canonical_events, game, "euroleague"
+            ...     canonical_events, game, "euroleague",
+            ...     player_id_to_jersey={"1000": 1, "1014": 2}
             ... )
         """
         # Delete existing PBP for this game (re-sync)
@@ -427,10 +445,19 @@ class GameSyncer:
             team_id = self._resolve_team_id_canonical(
                 canonical.team_external_id, game, source
             )
-            # Resolve player_id
+            # Resolve player_id - try external_id first, then jersey matching
             player_id = self._resolve_player_id_canonical(
                 canonical.player_external_id, team_id, source
             )
+            # Fall back to jersey matching if external_id didn't match
+            if player_id is None and player_id_to_jersey and canonical.player_external_id:
+                jersey = player_id_to_jersey.get(canonical.player_external_id)
+                if jersey is not None:
+                    player = self.player_syncer.match_player_by_jersey(
+                        team_id, game.season_id, jersey
+                    )
+                    if player:
+                        player_id = player.id
 
             # Build event subtype from canonical shot_type, rebound_type, etc.
             event_subtype = None

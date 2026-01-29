@@ -171,12 +171,14 @@ class TestRawBoxscoreToCanonicalStats:
             player_name="Home Player",
             team_external_id="t1",
             points=20,
+            jersey_number="5",
         )
         away_stats = RawPlayerStats(
             player_external_id="a1",
             player_name="Away Player",
             team_external_id="t2",
             points=15,
+            jersey_number="10",
         )
 
         raw = RawBoxScore(
@@ -191,13 +193,14 @@ class TestRawBoxscoreToCanonicalStats:
             away_players=[away_stats],
         )
 
-        canonical_stats = raw_boxscore_to_canonical_stats(raw)
+        canonical_stats, jersey_numbers = raw_boxscore_to_canonical_stats(raw)
 
         assert len(canonical_stats) == 2
         assert canonical_stats[0].player_external_id == "h1"
         assert canonical_stats[0].points == 20
         assert canonical_stats[1].player_external_id == "a1"
         assert canonical_stats[1].points == 15
+        assert jersey_numbers == ["5", "10"]
 
     def test_handles_empty_boxscore(self):
         """Empty boxscore returns empty list."""
@@ -213,9 +216,47 @@ class TestRawBoxscoreToCanonicalStats:
             away_players=[],
         )
 
-        canonical_stats = raw_boxscore_to_canonical_stats(raw)
+        canonical_stats, jersey_numbers = raw_boxscore_to_canonical_stats(raw)
 
         assert canonical_stats == []
+        assert jersey_numbers == []
+
+    def test_overrides_team_ids(self):
+        """Team IDs can be overridden for correct mapping."""
+        home_stats = RawPlayerStats(
+            player_external_id="h1",
+            player_name="Home Player",
+            team_external_id="2",  # Internal ID
+            points=20,
+        )
+        away_stats = RawPlayerStats(
+            player_external_id="a1",
+            player_name="Away Player",
+            team_external_id="4",  # Internal ID
+            points=15,
+        )
+
+        raw = RawBoxScore(
+            game=RawGame(
+                external_id="g1",
+                home_team_external_id="2",
+                away_team_external_id="4",
+                game_date=datetime.now(),
+                status=GameStatus.FINAL,
+            ),
+            home_players=[home_stats],
+            away_players=[away_stats],
+        )
+
+        # Override with real IDs
+        canonical_stats, _ = raw_boxscore_to_canonical_stats(
+            raw,
+            home_team_external_id="1109",
+            away_team_external_id="1112",
+        )
+
+        assert canonical_stats[0].team_external_id == "1109"
+        assert canonical_stats[1].team_external_id == "1112"
 
 
 class TestRawPbpToCanonical:

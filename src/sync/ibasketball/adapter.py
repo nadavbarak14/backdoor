@@ -286,7 +286,9 @@ class IBasketballAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
 
         return self.mapper.map_boxscore(result.data)
 
-    async def get_game_pbp(self, game_id: str) -> list[RawPBPEvent]:
+    async def get_game_pbp(
+        self, game_id: str
+    ) -> tuple[list[RawPBPEvent], dict[str, int]]:
         """
         Fetch play-by-play events for a game.
 
@@ -297,24 +299,25 @@ class IBasketballAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
             game_id: External game/event identifier.
 
         Returns:
-            List of RawPBPEvent objects with inferred links.
+            Tuple of (events, player_id_to_jersey). Jersey mapping is empty
+            for iBasketball since external IDs match database.
 
         Raises:
             IBasketballAPIError: If the game doesn't exist or request fails.
             IBasketballParseError: If the page cannot be parsed.
 
         Example:
-            >>> events = await adapter.get_game_pbp("123456")
+            >>> events, _ = await adapter.get_game_pbp("123456")
             >>> for event in events[:5]:
             ...     print(f"{event.clock} - {event.event_type}")
         """
         if not self.scraper:
-            return []
+            return [], {}
 
         # First get event data to get the slug
         result = self.client.fetch_event(game_id)
         if not isinstance(result.data, dict):
-            return []
+            return [], {}
 
         # Get event slug from data
         event_slug = result.data.get("slug", "")
@@ -325,7 +328,7 @@ class IBasketballAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
                 event_slug = link.split("/event/")[-1].strip("/")
 
         if not event_slug:
-            return []
+            return [], {}
 
         # Fetch and parse PBP
         pbp = self.scraper.fetch_game_pbp(event_slug)
@@ -345,7 +348,7 @@ class IBasketballAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
                 }
             )
 
-        return self.mapper.map_pbp_events(events_data)
+        return self.mapper.map_pbp_events(events_data), {}
 
     def is_game_final(self, game: RawGame) -> bool:
         """
