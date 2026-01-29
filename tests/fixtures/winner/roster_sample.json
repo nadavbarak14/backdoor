@@ -1,0 +1,92 @@
+[
+  {
+    "external_id": "1001",
+    "first_name": "John",
+    "last_name": "Smith",
+    "jersey_number": "5",
+    "position": "G",
+    "height_cm": 195,
+    "birth_date": "1995-05-15"
+  },
+  {
+    "external_id": "1002",
+    "first_name": "David",
+    "last_name": "Cohen",
+    "jersey_number": "10",
+    "position": "PG",
+    "height_cm": 183,
+    "birth_date": "1998-03-20"
+  },
+  {
+    "external_id": "1003",
+    "first_name": "Michael",
+    "last_name": "Brown",
+    "jersey_number": "23",
+    "position": "C",
+    "height_cm": 211,
+    "birth_date": "1993-08-10"
+  },
+  {
+    "external_id": "1004",
+    "first_name": "James",
+    "last_name": "Wilson",
+    "jersey_number": "7",
+    "position": "SF",
+    "height_cm": 201,
+    "birth_date": "1996-12-25"
+  },
+  {
+    "external_id": "1005",
+    "first_name": "Robert",
+    "last_name": "Taylor",
+    "jersey_number": "15",
+    "position": "PF",
+    "height_cm": 206,
+    "birth_date": "1994-01-01"
+  },
+  {
+    "external_id": "1006",
+    "first_name": "William",
+    "last_name": "Anderson",
+    "jersey_number": "33",
+    "position": "F-C",
+    "height_cm": 208,
+    "birth_date": "1997-07-14"
+  },
+  {
+    "external_id": "1007",
+    "first_name": "Thomas",
+    "last_name": "Jackson",
+    "jersey_number": "0",
+    "position": "G-F",
+    "height_cm": 198,
+    "birth_date": "1999-02-28"
+  },
+  {
+    "external_id": "1008",
+    "first_name": "Daniel",
+    "last_name": "White",
+    "jersey_number": "44",
+    "position": "F",
+    "height_cm": 203,
+    "birth_date": "1995-11-11"
+  },
+  {
+    "external_id": "1009",
+    "first_name": "Christopher",
+    "last_name": "Harris",
+    "jersey_number": "11",
+    "position": "SG",
+    "height_cm": 193,
+    "birth_date": "2000-04-15"
+  },
+  {
+    "external_id": "1010",
+    "first_name": "Matthew",
+    "last_name": "Martin",
+    "jersey_number": "8",
+    "position": "Guard",
+    "height_cm": 188,
+    "birth_date": "1998-09-05"
+  }
+]
