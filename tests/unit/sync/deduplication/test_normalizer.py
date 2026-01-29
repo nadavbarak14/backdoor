@@ -5,6 +5,8 @@ Tests for name normalization utilities used in deduplication.
 """
 
 from src.sync.deduplication.normalizer import (
+    name_similarity,
+    name_similarity_flexible,
     names_match,
     normalize_name,
     parse_full_name,
@@ -124,3 +126,80 @@ class TestParseFullName:
         first, last = parse_full_name("Mary Jane Watson")
         assert first == "Mary"
         assert last == "Jane Watson"
+
+
+class TestNameSimilarity:
+    """Tests for name_similarity function."""
+
+    def test_identical_names(self):
+        """Should return 1.0 for identical names."""
+        assert name_similarity("Jeff Downtin", "Jeff Downtin") == 1.0
+
+    def test_case_insensitive(self):
+        """Should return 1.0 for same name with different case."""
+        assert name_similarity("Jeff Downtin", "JEFF DOWNTIN") == 1.0
+
+    def test_similar_names(self):
+        """Should return high score for similar names."""
+        score = name_similarity("Scottie Wilbekin", "Scott Wilbekin")
+        assert score >= 0.85
+
+    def test_different_names(self):
+        """Should return low score for different names."""
+        score = name_similarity("Jeff Downtin", "LeBron James")
+        assert score < 0.4
+
+    def test_reversed_order_low_score(self):
+        """Direct comparison of reversed names should be lower."""
+        score = name_similarity("Jeff Downtin", "Downtin Jeff")
+        # Without flexible matching, reversed order has lower similarity
+        assert score < 1.0
+
+    def test_empty_string(self):
+        """Should return 0.0 when either name is empty."""
+        assert name_similarity("", "Jeff Downtin") == 0.0
+        assert name_similarity("Jeff Downtin", "") == 0.0
+        assert name_similarity("", "") == 0.0
+
+    def test_accents_normalized(self):
+        """Should normalize accents before comparison."""
+        score = name_similarity("Luka Dončić", "Luka Doncic")
+        assert score == 1.0
+
+
+class TestNameSimilarityFlexible:
+    """Tests for name_similarity_flexible function."""
+
+    def test_identical_names(self):
+        """Should return 1.0 for identical names."""
+        assert name_similarity_flexible("Jeff Downtin", "Jeff Downtin") == 1.0
+
+    def test_reversed_comma_format(self):
+        """Should match 'LASTNAME, FIRSTNAME' with 'FIRSTNAME LASTNAME'."""
+        score = name_similarity_flexible("Jeff Downtin", "DOWNTIN, JEFF")
+        assert score >= 0.95
+
+    def test_reversed_space_format(self):
+        """Should match reversed space-separated names."""
+        score = name_similarity_flexible("Jeff Downtin", "Downtin Jeff")
+        assert score >= 0.95
+
+    def test_similar_first_name_variation(self):
+        """Should handle first name variations like Scottie vs Scott."""
+        score = name_similarity_flexible("Scottie Wilbekin", "WILBEKIN, SCOTT")
+        assert score >= 0.8
+
+    def test_different_names(self):
+        """Should return low score for completely different names."""
+        score = name_similarity_flexible("Jeff Downtin", "LeBron James")
+        assert score < 0.5
+
+    def test_empty_string(self):
+        """Should return 0.0 when either name is empty."""
+        assert name_similarity_flexible("", "Jeff Downtin") == 0.0
+        assert name_similarity_flexible("Jeff Downtin", "") == 0.0
+
+    def test_single_name(self):
+        """Should handle single-word names."""
+        score = name_similarity_flexible("Neymar", "Neymar")
+        assert score == 1.0

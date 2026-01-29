@@ -516,3 +516,248 @@ class TestPlayerDeduplicatorFindPotentialDuplicates:
         duplicates = dedup.find_potential_duplicates()
 
         assert len(duplicates) == 0
+
+
+class TestPlayerDeduplicatorMatchByBirthdate:
+    """Tests for PlayerDeduplicator.match_player_by_birthdate method."""
+
+    def test_match_by_birthdate_exact_name(self, test_db):
+        """Should match player with same birthdate and exact name."""
+        player = Player(
+            first_name="Jeff",
+            last_name="Downtin",
+            birth_date=date(1994, 7, 18),
+            external_ids={"winner": "jeff-123"},
+        )
+        test_db.add(player)
+        test_db.commit()
+
+        dedup = PlayerDeduplicator(test_db)
+        found = dedup.match_player_by_birthdate(
+            birth_date=date(1994, 7, 18),
+            player_name="Jeff Downtin",
+            source="euroleague",
+        )
+
+        assert found is not None
+        assert found.id == player.id
+
+    def test_match_by_birthdate_reversed_name(self, test_db):
+        """Should match with LASTNAME, FIRSTNAME format via flexible similarity."""
+        player = Player(
+            first_name="Jeff",
+            last_name="Downtin",
+            birth_date=date(1994, 7, 18),
+            external_ids={"winner": "jeff-123"},
+        )
+        test_db.add(player)
+        test_db.commit()
+
+        dedup = PlayerDeduplicator(test_db)
+        found = dedup.match_player_by_birthdate(
+            birth_date=date(1994, 7, 18),
+            player_name="DOWNTIN, JEFF",
+            source="euroleague",
+        )
+
+        assert found is not None
+        assert found.id == player.id
+
+    def test_match_by_birthdate_similar_name(self, test_db):
+        """Should match with slight name variations (Scottie vs Scott)."""
+        player = Player(
+            first_name="Scottie",
+            last_name="Wilbekin",
+            birth_date=date(1993, 7, 19),
+            external_ids={"winner": "scottie-123"},
+        )
+        test_db.add(player)
+        test_db.commit()
+
+        dedup = PlayerDeduplicator(test_db)
+        found = dedup.match_player_by_birthdate(
+            birth_date=date(1993, 7, 19),
+            player_name="WILBEKIN, SCOTT",
+            source="euroleague",
+        )
+
+        assert found is not None
+        assert found.id == player.id
+
+    def test_no_match_different_birthdate(self, test_db):
+        """Should not match when birthdates differ."""
+        player = Player(
+            first_name="Jeff",
+            last_name="Downtin",
+            birth_date=date(1994, 7, 18),
+            external_ids={"winner": "jeff-123"},
+        )
+        test_db.add(player)
+        test_db.commit()
+
+        dedup = PlayerDeduplicator(test_db)
+        found = dedup.match_player_by_birthdate(
+            birth_date=date(1995, 3, 22),
+            player_name="DOWNTIN, JEFF",
+            source="euroleague",
+        )
+
+        assert found is None
+
+    def test_no_match_below_similarity_threshold(self, test_db):
+        """Should not match when name similarity is below threshold."""
+        player = Player(
+            first_name="Jeff",
+            last_name="Downtin",
+            birth_date=date(1994, 7, 18),
+            external_ids={"winner": "jeff-123"},
+        )
+        test_db.add(player)
+        test_db.commit()
+
+        dedup = PlayerDeduplicator(test_db)
+        found = dedup.match_player_by_birthdate(
+            birth_date=date(1994, 7, 18),
+            player_name="Completely Different Name",
+            source="euroleague",
+        )
+
+        assert found is None
+
+    def test_skips_already_mapped_source(self, test_db):
+        """Should skip players already mapped to the same source."""
+        player = Player(
+            first_name="Jeff",
+            last_name="Downtin",
+            birth_date=date(1994, 7, 18),
+            external_ids={"winner": "jeff-123", "euroleague": "PJDO"},
+        )
+        test_db.add(player)
+        test_db.commit()
+
+        dedup = PlayerDeduplicator(test_db)
+        found = dedup.match_player_by_birthdate(
+            birth_date=date(1994, 7, 18),
+            player_name="Jeff Downtin",
+            source="euroleague",
+        )
+
+        assert found is None
+
+    def test_picks_best_name_match(self, test_db):
+        """Should pick the best name match when multiple players share birthdate."""
+        player1 = Player(
+            first_name="Jeff",
+            last_name="Downtin",
+            birth_date=date(1994, 7, 18),
+            external_ids={"winner": "jeff-123"},
+        )
+        player2 = Player(
+            first_name="Mike",
+            last_name="Johnson",
+            birth_date=date(1994, 7, 18),
+            external_ids={"winner": "mike-456"},
+        )
+        test_db.add_all([player1, player2])
+        test_db.commit()
+
+        dedup = PlayerDeduplicator(test_db)
+        found = dedup.match_player_by_birthdate(
+            birth_date=date(1994, 7, 18),
+            player_name="DOWNTIN, JEFF",
+            source="euroleague",
+        )
+
+        assert found is not None
+        assert found.id == player1.id
+
+    def test_no_candidates(self, test_db):
+        """Should return None when no players have this birthdate."""
+        dedup = PlayerDeduplicator(test_db)
+        found = dedup.match_player_by_birthdate(
+            birth_date=date(1994, 7, 18),
+            player_name="Jeff Downtin",
+            source="euroleague",
+        )
+
+        assert found is None
+
+
+class TestPlayerDeduplicatorGetBirthdateMap:
+    """Tests for PlayerDeduplicator.get_birthdate_player_map method."""
+
+    def test_builds_birthdate_map(self, test_db):
+        """Should build hashmap of birthdates to players."""
+        player1 = Player(
+            first_name="Jeff",
+            last_name="Downtin",
+            birth_date=date(1994, 7, 18),
+            external_ids={"winner": "jeff-123"},
+        )
+        player2 = Player(
+            first_name="Scottie",
+            last_name="Wilbekin",
+            birth_date=date(1993, 7, 19),
+            external_ids={"winner": "scottie-123"},
+        )
+        test_db.add_all([player1, player2])
+        test_db.commit()
+
+        dedup = PlayerDeduplicator(test_db)
+        birthdate_map = dedup.get_birthdate_player_map()
+
+        assert date(1994, 7, 18) in birthdate_map
+        assert date(1993, 7, 19) in birthdate_map
+        assert len(birthdate_map[date(1994, 7, 18)]) == 1
+        assert birthdate_map[date(1994, 7, 18)][0].id == player1.id
+
+    def test_groups_players_with_same_birthdate(self, test_db):
+        """Should group multiple players with same birthdate."""
+        player1 = Player(
+            first_name="Jeff",
+            last_name="Downtin",
+            birth_date=date(1994, 7, 18),
+            external_ids={"winner": "jeff-123"},
+        )
+        player2 = Player(
+            first_name="Other",
+            last_name="Player",
+            birth_date=date(1994, 7, 18),
+            external_ids={"winner": "other-123"},
+        )
+        test_db.add_all([player1, player2])
+        test_db.commit()
+
+        dedup = PlayerDeduplicator(test_db)
+        birthdate_map = dedup.get_birthdate_player_map()
+
+        assert len(birthdate_map[date(1994, 7, 18)]) == 2
+
+    def test_excludes_players_without_birthdate(self, test_db):
+        """Should not include players with no birthdate."""
+        player1 = Player(
+            first_name="Jeff",
+            last_name="Downtin",
+            birth_date=date(1994, 7, 18),
+            external_ids={"winner": "jeff-123"},
+        )
+        player2 = Player(
+            first_name="No",
+            last_name="Birthdate",
+            external_ids={"winner": "nobd-123"},
+        )
+        test_db.add_all([player1, player2])
+        test_db.commit()
+
+        dedup = PlayerDeduplicator(test_db)
+        birthdate_map = dedup.get_birthdate_player_map()
+
+        assert len(birthdate_map) == 1
+        assert date(1994, 7, 18) in birthdate_map
+
+    def test_empty_database(self, test_db):
+        """Should return empty map when no players exist."""
+        dedup = PlayerDeduplicator(test_db)
+        birthdate_map = dedup.get_birthdate_player_map()
+
+        assert len(birthdate_map) == 0

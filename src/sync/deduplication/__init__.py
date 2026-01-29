@@ -32,6 +32,8 @@ Usage:
 """
 
 from src.sync.deduplication.normalizer import (
+    name_similarity,
+    name_similarity_flexible,
     names_match,
     names_match_fuzzy,
     normalize_name,
@@ -47,6 +49,8 @@ __all__ = [
     "normalize_name",
     "names_match",
     "names_match_fuzzy",
+    "name_similarity",
+    "name_similarity_flexible",
     "parse_full_name",
     "strip_name_suffix",
     "team_names_match",

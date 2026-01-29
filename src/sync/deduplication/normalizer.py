@@ -27,6 +27,7 @@ Usage:
 
 import re
 import unicodedata
+from difflib import SequenceMatcher
 
 # Common suffixes to strip from last names (Jr., Sr., III, IV, etc.)
 NAME_SUFFIXES = {
@@ -187,6 +188,94 @@ def names_match_fuzzy(name1: str, name2: str) -> bool:
     stripped2 = normalize_name(strip_name_suffix(name2))
 
     return stripped1 == stripped2
+
+
+def name_similarity(name1: str, name2: str) -> float:
+    """
+    Calculate similarity ratio between two names using SequenceMatcher.
+
+    Uses difflib.SequenceMatcher for Levenshtein-like string similarity.
+    Names are normalized before comparison (lowercase, no accents).
+
+    Args:
+        name1: First name to compare.
+        name2: Second name to compare.
+
+    Returns:
+        Float between 0.0 and 1.0 representing similarity (1.0 = identical).
+
+    Example:
+        >>> name_similarity("Jeff Downtin", "DOWNTIN, JEFF")
+        0.5  # Low because different order
+        >>> name_similarity("Jeff Downtin", "Jeff Downtin")
+        1.0
+        >>> name_similarity("Scottie Wilbekin", "Scott Wilbekin")
+        0.9375  # High due to similar spelling
+    """
+    norm1 = normalize_name(name1)
+    norm2 = normalize_name(name2)
+
+    if not norm1 or not norm2:
+        return 0.0
+
+    return SequenceMatcher(None, norm1, norm2).ratio()
+
+
+def name_similarity_flexible(name1: str, name2: str) -> float:
+    """
+    Calculate similarity with flexible name ordering.
+
+    Handles cases where names might be in different orders:
+    - "Jeff Downtin" vs "DOWNTIN, JEFF"
+    - "First Last" vs "Last, First"
+
+    Returns the highest similarity score from:
+    1. Direct comparison
+    2. Reversed name comparison (for "Last, First" format)
+
+    Args:
+        name1: First name to compare.
+        name2: Second name to compare.
+
+    Returns:
+        Float between 0.0 and 1.0 representing best similarity match.
+
+    Example:
+        >>> name_similarity_flexible("Jeff Downtin", "DOWNTIN, JEFF")
+        1.0  # Recognizes reversed order
+        >>> name_similarity_flexible("Scottie Wilbekin", "Scott Wilbekin")
+        0.9375
+    """
+    # Direct comparison
+    direct_score = name_similarity(name1, name2)
+
+    if direct_score >= 0.9:
+        return direct_score
+
+    # Try reversing names (handle "LASTNAME, FIRSTNAME" format)
+    def reverse_name(name: str) -> str:
+        """Reverse name parts: 'Last, First' -> 'First Last'."""
+        if "," in name:
+            parts = name.split(",", 1)
+            return f"{parts[1].strip()} {parts[0].strip()}"
+        # Also try reversing space-separated names
+        parts = name.strip().split()
+        if len(parts) >= 2:
+            return f"{parts[-1]} {' '.join(parts[:-1])}"
+        return name
+
+    # Compare with reversed versions
+    reversed1 = reverse_name(name1)
+    reversed2 = reverse_name(name2)
+
+    scores = [
+        direct_score,
+        name_similarity(reversed1, name2),
+        name_similarity(name1, reversed2),
+        name_similarity(reversed1, reversed2),
+    ]
+
+    return max(scores)
 
 
 def team_names_match(name1: str, name2: str) -> bool:

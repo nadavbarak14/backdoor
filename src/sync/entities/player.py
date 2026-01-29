@@ -112,9 +112,12 @@ class PlayerSyncer:
         """
         Find or create a player from boxscore stats.
 
-        First tries to match by external_id if available (and source provided).
-        If not found and we have player name, creates the player.
-        Falls back to jersey number matching for roster-based sources.
+        Matching priority:
+        1. External ID match (exact, fast)
+        2. Team roster name match (prevents cross-league duplicates)
+        3. Birthdate + name similarity (fuzzy, cross-source matching)
+        4. Jersey number match (fallback for roster-based sources)
+        5. Create new player (only if all matching fails)
 
         Args:
             raw: Raw player stats from a box score.
@@ -141,8 +144,38 @@ class PlayerSyncer:
             if player:
                 return player
 
-            # Create new player from boxscore data if we have a name
+            # If we have a name, try multiple matching strategies
             if raw.player_name:
+                # Parse name format ("LASTNAME, FIRSTNAME" -> "FIRSTNAME LASTNAME")
+                full_name = self._parse_player_name(raw.player_name)
+
+                # Strategy 1: Check team roster for existing player with same name
+                matched = self.deduplicator.match_player_on_team(
+                    team_id=team_id,
+                    player_name=full_name,
+                    source=source,
+                )
+                if matched:
+                    # Found existing player on team - add external_id and return
+                    return self.deduplicator.merge_external_id(
+                        matched, source, raw.player_external_id
+                    )
+
+                # Strategy 2: Match by birthdate + name similarity
+                # This catches players who exist in DB from other sources
+                if raw.birth_date:
+                    matched = self.deduplicator.match_player_by_birthdate(
+                        birth_date=raw.birth_date,
+                        player_name=full_name,
+                        source=source,
+                        similarity_threshold=0.8,
+                    )
+                    if matched:
+                        return self.deduplicator.merge_external_id(
+                            matched, source, raw.player_external_id
+                        )
+
+                # No match found - create new player
                 return self._create_player_from_stats(raw, team_id, source, season_id)
 
         # Fall back to jersey matching (e.g., Winner league with rosters)
@@ -155,6 +188,33 @@ class PlayerSyncer:
 
         return None
 
+    def _parse_player_name(self, name: str) -> str:
+        """
+        Parse player name from various formats to "FIRSTNAME LASTNAME".
+
+        Handles formats:
+        - "LASTNAME, FIRSTNAME" -> "FIRSTNAME LASTNAME"
+        - "FIRSTNAME LASTNAME" -> "FIRSTNAME LASTNAME" (unchanged)
+
+        Args:
+            name: Player name in various formats.
+
+        Returns:
+            Name in "FIRSTNAME LASTNAME" format.
+
+        Example:
+            >>> syncer._parse_player_name("DOWNTIN, JEFF")
+            'JEFF DOWNTIN'
+            >>> syncer._parse_player_name("Jeff Downtin")
+            'Jeff Downtin'
+        """
+        if "," in name:
+            parts = name.split(",", 1)
+            last_name = parts[0].strip()
+            first_name = parts[1].strip() if len(parts) > 1 else ""
+            return f"{first_name} {last_name}".strip()
+        return name
+
     def _create_player_from_stats(
         self,
         raw: RawPlayerStats,
@@ -162,17 +222,30 @@ class PlayerSyncer:
         source: str,
         season_id: UUID | None = None,
     ) -> Player:
-        """Create a new player from boxscore stats data."""
-        # Parse name (format: "LASTNAME, FIRSTNAME" or "FIRSTNAME LASTNAME")
+        """
+        Create a new player from boxscore stats data.
+
+        Args:
+            raw: Raw player stats containing name and external_id.
+            team_id: UUID of the team.
+            source: Data source name.
+            season_id: Optional UUID of the season for team history.
+
+        Returns:
+            The newly created Player entity.
+        """
+        # Parse name to get first/last components
         name = raw.player_name or ""
         first_name = ""
         last_name = ""
 
         if "," in name:
+            # Format: "LASTNAME, FIRSTNAME"
             parts = name.split(",", 1)
             last_name = parts[0].strip()
             first_name = parts[1].strip() if len(parts) > 1 else ""
         else:
+            # Format: "FIRSTNAME LASTNAME"
             parts = name.split()
             if parts:
                 first_name = parts[0]
@@ -181,6 +254,7 @@ class PlayerSyncer:
         player = Player(
             first_name=first_name,
             last_name=last_name,
+            birth_date=raw.birth_date,  # Save birthdate if available
             external_ids={source: raw.player_external_id},
         )
         self.db.add(player)

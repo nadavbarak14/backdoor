@@ -29,6 +29,7 @@ Usage:
     )
 """
 
+import contextlib
 import traceback
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -141,6 +142,7 @@ class SyncManager:
         source: str,
         season_external_id: str,
         include_pbp: bool = True,
+        include_player_bios: bool = True,
     ) -> SyncLog:
         """
         Sync all games for a season.
@@ -152,6 +154,8 @@ class SyncManager:
             source: The data source name (e.g., "winner").
             season_external_id: External ID of the season to sync.
             include_pbp: Whether to sync play-by-play data.
+            include_player_bios: Whether to sync player bios (birthdates, etc.)
+                before syncing games. Helps with cross-source deduplication.
 
         Returns:
             SyncLog with sync operation results.
@@ -228,6 +232,13 @@ class SyncManager:
 
                     # Sync box score
                     boxscore = await adapter.get_game_boxscore(raw_game.external_id)
+
+                    # Enrich with birthdates for cross-source matching (if supported)
+                    if hasattr(adapter, "enrich_boxscore_with_birthdates"):
+                        boxscore = await adapter.enrich_boxscore_with_birthdates(
+                            boxscore
+                        )
+
                     self.game_syncer.sync_boxscore(boxscore, game, source=source)
 
                     # Sync PBP if requested
@@ -252,6 +263,11 @@ class SyncManager:
                     records_skipped += 1
                     # Could log individual failures here
                     print(f"Error syncing game {raw_game.external_id}: {e}")
+
+            # Sync player bios (birthdates) after games so players exist
+            if include_player_bios and records_created > 0:
+                with contextlib.suppress(Exception):
+                    await self.sync_all_player_bios(source, season.id)
 
             # Calculate season stats for all players after sync
             if records_created > 0 or records_updated > 0:
@@ -399,6 +415,13 @@ class SyncManager:
 
                     # Sync box score
                     boxscore = await adapter.get_game_boxscore(raw_game.external_id)
+
+                    # Enrich with birthdates for cross-source matching (if supported)
+                    if hasattr(adapter, "enrich_boxscore_with_birthdates"):
+                        boxscore = await adapter.enrich_boxscore_with_birthdates(
+                            boxscore
+                        )
+
                     self.game_syncer.sync_boxscore(boxscore, game, source=source)
 
                     # Sync PBP if requested
@@ -530,6 +553,11 @@ class SyncManager:
 
             # Fetch box score (contains game info)
             boxscore = await adapter.get_game_boxscore(game_external_id)
+
+            # Enrich with birthdates for cross-source matching (if supported)
+            if hasattr(adapter, "enrich_boxscore_with_birthdates"):
+                boxscore = await adapter.enrich_boxscore_with_birthdates(boxscore)
+
             raw_game = boxscore.game
 
             # Get season from schedule or use first available
@@ -849,6 +877,19 @@ class SyncManager:
 
                 if match:
                     roster_player_id, player_info = match
+
+                    # Fetch full player profile for birthdate if not in roster data
+                    if not player_info or not player_info.birth_date:
+                        full_info = await adapter.get_player_info(
+                            roster_player_id
+                        )
+                        if not full_info or not full_info.birth_date:
+                            raise ValueError(
+                                f"No birth_date returned for player "
+                                f"{player.full_name} (roster_id={roster_player_id})"
+                            )
+                        player_info = full_info
+
                     updated = self._update_player_bio(
                         player, history, roster_player_id, player_info, source
                     )

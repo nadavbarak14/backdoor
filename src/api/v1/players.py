@@ -205,6 +205,10 @@ def get_player_games(
         default=None,
         description="Filter by season ID",
     ),
+    league_id: UUID | None = Query(
+        default=None,
+        description="Filter by league ID (e.g., Winner League or Euroleague)",
+    ),
     skip: int = Query(
         default=0,
         ge=0,
@@ -224,6 +228,7 @@ def get_player_games(
     Args:
         player_id: UUID of the player.
         season_id: Optional filter by season.
+        league_id: Optional filter by league.
         skip: Number of records to skip (for pagination).
         limit: Maximum number of records to return.
         db: Database session (injected).
@@ -254,6 +259,7 @@ def get_player_games(
     game_log, total = stats_service.get_player_game_log(
         player_id=player_id,
         season_id=season_id,
+        league_id=league_id,
         skip=skip,
         limit=limit,
     )

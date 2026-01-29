@@ -289,6 +289,46 @@ class EuroleagueAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
 
         return boxscore
 
+    async def enrich_boxscore_with_birthdates(
+        self, boxscore: RawBoxScore
+    ) -> RawBoxScore:
+        """
+        Enrich boxscore player stats with birthdates from player profiles.
+
+        Fetches player profiles for all players in the boxscore and adds
+        their birthdates to the RawPlayerStats. This enables cross-source
+        player matching when syncing (e.g., matching Euroleague players
+        with Winner League players by birthdate).
+
+        Args:
+            boxscore: RawBoxScore to enrich.
+
+        Returns:
+            The same RawBoxScore with birth_date populated in player stats.
+
+        Example:
+            >>> boxscore = await adapter.get_game_boxscore("E2024_1")
+            >>> boxscore = await adapter.enrich_boxscore_with_birthdates(boxscore)
+            >>> for player in boxscore.home_players:
+            ...     print(f"{player.player_name}: {player.birth_date}")
+        """
+        all_players = boxscore.home_players + boxscore.away_players
+
+        for player_stats in all_players:
+            if player_stats.player_external_id and not player_stats.birth_date:
+                player_info = await self.get_player_info(
+                    player_stats.player_external_id
+                )
+                if not player_info.birth_date:
+                    raise ValueError(
+                        f"No birth_date returned for player "
+                        f"{player_stats.player_name} "
+                        f"(id={player_stats.player_external_id})"
+                    )
+                player_stats.birth_date = player_info.birth_date
+
+        return boxscore
+
     async def get_game_pbp(self, game_id: str) -> list[RawPBPEvent]:
         """
         Fetch play-by-play events for a game.
