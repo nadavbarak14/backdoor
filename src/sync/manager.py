@@ -37,11 +37,15 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from src.models.game import Game, PlayerGameStats
 from src.models.league import Season
+from src.models.play_by_play import PlayByPlayEvent
+from src.models.player import Player
 from src.models.sync import SyncLog
 from src.services.stats_calculation import StatsCalculationService
 from src.services.sync_service import SyncLogService
 from src.sync.adapters.base import BaseLeagueAdapter, BasePlayerInfoAdapter
+from src.sync.canonical import BaseLeagueConverter, ConversionError
 from src.sync.config import SyncConfig
 from src.sync.deduplication import PlayerDeduplicator, TeamMatcher
 from src.sync.entities import GameSyncer, TeamSyncer
@@ -80,9 +84,10 @@ class SyncManager:
     def __init__(
         self,
         db: Session,
-        adapters: dict[str, BaseLeagueAdapter],
-        config: SyncConfig,
+        adapters: dict[str, BaseLeagueAdapter] | None = None,
+        config: SyncConfig | None = None,
         player_info_service: PlayerInfoService | None = None,
+        converter: BaseLeagueConverter | None = None,
     ) -> None:
         """
         Initialize the SyncManager.
@@ -92,18 +97,26 @@ class SyncManager:
             adapters: Dict mapping source names to BaseLeagueAdapter instances.
             config: SyncConfig controlling source enablement.
             player_info_service: Optional PlayerInfoService for player info updates.
+            converter: Optional BaseLeagueConverter for canonical data validation.
 
         Example:
+            >>> # With adapters (existing pattern)
             >>> manager = SyncManager(
             ...     db=db_session,
             ...     adapters={"winner": winner_adapter, "euroleague": euro_adapter},
             ...     config=SyncConfig.from_settings()
             ... )
+            >>> # With converter (new pattern)
+            >>> manager = SyncManager(
+            ...     db=db_session,
+            ...     converter=EuroleagueConverter()
+            ... )
         """
         self.db = db
-        self.adapters = adapters
+        self.adapters = adapters or {}
         self.config = config
         self.player_info_service = player_info_service
+        self.converter = converter
 
         # Initialize services
         self.sync_log_service = SyncLogService(db)
@@ -131,10 +144,216 @@ class SyncManager:
         if source not in self.adapters:
             raise ValueError(f"Unknown source: {source}")
 
-        if not self.config.is_source_enabled(source):
+        if self.config and not self.config.is_source_enabled(source):
             raise ValueError(f"Source {source} is not enabled")
 
         return self.adapters[source]
+
+    def _require_converter(self) -> BaseLeagueConverter:
+        """
+        Get the converter, raising if not configured.
+
+        Returns:
+            The BaseLeagueConverter.
+
+        Raises:
+            ValueError: If converter not configured.
+        """
+        if not self.converter:
+            raise ValueError("Converter not configured. Pass converter to __init__.")
+        return self.converter
+
+    # === Canonical sync methods ===
+
+    def sync_game_canonical(
+        self,
+        raw_game: dict[str, Any],
+        season_id: UUID,
+    ) -> Game:
+        """
+        Sync a game using canonical conversion.
+
+        Converts raw dict to canonical format, validates data,
+        then creates/updates the game record.
+
+        Args:
+            raw_game: Raw dict from API.
+            season_id: UUID of the season.
+
+        Returns:
+            Game model instance.
+
+        Raises:
+            ConversionError: If data is invalid.
+            ValueError: If converter not configured or teams not found.
+
+        Example:
+            >>> game = manager.sync_game_canonical(raw_game_dict, season.id)
+        """
+        converter = self._require_converter()
+
+        # Convert to canonical (validates data)
+        canonical = converter.convert_game(raw_game)
+
+        # Sync using canonical data
+        return self.game_syncer.sync_game_from_canonical(canonical, season_id)
+
+    def sync_player_canonical(
+        self,
+        raw_player: dict[str, Any],
+        team_id: UUID | None = None,
+    ) -> Player:
+        """
+        Sync a player using canonical conversion.
+
+        Converts raw dict to canonical format, validates data,
+        then creates/updates the player record. Sets positions as list.
+
+        Args:
+            raw_player: Raw dict from API.
+            team_id: Optional team UUID for roster-based matching.
+
+        Returns:
+            Player model instance with positions set.
+
+        Raises:
+            ConversionError: If data is invalid.
+            ValueError: If converter not configured.
+
+        Example:
+            >>> player = manager.sync_player_canonical(raw_player_dict)
+            >>> print(player.positions)  # [Position.SMALL_FORWARD, Position.POWER_FORWARD]
+        """
+        converter = self._require_converter()
+
+        # Convert to canonical (validates data)
+        canonical = converter.convert_player(raw_player)
+
+        # Sync using canonical data
+        from src.sync.entities.player import PlayerSyncer
+
+        player_syncer = PlayerSyncer(self.db, self.player_deduplicator)
+        return player_syncer.sync_player_from_canonical(canonical, team_id)
+
+    def sync_boxscore_canonical(
+        self,
+        raw_boxscore: dict[str, Any],
+        game: Game,
+    ) -> list[PlayerGameStats]:
+        """
+        Sync boxscore stats using canonical conversion.
+
+        Converts raw player stats to canonical format with minutes in seconds,
+        then creates PlayerGameStats records.
+
+        Args:
+            raw_boxscore: Raw boxscore dict with player stats.
+            game: The Game model instance.
+
+        Returns:
+            List of PlayerGameStats created.
+
+        Raises:
+            ConversionError: If data is invalid.
+            ValueError: If converter not configured.
+
+        Example:
+            >>> stats = manager.sync_boxscore_canonical(raw_boxscore, game)
+        """
+        converter = self._require_converter()
+
+        # Convert all player stats to canonical
+        canonical_stats = []
+        raw_players = raw_boxscore.get("players", [])
+        if not raw_players:
+            # Try home/away structure
+            raw_players = raw_boxscore.get("home_players", []) + raw_boxscore.get(
+                "away_players", []
+            )
+
+        for raw_player_stats in raw_players:
+            try:
+                canonical = converter.convert_player_stats(raw_player_stats)
+                canonical_stats.append(canonical)
+            except ConversionError:
+                # Skip invalid player stats, continue with others
+                continue
+
+        # Sync using canonical data
+        player_stats, _ = self.game_syncer.sync_boxscore_from_canonical(
+            canonical_stats, game, converter.source
+        )
+        return player_stats
+
+    def sync_pbp_canonical(
+        self,
+        raw_events: list[dict[str, Any]],
+        game: Game,
+    ) -> list[PlayByPlayEvent]:
+        """
+        Sync play-by-play events using canonical conversion.
+
+        Converts raw events to canonical format with proper event types
+        and subtypes, then creates PlayByPlayEvent records.
+
+        Args:
+            raw_events: List of raw event dicts.
+            game: The Game model instance.
+
+        Returns:
+            List of PlayByPlayEvent created.
+
+        Raises:
+            ConversionError: If data is invalid.
+            ValueError: If converter not configured.
+
+        Example:
+            >>> events = manager.sync_pbp_canonical(raw_events, game)
+        """
+        converter = self._require_converter()
+
+        # Convert events to canonical (skip events that return None)
+        canonical_events = []
+        for raw_event in raw_events:
+            try:
+                canonical = converter.convert_pbp_event(raw_event)
+                if canonical is not None:
+                    canonical_events.append(canonical)
+            except ConversionError:
+                # Skip invalid events, continue with others
+                continue
+
+        # Sync using canonical data
+        return self.game_syncer.sync_pbp_from_canonical(
+            canonical_events, game, converter.source
+        )
+
+    def sync_game_safe(
+        self,
+        raw_game: dict[str, Any],
+        season_id: UUID,
+    ) -> Game | None:
+        """
+        Sync a game with error handling - skip invalid records.
+
+        Like sync_game_canonical but catches ConversionError and returns None.
+
+        Args:
+            raw_game: Raw dict from API.
+            season_id: UUID of the season.
+
+        Returns:
+            Game model instance, or None if invalid.
+
+        Example:
+            >>> game = manager.sync_game_safe(raw_game_dict, season.id)
+            >>> if game is None:
+            ...     print("Invalid game data, skipped")
+        """
+        try:
+            return self.sync_game_canonical(raw_game, season_id)
+        except ConversionError:
+            return None
 
     async def sync_season(
         self,
