@@ -34,7 +34,8 @@ class PlayerCreate(BaseModel):
         birth_date: Player's birth date (optional).
         nationality: Player's nationality/country code (optional).
         height_cm: Player's height in centimeters (100-250 range, optional).
-        position: Player's primary position (e.g., "PG", "SG", "SF", "PF", "C").
+        positions: List of player's positions (e.g., ["SF", "PF"]).
+        position: DEPRECATED - Use positions instead.
         external_ids: Optional dict mapping provider names to their IDs.
 
     Example:
@@ -45,7 +46,7 @@ class PlayerCreate(BaseModel):
         ...     birth_date=date(1984, 12, 30),
         ...     nationality="United States",
         ...     height_cm=206,
-        ...     position="SF",
+        ...     positions=["SF", "PF"],
         ...     external_ids={"nba": "2544"}
         ... )
     """
@@ -63,8 +64,14 @@ class PlayerCreate(BaseModel):
     height_cm: int | None = Field(
         None, ge=100, le=250, description="Player's height in centimeters (100-250)"
     )
+    positions: list[str] = Field(
+        default_factory=list,
+        description="List of positions (PG, SG, SF, PF, C)",
+    )
     position: str | None = Field(
-        None, max_length=20, description="Primary position (PG, SG, SF, PF, C)"
+        None,
+        max_length=20,
+        description="DEPRECATED: Primary position. Use positions instead.",
     )
     external_ids: dict[str, str] | None = Field(
         default=None, description="External provider ID mappings"
@@ -83,11 +90,12 @@ class PlayerUpdate(BaseModel):
         birth_date: Player's birth date (optional).
         nationality: Player's nationality (optional).
         height_cm: Player's height in centimeters (optional).
-        position: Player's primary position (optional).
+        positions: List of player's positions (optional).
+        position: DEPRECATED - Use positions instead.
         external_ids: External provider ID mappings (optional).
 
     Example:
-        >>> data = PlayerUpdate(position="PF")
+        >>> data = PlayerUpdate(positions=["PF", "C"])
     """
 
     first_name: str | None = Field(
@@ -103,8 +111,14 @@ class PlayerUpdate(BaseModel):
     height_cm: int | None = Field(
         None, ge=100, le=250, description="Player's height in centimeters (100-250)"
     )
+    positions: list[str] | None = Field(
+        None,
+        description="List of positions (PG, SG, SF, PF, C)",
+    )
     position: str | None = Field(
-        None, max_length=20, description="Primary position (PG, SG, SF, PF, C)"
+        None,
+        max_length=20,
+        description="DEPRECATED: Primary position. Use positions instead.",
     )
     external_ids: dict[str, str] | None = Field(
         None, description="External provider ID mappings"
@@ -126,7 +140,8 @@ class PlayerResponse(OrmBase):
         birth_date: Player's birth date.
         nationality: Player's nationality.
         height_cm: Player's height in centimeters.
-        position: Player's primary position.
+        positions: List of player's positions.
+        position: Primary position (first in positions list).
         external_ids: External provider ID mappings.
         created_at: Timestamp when player was created.
         updated_at: Timestamp when player was last updated.
@@ -145,6 +160,7 @@ class PlayerResponse(OrmBase):
     birth_date: date | None
     nationality: str | None
     height_cm: int | None
+    positions: list[str] = []
     position: str | None
     external_ids: dict[str, str]
     created_at: datetime
@@ -209,7 +225,8 @@ class PlayerTeamHistoryResponse(OrmBase):
         season_id: UUID of the season.
         season_name: Name of the season (e.g., "2023-24").
         jersey_number: Player's jersey number on this team.
-        position: Player's position on this team (may differ from primary).
+        positions: Player's positions on this team (may differ from primary).
+        position: Primary position on this team (first in positions list).
 
     Example:
         >>> history = PlayerTeamHistoryResponse(
@@ -218,6 +235,7 @@ class PlayerTeamHistoryResponse(OrmBase):
         ...     season_id=season_uuid,
         ...     season_name="2023-24",
         ...     jersey_number=23,
+        ...     positions=["SF", "PF"],
         ...     position="SF"
         ... )
     """
@@ -227,6 +245,7 @@ class PlayerTeamHistoryResponse(OrmBase):
     season_id: UUID
     season_name: str
     jersey_number: int | None
+    positions: list[str] = []
     position: str | None
 
 
@@ -244,7 +263,8 @@ class PlayerWithHistoryResponse(OrmBase):
         birth_date: Player's birth date.
         nationality: Player's nationality.
         height_cm: Player's height in centimeters.
-        position: Player's primary position.
+        positions: List of player's positions.
+        position: Player's primary position (first in positions list).
         external_ids: External provider ID mappings.
         created_at: Timestamp when player was created.
         updated_at: Timestamp when player was last updated.
@@ -263,6 +283,7 @@ class PlayerWithHistoryResponse(OrmBase):
     birth_date: date | None
     nationality: str | None
     height_cm: int | None
+    positions: list[str] = []
     position: str | None
     external_ids: dict[str, str]
     created_at: datetime

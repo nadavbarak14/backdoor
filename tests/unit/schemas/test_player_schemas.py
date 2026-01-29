@@ -69,7 +69,7 @@ class TestPlayerCreate:
             birth_date=date(1984, 12, 30),
             nationality="United States",
             height_cm=206,
-            position="SF",
+            positions=["SF", "PF"],
             external_ids={"nba": "2544"},
         )
         assert data.first_name == "LeBron"
@@ -77,7 +77,7 @@ class TestPlayerCreate:
         assert data.birth_date == date(1984, 12, 30)
         assert data.nationality == "United States"
         assert data.height_cm == 206
-        assert data.position == "SF"
+        assert data.positions == ["SF", "PF"]
         assert data.external_ids == {"nba": "2544"}
 
     def test_first_name_required(self):
@@ -101,8 +101,36 @@ class TestPlayerCreate:
         assert data.birth_date is None
         assert data.nationality is None
         assert data.height_cm is None
+        assert data.positions == []  # Default empty list
         assert data.position is None
         assert data.external_ids is None
+
+    def test_positions_multiple(self):
+        """PlayerCreate should accept multiple positions."""
+        data = PlayerCreate(
+            first_name="LeBron",
+            last_name="James",
+            positions=["SF", "PF", "C"],
+        )
+        assert data.positions == ["SF", "PF", "C"]
+
+    def test_positions_single(self):
+        """PlayerCreate should accept single position in list."""
+        data = PlayerCreate(
+            first_name="Stephen",
+            last_name="Curry",
+            positions=["PG"],
+        )
+        assert data.positions == ["PG"]
+
+    def test_positions_empty_list(self):
+        """PlayerCreate should accept empty positions list."""
+        data = PlayerCreate(
+            first_name="Unknown",
+            last_name="Player",
+            positions=[],
+        )
+        assert data.positions == []
 
     def test_height_cm_min_value(self):
         """PlayerCreate should validate height_cm minimum (100)."""
@@ -166,8 +194,8 @@ class TestPlayerUpdate:
 
     def test_partial_update(self):
         """PlayerUpdate should allow partial data."""
-        data = PlayerUpdate(position="PF")
-        assert data.position == "PF"
+        data = PlayerUpdate(positions=["PF", "C"])
+        assert data.positions == ["PF", "C"]
         assert data.first_name is None
         assert data.last_name is None
         assert data.height_cm is None
@@ -180,6 +208,7 @@ class TestPlayerUpdate:
         assert data.birth_date is None
         assert data.nationality is None
         assert data.height_cm is None
+        assert data.positions is None
         assert data.position is None
         assert data.external_ids is None
 
@@ -188,6 +217,11 @@ class TestPlayerUpdate:
         with pytest.raises(ValidationError) as exc_info:
             PlayerUpdate(height_cm=50)
         assert "height_cm" in str(exc_info.value)
+
+    def test_update_positions(self):
+        """PlayerUpdate should allow updating positions list."""
+        data = PlayerUpdate(positions=["SF", "PF"])
+        assert data.positions == ["SF", "PF"]
 
 
 class TestPlayerResponse:
@@ -249,6 +283,38 @@ class TestPlayerResponse:
         response = PlayerResponse.model_validate(player)
 
         assert response.external_ids == {}
+
+    def test_positions_from_orm(self, db_session: Session):
+        """PlayerResponse should serialize positions from ORM object."""
+        player = Player(
+            first_name="LeBron",
+            last_name="James",
+            positions=[Position.SMALL_FORWARD, Position.POWER_FORWARD],
+        )
+        db_session.add(player)
+        db_session.commit()
+        db_session.refresh(player)
+
+        response = PlayerResponse.model_validate(player)
+
+        assert response.positions == ["SF", "PF"]
+        assert response.position == "SF"
+
+    def test_positions_empty_from_orm(self, db_session: Session):
+        """PlayerResponse should handle empty positions from ORM."""
+        player = Player(
+            first_name="Unknown",
+            last_name="Player",
+            positions=[],
+        )
+        db_session.add(player)
+        db_session.commit()
+        db_session.refresh(player)
+
+        response = PlayerResponse.model_validate(player)
+
+        assert response.positions == []
+        assert response.position is None
 
 
 class TestPlayerListResponse:
