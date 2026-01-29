@@ -88,6 +88,10 @@ class GameSyncer:
         """
         Sync a game record from raw data.
 
+        .. deprecated::
+            Use sync_game_from_canonical() instead. Convert RawGame using
+            raw_game_to_canonical() from src.sync.raw_to_canonical.
+
         Creates or updates a Game record. If the game already exists
         (matched by external_id), updates its status and scores.
 
@@ -147,6 +151,10 @@ class GameSyncer:
     ) -> tuple[list[PlayerGameStats], list[TeamGameStats]]:
         """
         Sync box score data for a game.
+
+        .. deprecated::
+            Use sync_boxscore_from_canonical() instead. Convert RawBoxScore using
+            raw_boxscore_to_canonical_stats() from src.sync.raw_to_canonical.
 
         Creates PlayerGameStats for all players and TeamGameStats
         for both teams. Players are matched by external_id or jersey number.
@@ -521,6 +529,10 @@ class GameSyncer:
     ) -> list[PlayByPlayEvent]:
         """
         Sync play-by-play events for a game.
+
+        .. deprecated::
+            Use sync_pbp_from_canonical() instead. Convert RawPBPEvent list using
+            raw_pbp_list_to_canonical() from src.sync.raw_to_canonical.
 
         Creates PlayByPlayEvent records and links related events
         (e.g., assists to made shots).

@@ -103,6 +103,15 @@ from src.sync.nba import (
 # Player Info Service
 from src.sync.player_info import MergedPlayerInfo, PlayerInfoService, merge_player_info
 
+# Raw to Canonical conversion (migration utilities)
+from src.sync.raw_to_canonical import (
+    raw_boxscore_to_canonical_stats,
+    raw_game_to_canonical,
+    raw_pbp_list_to_canonical,
+    raw_pbp_to_canonical,
+    raw_player_stats_to_canonical,
+)
+
 # Season format utilities
 from src.sync.season import (
     SeasonFormatError,
@@ -111,6 +120,8 @@ from src.sync.season import (
     validate_season_format,
 )
 from src.sync.tracking import SyncTracker
+
+# Raw types (DEPRECATED - use Canonical types from src.sync.canonical instead)
 from src.sync.types import (
     RawBoxScore,
     RawGame,
@@ -165,7 +176,13 @@ __all__ = [
     "PlayerInfoService",
     "MergedPlayerInfo",
     "merge_player_info",
-    # Base infrastructure - Types
+    # Raw to Canonical conversion (migration utilities)
+    "raw_game_to_canonical",
+    "raw_player_stats_to_canonical",
+    "raw_boxscore_to_canonical_stats",
+    "raw_pbp_to_canonical",
+    "raw_pbp_list_to_canonical",
+    # Base infrastructure - Types (DEPRECATED - use Canonical types)
     "RawSeason",
     "RawTeam",
     "RawGame",

@@ -1,5 +1,20 @@
 """
-Raw Data Types Module
+Raw Data Types Module (DEPRECATED)
+
+.. deprecated::
+    These Raw types are being phased out in favor of Canonical types.
+    Use types from src.sync.canonical instead:
+    - RawSeason -> CanonicalSeason
+    - RawTeam -> CanonicalTeam
+    - RawGame -> CanonicalGame
+    - RawPlayerStats -> CanonicalPlayerStats
+    - RawPBPEvent -> CanonicalPBPEvent
+    - RawPlayerInfo -> CanonicalPlayer
+
+    For migration, use the conversion utilities in src.sync.raw_to_canonical:
+    - raw_game_to_canonical()
+    - raw_boxscore_to_canonical_stats()
+    - raw_pbp_list_to_canonical()
 
 Defines dataclasses for raw data from external sync sources before transformation
 into database models. These types represent the intermediate format between

@@ -50,6 +50,11 @@ from src.sync.config import SyncConfig
 from src.sync.deduplication import PlayerDeduplicator, TeamMatcher
 from src.sync.entities import GameSyncer, TeamSyncer
 from src.sync.player_info import PlayerInfoService
+from src.sync.raw_to_canonical import (
+    raw_boxscore_to_canonical_stats,
+    raw_game_to_canonical,
+    raw_pbp_list_to_canonical,
+)
 from src.sync.tracking import SyncTracker
 from src.sync.types import RawPlayerInfo, RawTeam
 
@@ -433,7 +438,8 @@ class SyncManager:
             for ext_id, game in games_needing_pbp:
                 try:
                     pbp_events = await adapter.get_game_pbp(ext_id)
-                    self.game_syncer.sync_pbp(pbp_events, game, source)
+                    canonical_pbp = raw_pbp_list_to_canonical(pbp_events)
+                    self.game_syncer.sync_pbp_from_canonical(canonical_pbp, game, source)
                     records_updated += 1
                     self.db.commit()
                 except Exception as e:
@@ -443,11 +449,20 @@ class SyncManager:
             # Sync each unsynced game
             for raw_game in unsynced_games:
                 try:
-                    game = self.game_syncer.sync_game(raw_game, season.id, source)
+                    # Convert to canonical format
+                    canonical_game = raw_game_to_canonical(
+                        raw_game, source, season_external_id
+                    )
+                    game = self.game_syncer.sync_game_from_canonical(
+                        canonical_game, season.id
+                    )
 
                     # Sync box score
                     boxscore = await adapter.get_game_boxscore(raw_game.external_id)
-                    self.game_syncer.sync_boxscore(boxscore, game, source=source)
+                    canonical_stats = raw_boxscore_to_canonical_stats(boxscore)
+                    self.game_syncer.sync_boxscore_from_canonical(
+                        canonical_stats, game, source
+                    )
 
                     # Sync PBP if requested
                     if include_pbp:
@@ -455,7 +470,10 @@ class SyncManager:
                             pbp_events = await adapter.get_game_pbp(
                                 raw_game.external_id
                             )
-                            self.game_syncer.sync_pbp(pbp_events, game, source)
+                            canonical_pbp = raw_pbp_list_to_canonical(pbp_events)
+                            self.game_syncer.sync_pbp_from_canonical(
+                                canonical_pbp, game, source
+                            )
                         except Exception:
                             # PBP is optional, don't fail the whole sync
                             pass
@@ -593,7 +611,8 @@ class SyncManager:
                 }
                 try:
                     pbp_events = await adapter.get_game_pbp(ext_id)
-                    self.game_syncer.sync_pbp(pbp_events, game, source)
+                    canonical_pbp = raw_pbp_list_to_canonical(pbp_events)
+                    self.game_syncer.sync_pbp_from_canonical(canonical_pbp, game, source)
                     records_updated += 1
                     self.db.commit()
                     yield {"event": "synced", "game_id": ext_id}
@@ -614,11 +633,20 @@ class SyncManager:
                 }
 
                 try:
-                    game = self.game_syncer.sync_game(raw_game, season.id, source)
+                    # Convert to canonical format
+                    canonical_game = raw_game_to_canonical(
+                        raw_game, source, season_external_id
+                    )
+                    game = self.game_syncer.sync_game_from_canonical(
+                        canonical_game, season.id
+                    )
 
                     # Sync box score
                     boxscore = await adapter.get_game_boxscore(raw_game.external_id)
-                    self.game_syncer.sync_boxscore(boxscore, game, source=source)
+                    canonical_stats = raw_boxscore_to_canonical_stats(boxscore)
+                    self.game_syncer.sync_boxscore_from_canonical(
+                        canonical_stats, game, source
+                    )
 
                     # Sync PBP if requested
                     if include_pbp:
@@ -626,7 +654,10 @@ class SyncManager:
                             pbp_events = await adapter.get_game_pbp(
                                 raw_game.external_id
                             )
-                            self.game_syncer.sync_pbp(pbp_events, game, source)
+                            canonical_pbp = raw_pbp_list_to_canonical(pbp_events)
+                            self.game_syncer.sync_pbp_from_canonical(
+                                canonical_pbp, game, source
+                            )
                         except Exception:
                             # PBP is optional, don't fail the whole sync
                             pass
@@ -766,20 +797,29 @@ class SyncManager:
                 records_processed += 1
 
                 try:
-                    # Sync game
-                    game = self.game_syncer.sync_game(raw_game, None, source)
+                    # Convert to canonical format (use empty season for recent sync)
+                    canonical_game = raw_game_to_canonical(raw_game, source, "")
+                    game = self.game_syncer.sync_game_from_canonical(
+                        canonical_game, None  # type: ignore[arg-type]
+                    )
                     self.db.flush()
 
                     # Sync boxscore
                     boxscore = await adapter.get_game_boxscore(raw_game.external_id)
-                    self.game_syncer.sync_boxscore(boxscore, game, source)
+                    canonical_stats = raw_boxscore_to_canonical_stats(boxscore)
+                    self.game_syncer.sync_boxscore_from_canonical(
+                        canonical_stats, game, source
+                    )
                     self.db.flush()
 
                     # Sync PBP if requested
                     if include_pbp:
                         try:
                             pbp_events = await adapter.get_game_pbp(raw_game.external_id)
-                            self.game_syncer.sync_pbp(pbp_events, game, source)
+                            canonical_pbp = raw_pbp_list_to_canonical(pbp_events)
+                            self.game_syncer.sync_pbp_from_canonical(
+                                canonical_pbp, game, source
+                            )
                         except Exception:
                             pass  # PBP failure doesn't fail game sync
 
@@ -868,9 +908,8 @@ class SyncManager:
             if not seasons:
                 raise ValueError("No seasons available")
 
-            season = await self._get_or_create_season(
-                adapter, source, seasons[0].external_id
-            )
+            season_external_id = seasons[0].external_id
+            season = await self._get_or_create_season(adapter, source, season_external_id)
 
             # Sync teams if needed
             home_team_raw = RawTeam(
@@ -885,17 +924,20 @@ class SyncManager:
             self.team_syncer.sync_team_season(home_team_raw, season.id, source)
             self.team_syncer.sync_team_season(away_team_raw, season.id, source)
 
-            # Sync game
-            game = self.game_syncer.sync_game(raw_game, season.id, source)
+            # Convert to canonical format and sync game
+            canonical_game = raw_game_to_canonical(raw_game, source, season_external_id)
+            game = self.game_syncer.sync_game_from_canonical(canonical_game, season.id)
 
             # Sync box score
-            self.game_syncer.sync_boxscore(boxscore, game, source=source)
+            canonical_stats = raw_boxscore_to_canonical_stats(boxscore)
+            self.game_syncer.sync_boxscore_from_canonical(canonical_stats, game, source)
 
             # Sync PBP if requested
             if include_pbp:
                 try:
                     pbp_events = await adapter.get_game_pbp(game_external_id)
-                    self.game_syncer.sync_pbp(pbp_events, game, source)
+                    canonical_pbp = raw_pbp_list_to_canonical(pbp_events)
+                    self.game_syncer.sync_pbp_from_canonical(canonical_pbp, game, source)
                 except Exception:
                     pass  # PBP is optional
 
