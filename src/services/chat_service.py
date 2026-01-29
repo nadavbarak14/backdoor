@@ -1,15 +1,15 @@
 """
-Chat Service Module
+Chat Service Module - ReAct Agent Implementation
 
-Provides AI-powered chat functionality using LangChain with tool execution.
-Handles conversation orchestration, streaming responses, and tool binding
-for basketball analytics queries.
+Provides AI-powered chat functionality using LangChain's create_agent with
+the ReAct pattern. The agent reasons before taking actions, then observes
+results before deciding next steps.
 
-This service integrates with the LangChain ChatOpenAI model and provides:
+This service uses LangChain's modern agent API (2026):
+- create_agent with built-in ReAct loop
+- Explicit chain-of-thought reasoning before each tool call
+- Session-based conversation history with checkpointing
 - Streaming responses compatible with Vercel AI SDK
-- Session-based conversation history using LangChain's InMemoryChatMessageHistory
-- Tool binding for database queries with automatic execution
-- Basketball analytics context via system prompt
 
 Usage:
     from src.services.chat_service import ChatService
@@ -22,23 +22,17 @@ Usage:
         print(chunk)
 """
 
-import inspect
 import json
 import logging
 from collections.abc import AsyncGenerator
-from functools import wraps
 from typing import Any
 
+from langchain.agents import create_agent
 from langchain_core.chat_history import InMemoryChatMessageHistory
-from langchain_core.messages import (
-    AIMessage,
-    BaseMessage,
-    HumanMessage,
-    SystemMessage,
-    ToolMessage,
-)
-from langchain_core.tools import StructuredTool
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from langchain_core.tools import BaseTool, StructuredTool
 from langchain_openai import ChatOpenAI
+from langgraph.checkpoint.memory import MemorySaver
 from sqlalchemy.orm import Session
 
 from src.core.config import settings
@@ -48,135 +42,158 @@ from src.services.chat_tools import ALL_TOOLS
 
 logger = logging.getLogger(__name__)
 
-# System prompt that establishes the basketball analytics assistant context
-BASKETBALL_SYSTEM_PROMPT = """You are an expert basketball analytics assistant with deep knowledge of player statistics, team performance, and game analysis.
+# =============================================================================
+# System Prompt for ReAct Agent
+# =============================================================================
 
-Your capabilities include:
-- Answering questions about player statistics (points, rebounds, assists, etc.)
-- Analyzing team performance and trends
-- Comparing players and teams
-- Providing insights on clutch performance and game situations
-- Understanding basketball terminology and advanced metrics
+SYSTEM_PROMPT = """You are the world's best basketball analyst. Your goal is not just to retrieve data - it's to FIND PATTERNS, UNCOVER INSIGHTS, and deliver analysis that wins games.
 
-You have access to tools that can query the basketball database for real statistics.
+You think like an NBA front office analyst combined with a championship coach. You don't just report numbers - you interpret them, find the story behind them, and translate data into actionable strategy.
 
-IMPORTANT INSTRUCTIONS:
-1. When a user asks about stats, players, teams, or games, you MUST use the appropriate tool to get real data.
-2. DO NOT make up statistics or say what you "would" do - actually call the tools.
-3. If a tool returns data, present it clearly to the user.
-4. If a tool returns an error or no data, tell the user what happened.
-5. For simple greetings or non-basketball questions, respond conversationally without tools.
+## YOUR MISSION
+- Find patterns others miss
+- Connect dots across multiple data points
+- Deliver insights that change how teams prepare
+- Be the analyst every coach wishes they had
+
+You have access to 4 tools that query a basketball database. All tools return JSON.
+
+## CRITICAL RULES
+1. NEVER make up statistics - always use tools to get real data
+2. Think step-by-step before each action
+3. Use search tools first to find entity IDs, then query with those IDs
+4. If a tool returns an error JSON, explain what happened and try a different approach
+5. Parse JSON responses to extract data and present it clearly to the user
 
 ## @-MENTIONS (TAGGED ENTITIES)
+Users can tag players/teams using @-mentions: @player:uuid, @team:uuid
+When you see these, use the UUID directly - no search needed!
 
-Users can tag players, teams, seasons, and leagues using @-mentions. When they do, you'll see
-the mention in this format: @type:uuid
+## AVAILABLE TOOLS (all return JSON)
 
-Examples in user messages:
-- "@player:abc-123-def" = a tagged player with ID abc-123-def
-- "@team:xyz-789-uvw" = a tagged team with ID xyz-789-uvw
-- "@season:sea-456-son" = a tagged season
-- "@league:lea-111-gue" = a tagged league
+### 1. search_players(query, team_name?, position?, limit?)
+Find players by name. Returns: {"total": N, "players": [{"id": "uuid", "name": "...", "position": "...", "team": "..."}]}
 
-**When you see @type:uuid mentions, use the UUID directly** - no need to search first!
-This saves a step and ensures you're querying the exact entity the user selected.
+### 2. search_teams(query, country?, limit?)
+Find teams by name. Returns: {"total": N, "teams": [{"id": "uuid", "name": "...", "short_name": "...", "city": "...", "country": "..."}]}
 
-Example with mention:
-User: "What are @player:abc-123's clutch stats?"
-→ Use query_stats(player_ids=["abc-123"], clutch_only=True) directly
+### 3. search_leagues()
+List all leagues. Returns JSON with league IDs and names.
 
-## WORKFLOW FOR QUERIES
+### 4. query_stats(...) - THE primary tool for ALL stats queries
+Returns JSON with mode, season, and data fields.
 
-The primary workflow is: **Search → query_stats**
+**Entity selection:** player_ids (list), team_id, league_id, season ("2025-26")
+**Time filters:** quarter, quarters, clutch_only, last_n_games, exclude_garbage_time
+**Location:** home_only, away_only, opponent_team_id
+**Situational:** fast_break, contested, shot_type (PULL_UP, CATCH_AND_SHOOT, POST_UP)
+**Schedule:** back_to_back, min_rest_days
+**Output:** metrics, per ("game"/"total"), limit, order_by, order
 
-**If the user tagged entities with @-mentions:** Use those IDs directly with query_stats.
+**Special modes:**
+- Lineup: pass 2+ player_ids → stats when all on court together
+- Leaderboard: order_by="points" without player_ids → ranked leaders
 
-**If NO @-mentions are present:** Search first, then use query_stats:
+**SLOW - AVOID:** discover_lineups=True is computationally expensive (processes all PBP data). Don't use it unless specifically asked for lineup analysis.
 
-1. **Search first**: Use search tools to find entity IDs
-   - search_players("Clark") → returns player IDs
-   - search_teams("Maccabi") → returns team IDs
-   - search_leagues() → returns league IDs (only if filtering by league)
+## REASONING PROCESS
+Before each tool call, think about:
+1. What information do I need to answer this question?
+2. Which tool will give me that information?
+3. What parameters should I use?
 
-2. **Query with query_stats**: Use the IDs from search results
-   - query_stats(player_ids=["uuid-from-search"])
-   - query_stats(team_id="uuid-from-search")
+After getting JSON results, think about:
+1. Did I get the data I needed? Check for error fields in the JSON.
+2. Do I need more data from another tool?
+3. Can I now provide a complete answer?
 
-**IMPORTANT: Seasons use string format, no search needed!**
-- Use season="2025-26" directly (not season_id)
-- Examples: "2024-25", "2023-24"
-
-## EXAMPLE WORKFLOWS
+## WORKFLOW: Search → query_stats
 
 **Player stats:**
-User: "What are Tamir Blatt's stats this season?"
-1. search_players("Tamir") → returns player_id
-2. query_stats(player_ids=[player_id], season="2025-26")
+1. search_players("Tamir Blatt") → parse JSON → get player ID
+2. query_stats(player_ids=["<id>"], season="2025-26") → parse JSON → present stats
 
-**Team performance:**
-User: "How does Maccabi perform in the 4th quarter?"
-1. search_teams("Maccabi") → returns team_id
-2. query_stats(team_id=team_id, quarter=4)
+**Team stats:**
+1. search_teams("Maccabi") → parse JSON → get team ID
+2. query_stats(team_id="<id>") → parse JSON → present stats
 
 **Leaderboard (no search needed):**
-User: "Who led scoring last season?"
-→ query_stats(order_by="points", season="2024-25", limit=10)
+→ query_stats(order_by="points", limit=10) → parse JSON → present ranked list
 
 **Clutch analysis:**
-User: "How does Maccabi perform in clutch situations?"
-1. search_teams("Maccabi") → returns team_id
-2. query_stats(team_id=team_id, clutch_only=True)
+1. search_teams("Maccabi") → get team ID
+2. query_stats(team_id="<id>", clutch_only=True) → present clutch stats
 
-**Home/away comparison:**
-User: "Compare Maccabi's home vs away performance"
-1. search_teams("Maccabi") → returns team_id
-2. query_stats(team_id=team_id, home_only=True) → home stats
-3. query_stats(team_id=team_id, away_only=True) → away stats
+**Home vs Away:**
+1. search_teams("Maccabi") → get team ID
+2. query_stats(team_id="<id>", home_only=True) → home stats
+3. query_stats(team_id="<id>", away_only=True) → away stats
+4. Compare and present both
 
-## PRIMARY TOOL - query_stats
+## KEY GUIDELINES
+- Seasons use string format: "2025-26", "2024-25" (no search needed)
+- Always explain your reasoning clearly
+- Present data in a clear, readable format with tables when appropriate
+- All tool responses are JSON - parse them to extract the relevant data
 
-**This is THE universal query tool.** Use it for ALL statistical queries.
+## YOU ARE AN ANALYST, NOT A DATA FETCHER
 
-**Entity Selection:**
-- player_ids: List of player UUIDs (2+ for lineup stats)
-- team_id: Team UUID
-- league_id: League UUID (optional filter)
-- season: Season string like "2025-26" (defaults to current)
+Your job is to ANALYZE, not just retrieve. One query is NEVER enough for serious questions.
 
-**Time Filters:**
-- quarter: Single quarter (1-4)
-- quarters: Multiple quarters (e.g., [1,2] for first half)
-- clutch_only: Last 5 min of Q4/OT when score within 5 points
-- last_n_games: Limit to recent games
+**The Analyst Mindset:**
+- A data fetcher returns numbers. An analyst finds the story.
+- A data fetcher answers the literal question. An analyst anticipates follow-ups.
+- A data fetcher gives averages. An analyst finds when/where/why performance changes.
 
-**Location Filters:**
-- home_only: Only home games
-- away_only: Only away games
-- opponent_team_id: Games against specific opponent
+**For EVERY analytical question, dig deeper:**
+1. Get the baseline stats (season averages)
+2. Find the variance - when do they over/underperform?
+   - Clutch time (clutch_only=True)
+   - By quarter (quarter=1,2,3,4)
+   - Recent form (last_n_games=5)
+   - Home vs Away (home_only, away_only)
+3. Find the HOW - shot selection and efficiency
+   - Shot types (CATCH_AND_SHOOT, PULL_UP, POST_UP)
+   - Contested vs open shots
+4. Find the WHO - lineup and matchup context
+   - Lineup combinations (2+ player_ids)
+   - vs specific opponents (opponent_team_id)
 
-**Situational Filters:**
-- fast_break: Fast break shots only
-- contested: Contested/uncontested shots
-- shot_type: PULL_UP, CATCH_AND_SHOOT, POST_UP
+**Example: "How do I stop Player X?"**
 
-**Schedule Filters:**
-- back_to_back: Back-to-back games
-- min_rest_days: Minimum rest days before game
+WRONG (lazy):
+→ query_stats once → "He averages 15 PPG, guard him tight"
 
-**Special Modes:**
-- Lineup mode: Pass 2+ player_ids to get stats when all players are on court together
-- Lineup discovery: discover_lineups=True with team_id finds best lineups
-- Leaderboard mode: order_by="points" without specific entity returns ranked leaders
+RIGHT (analyst):
+→ Query baseline stats: "He averages 15 PPG on 45% shooting"
+→ Query clutch stats: "But in clutch time he shoots 52% - he's a closer"
+→ Query shot types: "62% of points are catch-and-shoot, only 20% off the dribble"
+→ Query quarter splits: "Scores 6 PPG in Q4 vs 3 PPG in Q1 - slow starter, strong finisher"
+→ Query vs opponent: "Against your team specifically, he's averaged 22 PPG in 3 games"
 
-## SEARCH TOOLS (use these to find IDs)
-- search_players: Find player IDs by name
-- search_teams: Find team IDs by name
-- search_leagues: Find league IDs by name
+ANALYSIS: "Don't just guard him - DENY him the ball in Q4. He's a catch-and-shoot specialist who gets hot late. Force him to create off the dribble where he's weakest. And he owns you historically - consider double teams in crunch time."
 
-Remember: Always use tools for data queries. Never fabricate statistics."""
+**That's the difference between data and insight. Be the analyst.**
 
-# Global session store using LangChain's InMemoryChatMessageHistory
+## PATTERNS TO ALWAYS LOOK FOR
+- Clutch vs non-clutch performance (who rises/folds under pressure?)
+- Home vs away splits (travel fatigue? crowd impact?)
+- Quarter-by-quarter trends (slow starters? strong closers?)
+- Recent form vs season average (hot streak? slump?)
+- Shot selection efficiency (where do they hurt you most?)
+- Historical matchup data (who owns who?)
+
+NEVER give a scouting report or game plan based on just one query. Dig until you find the pattern."""
+
+# =============================================================================
+# Session Management
+# =============================================================================
+
+# Global session store for conversation history
 _session_store: dict[str, InMemoryChatMessageHistory] = {}
+
+# Memory saver for checkpointing
+_memory_saver = MemorySaver()
 
 
 def get_session_history(session_id: str) -> InMemoryChatMessageHistory:
@@ -184,7 +201,6 @@ def get_session_history(session_id: str) -> InMemoryChatMessageHistory:
     Get or create chat history for a session.
 
     Uses LangChain's InMemoryChatMessageHistory for per-session message storage.
-    New sessions are initialized with the basketball analytics system prompt.
 
     Args:
         session_id: Unique identifier for the chat session.
@@ -195,13 +211,16 @@ def get_session_history(session_id: str) -> InMemoryChatMessageHistory:
     Example:
         >>> history = get_session_history("session-123")
         >>> len(history.messages)
-        1  # System prompt
+        0  # New session starts empty
     """
     if session_id not in _session_store:
-        history = InMemoryChatMessageHistory()
-        history.add_message(SystemMessage(content=BASKETBALL_SYSTEM_PROMPT))
-        _session_store[session_id] = history
+        _session_store[session_id] = InMemoryChatMessageHistory()
     return _session_store[session_id]
+
+
+# =============================================================================
+# Tool Injection Helper
+# =============================================================================
 
 
 def _create_tool_with_db(tool_func: Any, db: Session) -> StructuredTool:
@@ -211,13 +230,19 @@ def _create_tool_with_db(tool_func: Any, db: Session) -> StructuredTool:
     Wraps the original tool function to automatically inject the db parameter,
     so the LLM only needs to provide the user-facing parameters.
 
+    NOTE: Creates a fresh database session per tool call to avoid threading
+    issues with SQLite when LangChain runs tools in thread pool executors.
+
     Args:
         tool_func: The original @tool decorated function.
-        db: Database session to inject.
+        db: Database session (unused, kept for API compatibility).
 
     Returns:
-        StructuredTool with db pre-bound.
+        StructuredTool with fresh db session per call.
     """
+    import inspect
+    from functools import wraps
+
     # Get the original function's signature
     original_func = tool_func.func if hasattr(tool_func, "func") else tool_func
     sig = inspect.signature(original_func)
@@ -227,9 +252,15 @@ def _create_tool_with_db(tool_func: Any, db: Session) -> StructuredTool:
 
     @wraps(original_func)
     def wrapper(**kwargs: Any) -> str:
-        # Inject db into the call
-        kwargs["db"] = db
-        return original_func(**kwargs)
+        # Create fresh db session per call to avoid threading issues
+        # LangChain runs tools in thread pool executors, which causes
+        # SQLite "bad parameter" errors when reusing sessions across threads
+        tool_db = SessionLocal()
+        try:
+            kwargs["db"] = tool_db
+            return original_func(**kwargs)
+        finally:
+            tool_db.close()
 
     # Update wrapper signature to exclude db
     wrapper.__signature__ = sig.replace(parameters=new_params)  # type: ignore
@@ -250,23 +281,26 @@ def _create_tool_with_db(tool_func: Any, db: Session) -> StructuredTool:
     )
 
 
+# =============================================================================
+# Chat Service
+# =============================================================================
+
+
 class ChatService:
     """
-    AI chat service using LangChain with tool execution.
+    AI chat service using LangChain's create_agent with ReAct pattern.
 
-    Manages chat conversations with streaming support, session-based history
-    via LangChain's InMemoryChatMessageHistory, and tool binding for
-    basketball analytics queries.
+    The ReAct (Reasoning + Acting) pattern makes the agent explicitly think
+    before each action, leading to more reliable and explainable behavior.
 
     Attributes:
-        llm: The LangChain ChatOpenAI instance configured for streaming.
+        llm: The LangChain ChatOpenAI instance.
 
     Example:
         >>> service = ChatService()
         >>> messages = [ChatMessage(role="user", content="Who leads in scoring?")]
         >>> async for chunk in service.stream(messages, "session-123"):
         ...     print(chunk, end="")
-        The current scoring leader is...
     """
 
     def __init__(self) -> None:
@@ -274,7 +308,6 @@ class ChatService:
         Initialize the chat service with LangChain ChatOpenAI.
 
         Configures the LLM with settings from environment variables.
-        Session storage uses the global _session_store via get_session_history.
 
         Raises:
             ValueError: If LLM_API_KEY is not configured.
@@ -292,22 +325,11 @@ class ChatService:
         """
         Convert ChatMessage objects to LangChain message format.
 
-        Maps the role field to the appropriate LangChain message class:
-        - "system" -> SystemMessage
-        - "user" -> HumanMessage
-        - "assistant" -> AIMessage
-
         Args:
             messages: List of ChatMessage objects from the API request.
 
         Returns:
             List of LangChain BaseMessage subclass instances.
-
-        Example:
-            >>> msgs = [ChatMessage(role="user", content="Hello")]
-            >>> lc_msgs = service._to_langchain_messages(msgs)
-            >>> isinstance(lc_msgs[0], HumanMessage)
-            True
         """
         lc_messages: list[BaseMessage] = []
         for msg in messages:
@@ -323,22 +345,11 @@ class ChatService:
         """
         Retrieve conversation history for a session.
 
-        Uses the global session store via get_session_history.
-        If the session doesn't exist, creates a new session with the
-        basketball analytics system prompt.
-
         Args:
             session_id: Unique identifier for the chat session.
 
         Returns:
             List of LangChain messages representing the conversation history.
-
-        Example:
-            >>> msgs = service._get_session_messages("new-session")
-            >>> len(msgs)
-            1
-            >>> isinstance(msgs[0], SystemMessage)
-            True
         """
         history = get_session_history(session_id)
         return list(history.messages)
@@ -346,38 +357,22 @@ class ChatService:
     def _update_session(
         self,
         session_id: str,
-        user_messages: list[BaseMessage],
+        user_message: str,
         assistant_response: str,
     ) -> None:
         """
         Update session history with new messages and response.
 
-        Appends user messages (excluding any system messages from the request)
-        and the complete assistant response to the session history.
-
         Args:
             session_id: Unique identifier for the chat session.
-            user_messages: LangChain messages from the user's request.
+            user_message: The user's input message.
             assistant_response: Complete text of the assistant's response.
-
-        Example:
-            >>> service._update_session(
-            ...     "session-123",
-            ...     [HumanMessage(content="Hello")],
-            ...     "Hi there!"
-            ... )
         """
         history = get_session_history(session_id)
-
-        # Add non-system user messages to history
-        for msg in user_messages:
-            if not isinstance(msg, SystemMessage):
-                history.add_message(msg)
-
-        # Add assistant response
+        history.add_message(HumanMessage(content=user_message))
         history.add_message(AIMessage(content=assistant_response))
 
-    def _create_tools_with_session(self, db: Session) -> list[StructuredTool]:
+    def _create_tools_with_session(self, db: Session) -> list[BaseTool]:
         """
         Create tool instances with database session injected.
 
@@ -385,35 +380,34 @@ class ChatService:
             db: Database session to inject into all tools.
 
         Returns:
-            List of StructuredTool instances ready for LLM binding.
+            List of BaseTool instances ready for agent use.
         """
         return [_create_tool_with_db(tool, db) for tool in ALL_TOOLS]
 
-    def _execute_tool(
-        self,
-        tool_name: str,
-        tool_args: dict[str, Any],
-        tools: list[StructuredTool],
-    ) -> str:
+    def _build_messages_with_history(
+        self, session_id: str, user_message: str
+    ) -> list[BaseMessage]:
         """
-        Execute a tool by name with given arguments.
+        Build message list including conversation history.
 
         Args:
-            tool_name: Name of the tool to execute.
-            tool_args: Arguments to pass to the tool.
-            tools: List of available tools.
+            session_id: Unique identifier for the chat session.
+            user_message: The current user message.
 
         Returns:
-            Tool execution result as string.
+            List of messages including history and current message.
         """
-        for tool in tools:
-            if tool.name == tool_name:
-                try:
-                    result = tool.invoke(tool_args)
-                    return str(result)
-                except Exception as e:
-                    return f"Error executing {tool_name}: {e!s}"
-        return f"Tool '{tool_name}' not found."
+        history = get_session_history(session_id)
+        messages: list[BaseMessage] = []
+
+        # Add conversation history (last 6 messages = 3 exchanges)
+        for msg in history.messages[-6:]:
+            messages.append(msg)
+
+        # Add current user message
+        messages.append(HumanMessage(content=user_message))
+
+        return messages
 
     async def stream(
         self,
@@ -421,10 +415,10 @@ class ChatService:
         session_id: str,
     ) -> AsyncGenerator[str, None]:
         """
-        Stream a chat response for the given messages.
+        Stream a chat response using LangChain's create_agent.
 
-        Combines session history with new messages, streams the LLM response,
-        handles tool calls, and updates the session history upon completion.
+        The agent will reason before each action, execute tools, observe
+        results, and repeat until it can provide a final answer.
 
         Args:
             messages: List of ChatMessage objects from the current request.
@@ -433,15 +427,10 @@ class ChatService:
         Yields:
             String chunks of the assistant's response as they are generated.
 
-        Raises:
-            Exception: If the LLM fails to generate a response. Errors are
-                logged and a user-friendly error message is yielded.
-
         Example:
             >>> messages = [ChatMessage(role="user", content="Hello")]
             >>> async for chunk in service.stream(messages, "session-123"):
             ...     print(chunk, end="")
-            Hello! How can I help you with basketball analytics today?
         """
         # Create database session for this request
         db = SessionLocal()
@@ -450,139 +439,169 @@ class ChatService:
             # Create tools with db session injected
             tools = self._create_tools_with_session(db)
 
-            # Bind tools to LLM
-            llm_with_tools = self.llm.bind_tools(tools)
+            # Create the agent using LangChain's modern API
+            agent = create_agent(
+                model=self.llm,
+                tools=tools,
+                system_prompt=SYSTEM_PROMPT,
+                checkpointer=_memory_saver,
+            )
 
-            # Convert incoming messages to LangChain format
-            lc_messages = self._to_langchain_messages(messages)
+            # Get the user's message (last user message in the list)
+            user_message = ""
+            for msg in reversed(messages):
+                if msg.role == "user":
+                    user_message = msg.content
+                    break
 
-            # Get session history and combine with new messages
-            session_history = self._get_session_messages(session_id)
+            if not user_message:
+                yield "I didn't receive a message. How can I help you?"
+                return
 
-            # Build full message list: session history + new user messages
-            full_messages: list[BaseMessage] = list(session_history)
-            for msg in lc_messages:
-                if not isinstance(msg, SystemMessage):
-                    full_messages.append(msg)
+            # Build messages with conversation history
+            input_messages = self._build_messages_with_history(session_id, user_message)
 
-            # Stream the response with potential tool calls
+            # Log context size
+            total_chars = sum(
+                len(m.content) if isinstance(m.content, str) else 0
+                for m in input_messages
+            )
+            logger.info(
+                f"[REACT_AGENT] session={session_id} "
+                f"messages={len(input_messages)} "
+                f"chars={total_chars} "
+                f"~tokens={total_chars // 4}"
+            )
+
             full_response = ""
-            max_tool_iterations = 20  # Allow sufficient iterations for complex queries
+            config = {"configurable": {"thread_id": session_id}}
 
-            for iteration in range(max_tool_iterations):
-                try:
-                    # Log context size before LLM call
-                    total_chars = sum(
-                        len(m.content) if isinstance(m.content, str) else 0
-                        for m in full_messages
-                    )
-                    token_estimate = total_chars // 4
-                    logger.info(
-                        f"[LLM_CONTEXT] session={session_id} iteration={iteration} "
-                        f"messages={len(full_messages)} chars={total_chars} "
-                        f"~tokens={token_estimate}"
-                    )
+            try:
+                # Stream the agent execution
+                async for event in agent.astream_events(
+                    {"messages": input_messages},
+                    config=config,
+                    version="v2",
+                ):
+                    kind = event.get("event", "")
 
-                    # Stream response and collect chunks for tool call aggregation
-                    collected_chunks: list[Any] = []
-
-                    async for chunk in llm_with_tools.astream(full_messages):
-                        collected_chunks.append(chunk)
-
-                        # Stream text content immediately as it arrives
-                        if chunk.content:
+                    # Stream LLM tokens as they arrive
+                    if kind == "on_chat_model_stream":
+                        chunk = event.get("data", {}).get("chunk")
+                        if chunk and hasattr(chunk, "content") and chunk.content:
                             content = str(chunk.content)
                             full_response += content
                             yield content
 
-                    # After streaming completes, aggregate chunks to check for tool calls
-                    # Merge all chunks into a single message
-                    if not collected_chunks:
-                        break
+                    # Log and yield tool calls for debugging/frontend
+                    elif kind == "on_tool_start":
+                        tool_name = event.get("name", "unknown")
+                        tool_input = event.get("data", {}).get("input", {})
+                        logger.info(f"[TOOL_START] {tool_name}: {tool_input}")
 
-                    # Aggregate chunks into final message
-                    final_message = collected_chunks[0]
-                    for chunk in collected_chunks[1:]:
-                        final_message = final_message + chunk
+                        # Yield tool call marker for frontend rendering
+                        tool_marker = f"\n\n[[TOOL_CALL:{json.dumps({'name': tool_name, 'args': tool_input})}]]\n\n"
+                        yield tool_marker
 
-                    # Check for tool calls in the aggregated message
-                    if (
-                        not hasattr(final_message, "tool_calls")
-                        or not final_message.tool_calls
-                    ):
-                        break
+                    elif kind == "on_tool_end":
+                        tool_name = event.get("name", "unknown")
+                        output = event.get("data", {}).get("output", "")
+                        output_len = len(str(output)) if output else 0
+                        logger.info(f"[TOOL_END] {tool_name}: {output_len} chars")
 
-                    # Add AI message with tool calls to history
-                    full_messages.append(final_message)
+                # Update session history with clean response
+                # Extract just the final text content (remove tool markers)
+                clean_response = full_response
+                if "[[TOOL_CALL:" in clean_response:
+                    # Remove tool markers for history
+                    import re
 
-                    # Execute each tool and stream progress
-                    for tool_call in final_message.tool_calls:
-                        tool_name = tool_call["name"]
-                        tool_args = tool_call["args"]
-                        # Ensure tool_id is never None
-                        tool_id = tool_call.get("id") or f"call_{tool_name}_{iteration}"
+                    clean_response = re.sub(
+                        r"\[\[TOOL_CALL:.*?\]\]", "", clean_response
+                    )
+                    clean_response = clean_response.strip()
 
-                        # Execute the tool
-                        result = self._execute_tool(tool_name, tool_args, tools)
+                self._update_session(
+                    session_id, user_message, clean_response or full_response
+                )
 
-                        # Log tool result size
-                        result_chars = len(result)
-                        result_tokens = result_chars // 4
-                        logger.info(
-                            f"[TOOL_RESULT] {tool_name}: {result_chars} chars "
-                            f"~{result_tokens} tokens args={tool_args}"
-                        )
-
-                        # Stream tool call marker for frontend to render
-                        tool_data = {
-                            "name": tool_name,
-                            "args": tool_args,
-                            "result": result,
-                            "success": not result.startswith("Error"),
-                        }
-                        yield f"\n\n[[TOOL_CALL:{json.dumps(tool_data)}]]\n\n"
-
-                        # Add tool result to messages
-                        tool_message = ToolMessage(
-                            content=result,
-                            tool_call_id=tool_id,
-                        )
-                        full_messages.append(tool_message)
-
-                    # Reset for next iteration (LLM will process tool results)
-                    full_response = ""
-
-                except Exception as e:
-                    error_msg = f"I apologize, but I encountered an error: {e!s}"
-                    yield error_msg
-                    full_response = error_msg
-                    break
-
-            # Update session with the complete exchange
-            self._update_session(session_id, lc_messages, full_response)
+            except Exception as e:
+                error_msg = (
+                    f"I encountered an error while processing your request: {e!s}"
+                )
+                logger.error(f"[REACT_AGENT_ERROR] {e}", exc_info=True)
+                yield error_msg
 
         finally:
             # Always close the database session
             db.close()
 
+    async def stream_simple(
+        self,
+        messages: list[ChatMessage],
+        session_id: str,
+    ) -> AsyncGenerator[str, None]:
+        """
+        Stream a simple response without full ReAct reasoning.
+
+        Use this for simple queries that don't need tool calls,
+        like greetings or general questions.
+
+        Args:
+            messages: List of ChatMessage objects.
+            session_id: Unique identifier for the chat session.
+
+        Yields:
+            String chunks of the response.
+        """
+        # Get the user's message
+        user_message = ""
+        for msg in reversed(messages):
+            if msg.role == "user":
+                user_message = msg.content
+                break
+
+        # Build messages with history
+        history = self._get_session_messages(session_id)
+        all_messages = list(history)
+
+        # Add system message if not present
+        if not any(isinstance(m, SystemMessage) for m in all_messages):
+            all_messages.insert(
+                0,
+                SystemMessage(
+                    content="You are a helpful basketball analytics assistant. "
+                    "Be friendly and concise."
+                ),
+            )
+
+        # Add current user message
+        all_messages.append(HumanMessage(content=user_message))
+
+        full_response = ""
+        try:
+            async for chunk in self.llm.astream(all_messages):
+                if chunk.content:
+                    content = str(chunk.content)
+                    full_response += content
+                    yield content
+
+            # Update session
+            self._update_session(session_id, user_message, full_response)
+
+        except Exception as e:
+            error_msg = f"I apologize, but I encountered an error: {e!s}"
+            yield error_msg
+
     def clear_session(self, session_id: str) -> bool:
         """
         Clear conversation history for a session.
-
-        Removes all messages from the specified session. The next
-        interaction will start fresh with only the system prompt.
 
         Args:
             session_id: Unique identifier for the chat session to clear.
 
         Returns:
             True if the session existed and was cleared, False otherwise.
-
-        Example:
-            >>> service.clear_session("session-123")
-            True
-            >>> service.clear_session("nonexistent")
-            False
         """
         if session_id in _session_store:
             del _session_store[session_id]
@@ -598,10 +617,6 @@ class ChatService:
 
         Returns:
             Number of messages in the session, or 0 if session doesn't exist.
-
-        Example:
-            >>> service.get_session_message_count("session-123")
-            5
         """
         if session_id not in _session_store:
             return 0

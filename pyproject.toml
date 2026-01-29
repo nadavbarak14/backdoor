@@ -34,6 +34,7 @@ dependencies = [
     "xmltodict>=0.13.0",
     "nba_api>=1.4.1",
     "langchain-openai>=0.2.0",
+    "langchain>=0.3.0",
 ]
 
 [project.optional-dependencies]

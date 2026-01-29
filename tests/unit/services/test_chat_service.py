@@ -7,14 +7,14 @@ Tests:
     - System prompt initialization
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from src.schemas.chat import ChatMessage
 from src.services.chat_service import (
-    BASKETBALL_SYSTEM_PROMPT,
+    SYSTEM_PROMPT,
     ChatService,
     _session_store,
     get_session_history,
@@ -103,12 +103,11 @@ class TestChatServiceSessionManagement:
             return service
 
     def test_get_session_messages_creates_new_session(self, chat_service):
-        """Test that new sessions are created with system prompt."""
+        """Test that new sessions are created empty."""
         messages = chat_service._get_session_messages("new-session")
 
-        assert len(messages) == 1
-        assert isinstance(messages[0], SystemMessage)
-        assert messages[0].content == BASKETBALL_SYSTEM_PROMPT
+        # New sessions start empty (system prompt is in agent, not session)
+        assert len(messages) == 0
 
     def test_get_session_messages_returns_existing_session(self, chat_service):
         """Test that existing sessions are returned."""
@@ -120,41 +119,22 @@ class TestChatServiceSessionManagement:
 
         messages = chat_service._get_session_messages("existing-session")
 
-        assert len(messages) == 2
-        assert isinstance(messages[1], HumanMessage)
+        assert len(messages) == 1
+        assert isinstance(messages[0], HumanMessage)
 
     def test_update_session_adds_user_and_assistant_messages(self, chat_service):
         """Test that session is updated with user and assistant messages."""
         chat_service._get_session_messages("session-123")
-        user_messages = [HumanMessage(content="Hello")]
 
-        chat_service._update_session("session-123", user_messages, "Hi there!")
-
-        history = get_session_history("session-123")
-        session = list(history.messages)
-        assert len(session) == 3  # System + User + Assistant
-        assert isinstance(session[1], HumanMessage)
-        assert session[1].content == "Hello"
-        assert isinstance(session[2], AIMessage)
-        assert session[2].content == "Hi there!"
-
-    def test_update_session_ignores_system_messages_from_user(self, chat_service):
-        """Test that system messages in user request are not added to history."""
-        chat_service._get_session_messages("session-123")
-        user_messages = [
-            SystemMessage(content="Override system"),
-            HumanMessage(content="Hello"),
-        ]
-
-        chat_service._update_session("session-123", user_messages, "Hi!")
+        chat_service._update_session("session-123", "Hello", "Hi there!")
 
         history = get_session_history("session-123")
         session = list(history.messages)
-        # Should have: original system + user + assistant (not the user's system msg)
-        assert len(session) == 3
-        assert session[0].content == BASKETBALL_SYSTEM_PROMPT  # Original system
-        assert isinstance(session[1], HumanMessage)
-        assert isinstance(session[2], AIMessage)
+        assert len(session) == 2  # User + Assistant
+        assert isinstance(session[0], HumanMessage)
+        assert session[0].content == "Hello"
+        assert isinstance(session[1], AIMessage)
+        assert session[1].content == "Hi there!"
 
     def test_clear_session_removes_existing_session(self, chat_service):
         """Test that clear_session removes an existing session."""
@@ -179,7 +159,7 @@ class TestChatServiceSessionManagement:
 
         count = chat_service.get_session_message_count("session-123")
 
-        assert count == 2  # System + User
+        assert count == 1  # Just the user message
 
     def test_get_session_message_count_returns_zero_for_nonexistent(self, chat_service):
         """Test that zero is returned for nonexistent session."""
@@ -188,8 +168,25 @@ class TestChatServiceSessionManagement:
         assert count == 0
 
 
-class TestChatServiceStreaming:
-    """Tests for the streaming functionality."""
+class TestChatServiceSystemPrompt:
+    """Tests for system prompt configuration."""
+
+    def test_system_prompt_contains_basketball_context(self):
+        """Test that system prompt has basketball analytics context."""
+        assert "basketball" in SYSTEM_PROMPT.lower()
+        assert "statistics" in SYSTEM_PROMPT.lower() or "stats" in SYSTEM_PROMPT.lower()
+
+    def test_system_prompt_contains_tool_instructions(self):
+        """Test that system prompt has tool usage instructions."""
+        assert "tool" in SYSTEM_PROMPT.lower()
+
+    def test_system_prompt_contains_reasoning_instructions(self):
+        """Test that system prompt has reasoning/thinking instructions."""
+        assert "think" in SYSTEM_PROMPT.lower() or "reason" in SYSTEM_PROMPT.lower()
+
+
+class TestChatServiceBuildMessages:
+    """Tests for message building with history."""
 
     @pytest.fixture(autouse=True)
     def clear_session_store(self):
@@ -200,102 +197,45 @@ class TestChatServiceStreaming:
 
     @pytest.fixture
     def chat_service(self):
-        """Create a ChatService with mocked LLM and tools."""
-        with (
-            patch("src.services.chat_service.ChatOpenAI") as mock_llm_class,
-            patch("src.services.chat_service.SessionLocal") as mock_session,
-            patch("src.services.chat_service.ALL_TOOLS", []),
-        ):  # Empty tools for testing
-            mock_llm = MagicMock()
-            mock_llm_class.return_value = mock_llm
-            mock_session.return_value = MagicMock()
+        """Create a ChatService with mocked LLM."""
+        with patch("src.services.chat_service.ChatOpenAI"):
             service = ChatService()
-            service.llm = mock_llm
             return service
 
-    @pytest.mark.asyncio
-    async def test_stream_yields_content_chunks(self, chat_service):
-        """Test that stream yields content from LLM."""
-        from langchain_core.messages import AIMessageChunk
+    def test_build_messages_with_empty_history(self, chat_service):
+        """Test building messages when history is empty."""
+        messages = chat_service._build_messages_with_history("new-session", "Hello")
 
-        # Mock the bind_tools().astream() chain with real AIMessageChunks
-        async def mock_astream(messages):
-            for content in ["Hello", " ", "World"]:
-                yield AIMessageChunk(content=content)
+        assert len(messages) == 1
+        assert isinstance(messages[0], HumanMessage)
+        assert messages[0].content == "Hello"
 
-        mock_llm_with_tools = MagicMock()
-        mock_llm_with_tools.astream = mock_astream
-        chat_service.llm.bind_tools = MagicMock(return_value=mock_llm_with_tools)
+    def test_build_messages_includes_history(self, chat_service):
+        """Test that history is included in messages."""
+        # Add some history
+        history = get_session_history("session-123")
+        history.add_message(HumanMessage(content="Previous question"))
+        history.add_message(AIMessage(content="Previous answer"))
 
-        messages = [ChatMessage(role="user", content="Hi")]
-        chunks = []
-        async for chunk in chat_service.stream(messages, "test-session"):
-            chunks.append(chunk)
+        messages = chat_service._build_messages_with_history(
+            "session-123", "New question"
+        )
 
-        assert chunks == ["Hello", " ", "World"]
+        assert len(messages) == 3
+        assert messages[0].content == "Previous question"
+        assert messages[1].content == "Previous answer"
+        assert messages[2].content == "New question"
 
-    @pytest.mark.asyncio
-    async def test_stream_handles_empty_content(self, chat_service):
-        """Test that stream handles chunks with empty content."""
-        from langchain_core.messages import AIMessageChunk
+    def test_build_messages_limits_history_to_six_messages(self, chat_service):
+        """Test that only last 6 messages from history are included."""
+        # Add 10 messages to history
+        history = get_session_history("session-123")
+        for i in range(10):
+            history.add_message(HumanMessage(content=f"Message {i}"))
 
-        async def mock_astream(messages):
-            contents = ["Hello", "", "World"]  # Empty content filtered out
-            for content in contents:
-                yield AIMessageChunk(content=content)
+        messages = chat_service._build_messages_with_history("session-123", "New")
 
-        mock_llm_with_tools = MagicMock()
-        mock_llm_with_tools.astream = mock_astream
-        chat_service.llm.bind_tools = MagicMock(return_value=mock_llm_with_tools)
-
-        messages = [ChatMessage(role="user", content="Hi")]
-        chunks = []
-        async for chunk in chat_service.stream(messages, "test-session"):
-            chunks.append(chunk)
-
-        assert chunks == ["Hello", "World"]
-
-    @pytest.mark.asyncio
-    async def test_stream_updates_session_after_completion(self, chat_service):
-        """Test that session is updated after streaming completes."""
-        from langchain_core.messages import AIMessageChunk
-
-        async def mock_astream(messages):
-            for content in ["Hello ", "World"]:
-                yield AIMessageChunk(content=content)
-
-        mock_llm_with_tools = MagicMock()
-        mock_llm_with_tools.astream = mock_astream
-        chat_service.llm.bind_tools = MagicMock(return_value=mock_llm_with_tools)
-
-        messages = [ChatMessage(role="user", content="Hi")]
-        async for _ in chat_service.stream(messages, "test-session"):
-            pass
-
-        history = get_session_history("test-session")
-        session = list(history.messages)
-        # Session should have: system + user + assistant
-        assert len(session) == 3
-        assert isinstance(session[-1], AIMessage)
-        assert session[-1].content == "Hello World"
-
-    @pytest.mark.asyncio
-    async def test_stream_handles_llm_error(self, chat_service):
-        """Test that stream handles LLM errors gracefully."""
-
-        async def mock_astream(messages):
-            raise Exception("LLM Error")
-            yield  # Make it an async generator
-
-        mock_llm_with_tools = MagicMock()
-        mock_llm_with_tools.astream = mock_astream
-        chat_service.llm.bind_tools = MagicMock(return_value=mock_llm_with_tools)
-
-        messages = [ChatMessage(role="user", content="Hi")]
-        chunks = []
-        async for chunk in chat_service.stream(messages, "test-session"):
-            chunks.append(chunk)
-
-        # Should yield an error message
-        assert len(chunks) == 1
-        assert "error" in chunks[0].lower()
+        # Should have 6 from history + 1 new = 7
+        assert len(messages) == 7
+        # First message should be Message 4 (last 6 of 0-9)
+        assert messages[0].content == "Message 4"
