@@ -496,9 +496,7 @@ class WinnerScraper:
                             if "." in value:
                                 profile.height_cm = int(float(value) * 100)
                             else:
-                                height_str = "".join(
-                                    c for c in value if c.isdigit()
-                                )
+                                height_str = "".join(c for c in value if c.isdigit())
                                 if height_str:
                                     profile.height_cm = int(height_str)
                         except ValueError:
@@ -509,9 +507,7 @@ class WinnerScraper:
                         try:
                             for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%d.%m.%Y"]:
                                 try:
-                                    profile.birth_date = datetime.strptime(
-                                        value, fmt
-                                    )
+                                    profile.birth_date = datetime.strptime(value, fmt)
                                     break
                                 except ValueError:
                                     continue
@@ -547,9 +543,8 @@ class WinnerScraper:
                             elif "nationality" in label and not profile.nationality:
                                 profile.nationality = value
                             elif (
-                                ("birth" in label or "dob" in label)
-                                and not profile.birth_date
-                            ):
+                                "birth" in label or "dob" in label
+                            ) and not profile.birth_date:
                                 try:
                                     for fmt in [
                                         "%Y-%m-%d",
@@ -557,8 +552,8 @@ class WinnerScraper:
                                         "%d.%m.%Y",
                                     ]:
                                         try:
-                                            profile.birth_date = (
-                                                datetime.strptime(value, fmt)
+                                            profile.birth_date = datetime.strptime(
+                                                value, fmt
                                             )
                                             break
                                         except ValueError:

@@ -880,9 +880,7 @@ class SyncManager:
 
                     # Fetch full player profile for birthdate if not in roster data
                     if not player_info or not player_info.birth_date:
-                        full_info = await adapter.get_player_info(
-                            roster_player_id
-                        )
+                        full_info = await adapter.get_player_info(roster_player_id)
                         if not full_info or not full_info.birth_date:
                             raise ValueError(
                                 f"No birth_date returned for player "
