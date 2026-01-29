@@ -42,6 +42,7 @@ from sqlalchemy.types import String
 
 from src.models.player import Player, PlayerTeamHistory
 from src.sync.deduplication.normalizer import (
+    name_similarity_flexible,
     names_match,
     names_match_fuzzy,
     normalize_name,
@@ -393,6 +394,98 @@ class PlayerDeduplicator:
                 return candidate
 
         return None
+
+    def match_player_by_birthdate(
+        self,
+        birth_date: date,
+        player_name: str,
+        source: str,
+        similarity_threshold: float = 0.8,
+    ) -> Player | None:
+        """
+        Find a player by birthdate and name similarity.
+
+        Searches all players with the same birth_date and returns the one
+        with the highest name similarity above the threshold. This is useful
+        for cross-source matching when a player exists in Winner League and
+        appears in Euroleague boxscore data.
+
+        Uses name_similarity_flexible which handles different name formats
+        like "Jeff Downtin" vs "DOWNTIN, JEFF".
+
+        Args:
+            birth_date: Player's birth date to match.
+            player_name: Player name to compare (any format).
+            source: The data source (used to exclude already-mapped players).
+            similarity_threshold: Minimum similarity score (0.0-1.0) for match.
+                Default is 0.8 (80% similarity required).
+
+        Returns:
+            The best matching Player if found above threshold, None otherwise.
+
+        Example:
+            >>> player = dedup.match_player_by_birthdate(
+            ...     birth_date=date(1994, 7, 18),
+            ...     player_name="DOWNTIN, JEFF",
+            ...     source="euroleague"
+            ... )
+            >>> if player:
+            ...     print(f"Matched: {player.full_name}")
+        """
+        # Find all players with this birth_date
+        stmt = select(Player).where(Player.birth_date == birth_date)
+        candidates = list(self.db.scalars(stmt).all())
+
+        if not candidates:
+            return None
+
+        # Filter out players already mapped to this source
+        candidates = [p for p in candidates if source not in p.external_ids]
+
+        if not candidates:
+            return None
+
+        # Find best name match using similarity
+        best_match: Player | None = None
+        best_score: float = 0.0
+
+        for player in candidates:
+            score = name_similarity_flexible(player.full_name, player_name)
+            if score > best_score:
+                best_score = score
+                best_match = player
+
+        # Return match only if above threshold
+        if best_match and best_score >= similarity_threshold:
+            return best_match
+
+        return None
+
+    def get_birthdate_player_map(self) -> dict[date, list[Player]]:
+        """
+        Build a hashmap of birthdates to players for efficient lookup.
+
+        Returns a dictionary where keys are birth dates and values are
+        lists of players with that birthdate. Useful for batch processing.
+
+        Returns:
+            Dict mapping birth_date -> list of Players.
+
+        Example:
+            >>> birthdate_map = dedup.get_birthdate_player_map()
+            >>> players_born_july_18 = birthdate_map.get(date(1994, 7, 18), [])
+        """
+        stmt = select(Player).where(Player.birth_date.isnot(None))
+        players = self.db.scalars(stmt).all()
+
+        birthdate_map: dict[date, list[Player]] = {}
+        for player in players:
+            if player.birth_date:
+                if player.birth_date not in birthdate_map:
+                    birthdate_map[player.birth_date] = []
+                birthdate_map[player.birth_date].append(player)
+
+        return birthdate_map
 
     def merge_external_id(
         self, player: Player, source: str, external_id: str

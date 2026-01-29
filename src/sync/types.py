@@ -140,6 +140,7 @@ class RawPlayerStats:
         player_external_id: External ID of the player
         player_name: Display name of the player
         team_external_id: External ID of the player's team
+        birth_date: Player's birth date (for cross-source matching)
         minutes_played: Playing time in seconds
         is_starter: Whether player started the game
         points: Total points scored
@@ -174,9 +175,10 @@ class RawPlayerStats:
         ... )
     """
 
-    player_external_id: str
-    player_name: str
-    team_external_id: str
+    player_external_id: str | None = None
+    player_name: str | None = None
+    team_external_id: str | None = None
+    birth_date: date | None = None  # For cross-source deduplication
     minutes_played: int = 0
     is_starter: bool = False
     points: int = 0

@@ -129,6 +129,7 @@ class PlayerGameStatsService(BaseService[PlayerGameStats]):
         self,
         player_id: UUID,
         season_id: UUID | None = None,
+        league_id: UUID | None = None,
         skip: int = 0,
         limit: int = 50,
     ) -> tuple[list[PlayerGameStats], int]:
@@ -141,6 +142,7 @@ class PlayerGameStatsService(BaseService[PlayerGameStats]):
         Args:
             player_id: UUID of the player.
             season_id: Optional UUID of season to filter by.
+            league_id: Optional UUID of league to filter by.
             skip: Number of records to skip (offset). Defaults to 0.
             limit: Maximum number of records to return. Defaults to 50.
 
@@ -151,12 +153,15 @@ class PlayerGameStatsService(BaseService[PlayerGameStats]):
             >>> game_log, total = service.get_player_game_log(
             ...     player_id=lebron_id,
             ...     season_id=season_2024_id,
+            ...     league_id=euroleague_id,
             ...     skip=0,
             ...     limit=10
             ... )
             >>> for stat in game_log:
             ...     print(f"{stat.game.game_date}: {stat.points} pts")
         """
+        from src.models.league import Season
+
         stmt = (
             select(PlayerGameStats)
             .options(
@@ -171,6 +176,11 @@ class PlayerGameStatsService(BaseService[PlayerGameStats]):
 
         if season_id:
             stmt = stmt.where(Game.season_id == season_id)
+
+        if league_id:
+            stmt = stmt.join(Season, Game.season_id == Season.id).where(
+                Season.league_id == league_id
+            )
 
         stmt = stmt.order_by(Game.game_date.desc())
 

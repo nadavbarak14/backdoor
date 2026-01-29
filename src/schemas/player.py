@@ -177,6 +177,7 @@ class PlayerFilter(BaseModel):
     Attributes:
         team_id: Filter by team UUID (players currently on this team).
         season_id: Filter by season UUID (players active in this season).
+        league_id: Filter by league UUID (players who played in this league).
         position: Filter by position (e.g., "PG", "C").
         nationality: Filter by nationality/country.
         search: Search term for player name.
@@ -190,6 +191,7 @@ class PlayerFilter(BaseModel):
 
     team_id: UUID | None = Field(None, description="Filter by team UUID")
     season_id: UUID | None = Field(None, description="Filter by season UUID")
+    league_id: UUID | None = Field(None, description="Filter by league UUID")
     position: str | None = Field(None, description="Filter by position")
     nationality: str | None = Field(None, description="Filter by nationality/country")
     search: str | None = Field(
