@@ -302,8 +302,8 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         """
         Fetch historical game schedule by scraping results page.
 
-        For each game, fetches the segevstats game ID from the game-zone page
-        and team IDs from the boxscore so that sync can work correctly.
+        For each game, fetches team IDs from the game-zone page directly
+        (no segevstats calls needed).
 
         Results are cached to avoid duplicate fetches when called from
         both get_teams and get_schedule.
@@ -329,62 +329,42 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
                 if not basket_game_id:
                     continue
 
-                # Get the segevstats game ID from game-zone page
-                segevstats_id = self.scraper.fetch_segevstats_game_id(basket_game_id)
-                if not segevstats_id:
-                    # Skip games without segevstats mapping
-                    continue
-
-                # Fetch boxscore to get team IDs and PBP to get team names
+                # Fetch boxscore from game-zone to get team IDs
                 try:
-                    boxscore_result = self.client.fetch_boxscore(segevstats_id)
-                    boxscore = self.mapper.map_boxscore(boxscore_result.data)
-                    home_team_id = boxscore.game.home_team_external_id
-                    away_team_id = boxscore.game.away_team_external_id
+                    boxscore = self.scraper.fetch_game_boxscore(basket_game_id)
+                    home_team_id = boxscore.home_team_id
+                    away_team_id = boxscore.away_team_id
 
-                    # Fetch PBP to get team names
-                    pbp_result = self.client.fetch_pbp(segevstats_id)
-                    pbp_data = pbp_result.data
-                    game_info = pbp_data.get("result", {}).get("gameInfo", {})
-                    home_team_info = game_info.get("homeTeam", {})
-                    away_team_info = game_info.get("awayTeam", {})
+                    if not home_team_id or not away_team_id:
+                        continue
 
                     # Cache team info for later use in get_teams
-                    if (
-                        home_team_id
-                        and home_team_id not in self._historical_teams_cache
-                    ):
+                    if home_team_id not in self._historical_teams_cache:
                         self._historical_teams_cache[home_team_id] = RawTeam(
                             external_id=home_team_id,
-                            name=home_team_info.get("name", f"Team {home_team_id}"),
+                            name=boxscore.home_team_name or f"Team {home_team_id}",
                         )
-                    if (
-                        away_team_id
-                        and away_team_id not in self._historical_teams_cache
-                    ):
+                    if away_team_id not in self._historical_teams_cache:
                         self._historical_teams_cache[away_team_id] = RawTeam(
                             external_id=away_team_id,
-                            name=away_team_info.get("name", f"Team {away_team_id}"),
+                            name=boxscore.away_team_name or f"Team {away_team_id}",
                         )
                 except Exception:
                     # Skip games without valid boxscore
                     continue
 
-                # Create RawGame with all IDs filled
+                # Create RawGame using basket.co.il IDs
                 game = RawGame(
-                    external_id=segevstats_id,
-                    game_date=boxscore.game.game_date,
+                    external_id=basket_game_id,  # Use basket.co.il ID as external_id
+                    game_date=game_result.date,
                     home_team_external_id=home_team_id,
                     away_team_external_id=away_team_id,
-                    home_score=boxscore.game.home_score,
-                    away_score=boxscore.game.away_score,
-                    status="final" if boxscore.game.home_score else "scheduled",
-                    source_game_id=basket_game_id,  # basket.co.il ID for boxscore
+                    home_score=boxscore.home_score or game_result.home_score,
+                    away_score=boxscore.away_score or game_result.away_score,
+                    status=GameStatus.FINAL if game_result.home_score else GameStatus.SCHEDULED,
+                    source_game_id=basket_game_id,
                 )
                 games.append(game)
-
-                # Cache mapping for get_game_boxscore to use basket.co.il
-                self._game_id_mapping[segevstats_id] = basket_game_id
 
         # Cache the results
         self._historical_schedule_cache[season_id] = games
