@@ -93,6 +93,7 @@ export default function PlayerDetail() {
                   <TableHead>
                     <TableRow hoverable={false}>
                       <TableHeader>Season</TableHeader>
+                      <TableHeader>Competition</TableHeader>
                       <TableHeader>Team</TableHeader>
                       <TableHeader>GP</TableHeader>
                       <TableHeader>PPG</TableHeader>
@@ -107,6 +108,9 @@ export default function PlayerDetail() {
                       <TableRow key={season.id}>
                         <TableCell className="font-medium text-gray-900">
                           {season.season_name}
+                        </TableCell>
+                        <TableCell className="text-gray-500 text-sm">
+                          {season.league_code || '-'}
                         </TableCell>
                         <TableCell>
                           <Link

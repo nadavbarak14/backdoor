@@ -395,6 +395,7 @@ def get_player_career_stats(
             team_name=s.team.name,
             season_id=s.season_id,
             season_name=s.season.name,
+            league_code=s.season.league.code if s.season.league else None,
             games_played=s.games_played,
             games_started=s.games_started,
             total_minutes=s.total_minutes,

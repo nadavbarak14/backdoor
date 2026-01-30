@@ -159,6 +159,7 @@ class PlayerSeasonStatsResponse(OrmBase):
     team_name: str
     season_id: uuid.UUID
     season_name: str
+    league_code: str | None = None
 
     # Games
     games_played: int

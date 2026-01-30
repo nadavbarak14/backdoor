@@ -150,6 +150,7 @@ export interface PlayerSeasonStats {
   team_name: string;
   season_id: string;
   season_name: string;
+  league_code: string | null;
   games_played: number;
   games_started: number;
   total_minutes: number;
