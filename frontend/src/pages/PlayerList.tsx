@@ -125,7 +125,7 @@ export default function PlayerList() {
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-gray-900">{player.full_name}</p>
                   <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
-                    {player.position && <span>{player.position}</span>}
+                    {player.positions?.length > 0 && <span>{player.positions.join('/')}</span>}
                     {player.nationality && (
                       <span className="flex items-center gap-1">
                         <MapPin className="w-3 h-3" />

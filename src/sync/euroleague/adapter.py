@@ -121,18 +121,35 @@ class EuroleagueAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         """
         Parse season ID to extract competition and year.
 
+        Accepts both normalized format (2024-25) and source format (E2024).
+
         Args:
-            season_id: Season ID like "E2024" or "U2024".
+            season_id: Season ID like "E2024", "U2024", or "2024-25".
 
         Returns:
             Tuple of (competition, year).
 
         Raises:
             ValueError: If season_id format is invalid.
+
+        Example:
+            >>> adapter._parse_season_id("E2024")
+            ('E', 2024)
+            >>> adapter._parse_season_id("2024-25")
+            ('E', 2024)
         """
         if len(season_id) < 2:
             raise ValueError(f"Invalid season_id format: {season_id}")
 
+        # Handle normalized format "2024-25" or "2024-2025"
+        if "-" in season_id:
+            try:
+                year = int(season_id.split("-")[0])
+                return self.competition, year
+            except ValueError as e:
+                raise ValueError(f"Invalid season_id format: {season_id}") from e
+
+        # Handle source format "E2024" or "U2024"
         competition = season_id[0]
         try:
             year = int(season_id[1:])

@@ -99,7 +99,7 @@ export default function TeamDetail() {
                       </Link>
                     </TableCell>
                     <TableCell className="text-gray-500">
-                      {player.position || '-'}
+                      {player.positions?.join('/') || '-'}
                     </TableCell>
                     <TableCell>
                       <ChevronRight className="w-4 h-4 text-gray-400" />
