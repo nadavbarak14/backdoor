@@ -752,6 +752,12 @@ class WinnerScraper:
                     if strong:
                         strong_text = strong.get_text(strip=True)
                         desc_text = desc_text.replace(strong_text, "").strip()
+                    # Remove captain marker (קפטן = "captain" in Hebrew)
+                    # Format: "קפטן | 20/06/1991" -> "20/06/1991"
+                    if desc_text.startswith("קפטן"):
+                        desc_text = desc_text.replace("קפטן", "").strip()
+                        if desc_text.startswith("|"):
+                            desc_text = desc_text[1:].strip()
                     # Try to parse date (format: DD/MM/YYYY)
                     if desc_text:
                         for fmt in ["%d/%m/%Y", "%Y-%m-%d", "%d.%m.%Y"]:
