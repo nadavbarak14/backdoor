@@ -356,7 +356,7 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
                 # Create RawGame using basket.co.il IDs
                 game = RawGame(
                     external_id=basket_game_id,  # Use basket.co.il ID as external_id
-                    game_date=game_result.date,
+                    game_date=boxscore.game_date,  # Date from game-zone page
                     home_team_external_id=home_team_id,
                     away_team_external_id=away_team_id,
                     home_score=boxscore.home_score or game_result.home_score,

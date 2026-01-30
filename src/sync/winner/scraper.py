@@ -260,6 +260,7 @@ class GameZoneBoxscore:
     """
 
     game_id: str
+    game_date: datetime | None = None
     home_team_id: str | None = None
     away_team_id: str | None = None
     home_team_name: str | None = None
@@ -1160,11 +1161,30 @@ class WinnerScraper:
 
         boxscore = GameZoneBoxscore(game_id=game_id, raw_html=html)
 
-        # Find team names and scores from the scoreboard
-        # Look for team name links
+        # Extract game date from h5 element with class "en"
+        # Format: "Kiryat Ata,&nbsp;&nbsp;Sunday ,&nbsp; 06/10/2024,&nbsp;19:45"
+        h5_elements = soup.find_all("h5", class_="en")
+        for h5 in h5_elements:
+            text = h5.get_text()
+            # Look for date pattern DD/MM/YYYY
+            date_match = re.search(r"(\d{2})/(\d{2})/(\d{4})", text)
+            if date_match:
+                day, month, year = date_match.groups()
+                boxscore.game_date = datetime(int(year), int(month), int(day))
+                break
+
+        # Extract team names from game_zone_team_name divs
+        home_name_div = soup.find("div", class_=lambda x: x and "game_zone_team_name" in x and "home_team" in x)
+        away_name_div = soup.find("div", class_=lambda x: x and "game_zone_team_name" in x and "away_team" in x)
+        if home_name_div:
+            boxscore.home_team_name = home_name_div.get_text(strip=True)
+        if away_name_div:
+            boxscore.away_team_name = away_name_div.get_text(strip=True)
+
+        # Find team IDs from the boxscore tables (they link to team pages)
+        # Look for team links in the boxscore area (within player stat tables)
         team_links = soup.find_all("a", href=re.compile(r"team\.asp\?TeamId=\d+"))
         team_ids = []
-        team_names = []
         for link in team_links:
             href = link.get("href", "")
             match = re.search(r"TeamId=(\d+)", href)
@@ -1172,13 +1192,10 @@ class WinnerScraper:
                 team_id = match.group(1)
                 if team_id not in team_ids:
                     team_ids.append(team_id)
-                    team_names.append(link.get_text(strip=True))
 
         if len(team_ids) >= 2:
             boxscore.home_team_id = team_ids[0]
             boxscore.away_team_id = team_ids[1]
-            boxscore.home_team_name = team_names[0] if team_names else None
-            boxscore.away_team_name = team_names[1] if len(team_names) > 1 else None
 
         # Find all boxscore tables (there should be 2: home and away)
         # Look for tables with player stats - they have player links
@@ -1203,12 +1220,11 @@ class WinnerScraper:
             else:
                 boxscore.away_players = players
 
-        # Extract scores from the page
+        # Extract scores from the gz_result div
         score_pattern = re.compile(r"(\d+)\s*[-:]\s*(\d+)")
-        # Look for score in page title or header
-        title = soup.find("title")
-        if title:
-            match = score_pattern.search(title.get_text())
+        gz_result = soup.find(id="gz_result")
+        if gz_result:
+            match = score_pattern.search(gz_result.get_text())
             if match:
                 boxscore.home_score = int(match.group(1))
                 boxscore.away_score = int(match.group(2))
