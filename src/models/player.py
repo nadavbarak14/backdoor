@@ -68,7 +68,6 @@ class Player(UUIDMixin, TimestampMixin, Base):
 
     Properties:
         full_name: Returns the player's full name (first_name + last_name)
-        position: Returns primary position string for backwards compatibility
 
     Example:
         >>> from datetime import date
@@ -140,48 +139,6 @@ class Player(UUIDMixin, TimestampMixin, Base):
             'LeBron James'
         """
         return f"{self.first_name} {self.last_name}"
-
-    @property
-    def position(self) -> str | None:
-        """
-        Return the player's primary position as string for backwards compatibility.
-
-        Returns:
-            str | None: First position value or None if no positions.
-
-        Example:
-            >>> player = Player(positions=[Position.SMALL_FORWARD])
-            >>> player.position
-            'SF'
-        """
-        if self.positions:
-            return self.positions[0].value
-        return None
-
-    @position.setter
-    def position(self, value: str | None) -> None:
-        """
-        Set the player's position for backwards compatibility.
-
-        Converts a single position string to a list with one Position enum.
-
-        Args:
-            value: Position string like "SF", "PG", etc.
-
-        Example:
-            >>> player = Player(first_name="John", last_name="Doe")
-            >>> player.position = "SF"
-            >>> player.positions
-            [Position.SMALL_FORWARD]
-        """
-        if value is None:
-            self.positions = []
-        else:
-            try:
-                self.positions = [Position(value.upper())]
-            except ValueError:
-                # Unknown position - store as empty list
-                self.positions = []
 
     def __repr__(self) -> str:
         """Return string representation of Player."""
@@ -262,42 +219,6 @@ class PlayerTeamHistory(UUIDMixin, TimestampMixin, Base):
             name="uq_player_team_season",
         ),
     )
-
-    @property
-    def position(self) -> str | None:
-        """
-        Return the primary position as string for backwards compatibility.
-
-        Returns:
-            str | None: First position value or None if no positions.
-
-        Example:
-            >>> history = PlayerTeamHistory(positions=[Position.SMALL_FORWARD])
-            >>> history.position
-            'SF'
-        """
-        if self.positions:
-            return self.positions[0].value
-        return None
-
-    @position.setter
-    def position(self, value: str | None) -> None:
-        """
-        Set the position for backwards compatibility.
-
-        Converts a single position string to a list with one Position enum.
-
-        Args:
-            value: Position string like "SF", "PG", etc.
-        """
-        if value is None:
-            self.positions = []
-        else:
-            try:
-                self.positions = [Position(value.upper())]
-            except ValueError:
-                # Unknown position - store as empty list
-                self.positions = []
 
     def __repr__(self) -> str:
         """Return string representation of PlayerTeamHistory."""

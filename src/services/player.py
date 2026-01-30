@@ -243,9 +243,11 @@ class PlayerService(BaseService[Player]):
         if player_data.get("external_ids") is None:
             player_data["external_ids"] = {}
 
-        # Convert position string to positions list
-        position_str = player_data.pop("position", None)
-        player_data["positions"] = _position_str_to_list(position_str)
+        # Convert positions list of strings to Position enums
+        positions_strs = player_data.get("positions", [])
+        player_data["positions"] = [
+            Position(p.upper()) for p in positions_strs if p
+        ] if positions_strs else []
 
         return self.create(player_data)
 
@@ -262,15 +264,17 @@ class PlayerService(BaseService[Player]):
 
         Example:
             >>> from src.schemas.player import PlayerUpdate
-            >>> data = PlayerUpdate(position="PF")
+            >>> data = PlayerUpdate(positions=["PF"])
             >>> player = service.update_player(player_id, data)
         """
         update_data = data.model_dump(exclude_unset=True)
 
-        # Convert position string to positions list if provided
-        if "position" in update_data:
-            position_str = update_data.pop("position")
-            update_data["positions"] = _position_str_to_list(position_str)
+        # Convert positions list of strings to Position enums if provided
+        if "positions" in update_data:
+            positions_strs = update_data["positions"]
+            update_data["positions"] = [
+                Position(p.upper()) for p in positions_strs if p
+            ] if positions_strs else []
 
         return self.update(player_id, update_data)
 

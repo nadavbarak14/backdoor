@@ -67,7 +67,7 @@ class TestSearchPlayers:
             mock_player.id = UUID("12345678-1234-5678-1234-567812345678")
             mock_player.first_name = "Jimmy"
             mock_player.last_name = "Clark"
-            mock_player.position = "PG"
+            mock_player.positions = [MagicMock(value="PG")]
             mock_player.current_team = MagicMock()
             mock_player.current_team.short_name = "MAC"
             mock_player.current_team.name = "Maccabi"
@@ -85,7 +85,7 @@ class TestSearchPlayers:
             assert player["name"] == "Jimmy Clark"
             assert player["id"] == "12345678-1234-5678-1234-567812345678"
             assert player["team"] == "MAC"
-            assert player["position"] == "PG"
+            assert player["positions"] == ["PG"]
 
     def test_search_players_returns_id(self):
         """Test search_players result contains usable ID in JSON."""
@@ -98,7 +98,7 @@ class TestSearchPlayers:
             mock_player.id = UUID("12345678-1234-5678-1234-567812345678")
             mock_player.first_name = "Test"
             mock_player.last_name = "Player"
-            mock_player.position = None
+            mock_player.positions = []
             mock_player.current_team = None
 
             mock_service.get_filtered.return_value = ([mock_player], 1)

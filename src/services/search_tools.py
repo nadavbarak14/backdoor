@@ -97,7 +97,7 @@ def search_players(
                 "id": str(player.id),
                 "name": name,
                 "team": team_name,
-                "position": player.position or None,
+                "positions": [p.value for p in player.positions],
             }
         )
 

@@ -399,7 +399,6 @@ class TestPlayerPositions:
         db_session.refresh(player)
 
         assert player.positions == [Position.SMALL_FORWARD, Position.POWER_FORWARD]
-        assert player.position == "SF"  # primary position
 
     def test_player_empty_positions(self, db_session: Session):
         """Player should handle empty positions list."""
@@ -413,42 +412,6 @@ class TestPlayerPositions:
         db_session.refresh(player)
 
         assert player.positions == []
-        assert player.position is None
-
-    def test_backward_compat_position_setter(self, db_session: Session):
-        """Setting position should update positions list."""
-        player = Player(
-            first_name="Old",
-            last_name="Player",
-            positions=[],
-        )
-        db_session.add(player)
-        db_session.commit()
-
-        # Set single position via setter
-        player.position = "PG"
-        db_session.commit()
-        db_session.refresh(player)
-
-        assert player.positions == [Position.POINT_GUARD]
-        assert player.position == "PG"
-
-    def test_position_setter_clears_with_none(self, db_session: Session):
-        """Setting position to None should clear positions."""
-        player = Player(
-            first_name="Test",
-            last_name="Player",
-            positions=[Position.SHOOTING_GUARD],
-        )
-        db_session.add(player)
-        db_session.commit()
-
-        player.position = None
-        db_session.commit()
-        db_session.refresh(player)
-
-        assert player.positions == []
-        assert player.position is None
 
 
 class TestTeamPlayerRelationship:

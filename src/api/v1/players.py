@@ -169,7 +169,7 @@ def get_player(
             season_id=pth.season_id,
             season_name=pth.season.name,
             jersey_number=pth.jersey_number,
-            position=pth.position,
+            positions=[p.value for p in pth.positions],
         )
         for pth in player.team_histories
     ]
@@ -182,7 +182,7 @@ def get_player(
         birth_date=player.birth_date,
         nationality=player.nationality,
         height_cm=player.height_cm,
-        position=player.position,
+        positions=[p.value for p in player.positions],
         external_ids=player.external_ids or {},
         created_at=player.created_at,
         updated_at=player.updated_at,

@@ -102,7 +102,6 @@ class TestPlayerCreate:
         assert data.nationality is None
         assert data.height_cm is None
         assert data.positions == []  # Default empty list
-        assert data.position is None
         assert data.external_ids is None
 
     def test_positions_multiple(self):
@@ -209,7 +208,6 @@ class TestPlayerUpdate:
         assert data.nationality is None
         assert data.height_cm is None
         assert data.positions is None
-        assert data.position is None
         assert data.external_ids is None
 
     def test_height_cm_validation(self):
@@ -235,7 +233,7 @@ class TestPlayerResponse:
             birth_date=date(1984, 12, 30),
             nationality="USA",
             height_cm=206,
-            position="SF",
+            positions=[Position.SMALL_FORWARD],
             external_ids={"nba": "2544"},
         )
         db_session.add(player)
@@ -251,7 +249,7 @@ class TestPlayerResponse:
         assert response.birth_date == date(1984, 12, 30)
         assert response.nationality == "USA"
         assert response.height_cm == 206
-        assert response.position == "SF"
+        assert response.positions == ["SF"]
         assert response.external_ids == {"nba": "2544"}
         assert response.created_at is not None
         assert response.updated_at is not None
@@ -298,7 +296,6 @@ class TestPlayerResponse:
         response = PlayerResponse.model_validate(player)
 
         assert response.positions == ["SF", "PF"]
-        assert response.position == "SF"
 
     def test_positions_empty_from_orm(self, db_session: Session):
         """PlayerResponse should handle empty positions from ORM."""
@@ -314,7 +311,6 @@ class TestPlayerResponse:
         response = PlayerResponse.model_validate(player)
 
         assert response.positions == []
-        assert response.position is None
 
 
 class TestPlayerListResponse:
@@ -333,7 +329,7 @@ class TestPlayerListResponse:
             birth_date=None,
             nationality=None,
             height_cm=None,
-            position=None,
+            positions=[],
             external_ids={},
             created_at=now,
             updated_at=now,
@@ -418,7 +414,7 @@ class TestPlayerTeamHistoryResponse:
             season_id=season_id,
             season_name="2023-24",
             jersey_number=23,
-            position="SF",
+            positions=["SF"],
         )
 
         assert data.team_id == team_id
@@ -426,7 +422,7 @@ class TestPlayerTeamHistoryResponse:
         assert data.season_id == season_id
         assert data.season_name == "2023-24"
         assert data.jersey_number == 23
-        assert data.position == "SF"
+        assert data.positions == ["SF"]
 
     def test_optional_fields(self):
         """PlayerTeamHistoryResponse should allow optional fields."""
@@ -439,11 +435,11 @@ class TestPlayerTeamHistoryResponse:
             season_id=season_id,
             season_name="2023-24",
             jersey_number=None,
-            position=None,
+            positions=[],
         )
 
         assert data.jersey_number is None
-        assert data.position is None
+        assert data.positions == []
 
 
 class TestPlayerWithHistoryResponse:
@@ -462,7 +458,7 @@ class TestPlayerWithHistoryResponse:
             season_id=season_id,
             season_name="2023-24",
             jersey_number=23,
-            position="SF",
+            positions=["SF"],
         )
 
         response = PlayerWithHistoryResponse(
@@ -473,7 +469,7 @@ class TestPlayerWithHistoryResponse:
             birth_date=date(1984, 12, 30),
             nationality="USA",
             height_cm=206,
-            position="SF",
+            positions=["SF"],
             external_ids={"nba": "2544"},
             created_at=now,
             updated_at=now,
@@ -497,7 +493,7 @@ class TestPlayerWithHistoryResponse:
             season_id=uuid.uuid4(),
             season_name="2003-04",
             jersey_number=23,
-            position="SF",
+            positions=["SF"],
         )
 
         history2 = PlayerTeamHistoryResponse(
@@ -506,7 +502,7 @@ class TestPlayerWithHistoryResponse:
             season_id=uuid.uuid4(),
             season_name="2010-11",
             jersey_number=6,
-            position="SF",
+            positions=["SF"],
         )
 
         history3 = PlayerTeamHistoryResponse(
@@ -515,7 +511,7 @@ class TestPlayerWithHistoryResponse:
             season_id=uuid.uuid4(),
             season_name="2018-19",
             jersey_number=23,
-            position="SF",
+            positions=["SF"],
         )
 
         response = PlayerWithHistoryResponse(
@@ -526,7 +522,7 @@ class TestPlayerWithHistoryResponse:
             birth_date=date(1984, 12, 30),
             nationality="USA",
             height_cm=206,
-            position="SF",
+            positions=["SF"],
             external_ids={},
             created_at=now,
             updated_at=now,

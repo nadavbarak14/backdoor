@@ -213,7 +213,7 @@ class TestOutputFormatting:
         assert isinstance(data["players"], list)
         assert data["players"][0]["name"] == "Test Player"
         assert "id" in data["players"][0]
-        assert "position" in data["players"][0]
+        assert "positions" in data["players"][0]
         assert "team" in data["players"][0]
 
     def test_search_teams_returns_valid_json(self, test_db: Session):

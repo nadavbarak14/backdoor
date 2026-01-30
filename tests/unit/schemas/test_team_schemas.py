@@ -290,14 +290,14 @@ class TestTeamRosterPlayerResponse:
             last_name="James",
             full_name="LeBron James",
             jersey_number=23,
-            position="SF",
+            positions=["SF"],
         )
         assert data.id == player_id
         assert data.first_name == "LeBron"
         assert data.last_name == "James"
         assert data.full_name == "LeBron James"
         assert data.jersey_number == 23
-        assert data.position == "SF"
+        assert data.positions == ["SF"]
 
     def test_optional_fields(self):
         """TeamRosterPlayerResponse should allow optional fields."""
@@ -308,10 +308,10 @@ class TestTeamRosterPlayerResponse:
             last_name="James",
             full_name="LeBron James",
             jersey_number=None,
-            position=None,
+            positions=[],
         )
         assert data.jersey_number is None
-        assert data.position is None
+        assert data.positions == []
 
 
 class TestTeamRosterResponse:

@@ -183,7 +183,7 @@ class TeamRosterPlayerResponse(OrmBase):
         last_name: Player's last name.
         full_name: Player's full name (computed).
         jersey_number: Player's jersey number on this team.
-        position: Player's position on this team.
+        positions: Player's positions on this team.
 
     Example:
         >>> player = TeamRosterPlayerResponse(
@@ -192,7 +192,7 @@ class TeamRosterPlayerResponse(OrmBase):
         ...     last_name="James",
         ...     full_name="LeBron James",
         ...     jersey_number=23,
-        ...     position="SF"
+        ...     positions=["SF", "PF"]
         ... )
     """
 
@@ -201,7 +201,7 @@ class TeamRosterPlayerResponse(OrmBase):
     last_name: str
     full_name: str
     jersey_number: int | None
-    position: str | None
+    positions: list[str] = []
 
 
 class TeamRosterResponse(OrmBase):

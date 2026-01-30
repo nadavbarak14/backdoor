@@ -73,7 +73,7 @@ class TestPlayerService:
             birth_date=date(1984, 12, 30),
             nationality="USA",
             height_cm=206,
-            position="SF",
+            positions=["SF"],
             external_ids={"nba": "2544"},
         )
 
@@ -104,11 +104,11 @@ class TestPlayerService:
             PlayerCreate(
                 first_name="LeBron",
                 last_name="James",
-                position="SF",
+                positions=["SF"],
             )
         )
 
-        updated = service.update_player(player.id, PlayerUpdate(position="PF"))
+        updated = service.update_player(player.id, PlayerUpdate(positions=["PF"]))
 
         assert updated is not None
         assert updated.positions == [Position.POWER_FORWARD]
@@ -167,14 +167,14 @@ class TestPlayerService:
             PlayerCreate(
                 first_name="LeBron",
                 last_name="James",
-                position="SF",
+                positions=["SF"],
             )
         )
         service.create_player(
             PlayerCreate(
                 first_name="Stephen",
                 last_name="Curry",
-                position="PG",
+                positions=["PG"],
             )
         )
 
