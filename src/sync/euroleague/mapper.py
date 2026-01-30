@@ -657,11 +657,12 @@ class EuroleagueMapper:
         event_num = 1
 
         # Quarter keys in order
+        # Note: Euroleague API has a typo - "ForthQuarter" instead of "FourthQuarter"
         quarter_keys = [
             "FirstQuarter",
             "SecondQuarter",
             "ThirdQuarter",
-            "FourthQuarter",
+            "ForthQuarter",  # API typo - not "FourthQuarter"
             "ExtraTime",  # Overtime
         ]
 
