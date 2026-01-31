@@ -203,7 +203,7 @@ def players_with_basket_ids(
 
     # Create home team players with BASKET.CO.IL style IDs (different from segevstats)
     for idx, p in enumerate(boxscore["homeTeam"]["players"]):
-        segevstats_id = str(p["playerId"])
+        _segevstats_id = str(p["playerId"])
         jersey = int(p["jerseyNumber"])
 
         # Use a basket.co.il style ID - different from segevstats ID
@@ -229,7 +229,7 @@ def players_with_basket_ids(
 
     # Create away team players with basket.co.il style IDs
     for idx, p in enumerate(boxscore["awayTeam"]["players"]):
-        segevstats_id = str(p["playerId"])
+        _segevstats_id = str(p["playerId"])
         jersey = int(p["jerseyNumber"])
 
         basket_id = f"BC{16000 + idx}"
@@ -459,9 +459,9 @@ class TestPBPJerseyMatching:
         valid_team_ids = {home_team.id, away_team.id}
         events_with_teams = [e for e in pbp_events if e.team_id is not None]
 
-        for event in events_with_teams:
-            assert event.team_id in valid_team_ids, (
-                f"Event {event.id} has invalid team_id {event.team_id}"
+        for pbp_event in events_with_teams:
+            assert pbp_event.team_id in valid_team_ids, (
+                f"Event {pbp_event.id} has invalid team_id {pbp_event.team_id}"
             )
 
 
@@ -495,7 +495,7 @@ class TestFullSyncWithJerseyMatching:
             away_team_external_id="1112",
         )
 
-        player_stats = game_syncer.sync_boxscore_from_canonical(
+        _player_stats = game_syncer.sync_boxscore_from_canonical(
             canonical_stats,
             sample_game,
             "winner",
@@ -510,7 +510,7 @@ class TestFullSyncWithJerseyMatching:
         team_id_map = {"2": "1109", "4": "1112"}
         canonical_events = raw_pbp_list_to_canonical(raw_events, team_id_map=team_id_map)
 
-        pbp_events = game_syncer.sync_pbp_from_canonical(
+        _pbp_events = game_syncer.sync_pbp_from_canonical(
             canonical_events,
             sample_game,
             "winner",

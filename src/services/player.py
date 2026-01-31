@@ -56,7 +56,7 @@ def _position_str_to_list(position: str | None) -> list[Position]:
     for part in parts:
         part = part.strip().upper()
         if part:
-            try:
+            try:  # noqa: SIM105
                 positions.append(Position(part))
             except ValueError:
                 # Unknown position - skip it (API shouldn't fail on unknown position)

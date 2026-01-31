@@ -741,7 +741,7 @@ class WinnerScraper:
                             # Height is in meters like "1.93"
                             if len(parts) > 1:
                                 height_str = parts[1].strip()
-                                try:
+                                try:  # noqa: SIM105
                                     height_cm = int(float(height_str) * 100)
                                 except ValueError:
                                     pass
@@ -1322,7 +1322,7 @@ class WinnerScraper:
 
             # Helper to safely get cell value
             def get_cell(idx: int) -> str:
-                return cell_texts[idx] if idx < len(cell_texts) else ""
+                return cell_texts[idx] if idx < len(cell_texts) else ""  # noqa: B023
 
             def parse_int(idx: int) -> int:
                 """Parse integer from cell, return 0 on failure."""
@@ -1376,7 +1376,7 @@ class WinnerScraper:
             # Parse plus/minus (may be empty or have a value)
             pm_text = get_cell(COL_PLUSMINUS)
             if pm_text:
-                try:
+                try:  # noqa: SIM105
                     stats.plus_minus = int(pm_text)
                 except ValueError:
                     pass

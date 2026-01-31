@@ -61,7 +61,7 @@ class PositionListType(TypeDecorator):
     cache_ok = True
 
     def process_bind_param(
-        self, value: list[Position] | list[str] | None, dialect: Dialect
+        self, value: list[Position] | list[str] | None, dialect: Dialect  # noqa: ARG002
     ) -> list[str] | None:
         """
         Convert list[Position] or list[str] to JSON-serializable list of strings.
@@ -101,7 +101,7 @@ class PositionListType(TypeDecorator):
         return result
 
     def process_result_value(
-        self, value: list[str] | None, dialect: Dialect
+        self, value: list[str] | None, dialect: Dialect  # noqa: ARG002
     ) -> list[Position]:
         """
         Convert JSON list of strings back to list[Position].
@@ -155,7 +155,7 @@ class GameStatusType(TypeDecorator):
     cache_ok = True
 
     def process_bind_param(
-        self, value: GameStatus | str | None, dialect: Dialect
+        self, value: GameStatus | str | None, dialect: Dialect  # noqa: ARG002
     ) -> str | None:
         """
         Convert GameStatus enum or string to string for database storage.
@@ -189,7 +189,7 @@ class GameStatusType(TypeDecorator):
         raise ValueError(f"Expected GameStatus enum or string, got {type(value)}: {value}")
 
     def process_result_value(
-        self, value: str | None, dialect: Dialect
+        self, value: str | None, dialect: Dialect  # noqa: ARG002
     ) -> GameStatus | None:
         """
         Convert string back to GameStatus enum.
@@ -239,7 +239,9 @@ class EventTypeType(TypeDecorator):
     impl = String(50)  # Match existing column size
     cache_ok = True
 
-    def process_bind_param(self, value: Any, dialect: Dialect) -> str | None:
+    def process_bind_param(
+        self, value: Any, dialect: Dialect  # noqa: ARG002
+    ) -> str | None:
         """
         Convert EventType enum or string to string for database storage.
 
@@ -273,7 +275,9 @@ class EventTypeType(TypeDecorator):
                 ) from e
         raise ValueError(f"Expected EventType enum or string, got {type(value)}: {value}")
 
-    def process_result_value(self, value: str | None, dialect: Dialect) -> Any:
+    def process_result_value(
+        self, value: str | None, dialect: Dialect  # noqa: ARG002
+    ) -> Any:
         """
         Convert string back to EventType enum.
 

@@ -363,9 +363,9 @@ class TestPBPSync:
         game = game_with_pbp["game"]
         events = test_db.query(PlayByPlayEvent).filter_by(game_id=game.id).all()
 
-        for event in events:
-            assert event.period >= 1
-            assert event.period <= 6  # Max 4 quarters + 2 OT
+        for pbp_event in events:
+            assert pbp_event.period >= 1
+            assert pbp_event.period <= 6  # Max 4 quarters + 2 OT
 
 
 class TestFullGameSync:
@@ -404,11 +404,11 @@ class TestFullGameSync:
         test_db.flush()
 
         # 3. Sync boxscore
-        stats = manager.sync_boxscore_canonical({"players": boxscore_data}, game)
+        _stats = manager.sync_boxscore_canonical({"players": boxscore_data}, game)
         test_db.flush()
 
         # 4. Sync PBP
-        events = manager.sync_pbp_canonical(pbp_data, game)
+        _events = manager.sync_pbp_canonical(pbp_data, game)
         test_db.commit()
 
         # Verify all data

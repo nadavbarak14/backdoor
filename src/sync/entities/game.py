@@ -532,7 +532,7 @@ class GameSyncer:
     def _resolve_player_id_canonical(
         self,
         player_external_id: str | None,
-        team_id: UUID,
+        team_id: UUID,  # noqa: ARG002  # Reserved for team-scoped player lookup
         source: str,
     ) -> UUID | None:
         """Resolve player ID from canonical external ID."""

@@ -220,7 +220,7 @@ class PlayerSyncer:
     def sync_player_from_canonical(
         self,
         canonical: CanonicalPlayer,
-        team_id: UUID | None = None,
+        team_id: UUID | None = None,  # noqa: ARG002  # Reserved for team-scoped deduplication
     ) -> Player:
         """
         Sync a player from canonical data.

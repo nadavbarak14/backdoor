@@ -16,7 +16,7 @@ from src.models.league import League, Season
 from src.models.player import Player
 from src.models.team import Team
 from src.schemas.enums import GameStatus, Position
-from src.schemas.game import GameCreate, GameFilter, GameStatus, GameUpdate
+from src.schemas.game import GameCreate, GameFilter, GameUpdate
 from src.schemas.league import LeagueCreate, SeasonCreate
 from src.schemas.player import PlayerCreate
 from src.schemas.team import TeamCreate

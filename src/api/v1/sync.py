@@ -26,9 +26,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.core import get_db
+from src.models.league import Season
 from src.schemas import (
     SeasonSyncCoverage,
     SyncCoverageResponse,
@@ -1109,7 +1111,7 @@ async def sync_historical_season(
         ...,
         description="Season identifier (e.g., '2023-24')",
     ),
-    include_boxscores: bool = Query(
+    include_boxscores: bool = Query(  # noqa: ARG001  # Reserved for future use
         default=True,
         description="Whether to sync boxscore data",
     ),

@@ -36,12 +36,10 @@ from src.schemas.chat import (
 )
 from src.schemas.enums import EventType, GameStatus, Position
 from src.schemas.game import (
-    EventType,
     GameCreate,
     GameFilter,
     GameListResponse,
     GameResponse,
-    GameStatus,
     GameUpdate,
     GameWithBoxScoreResponse,
     PlayerBoxScoreResponse,
