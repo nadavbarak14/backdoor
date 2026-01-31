@@ -605,7 +605,7 @@ class EuroleagueMapper:
             event_subtype=event_subtype,
             player_external_id=player_external_id,
             player_name=player_name,
-            team_external_id=str(data.get("TEAM", data.get("team", ""))) or None,
+            team_external_id=str(data.get("CODETEAM", data.get("codeteam", ""))).strip() or None,
             success=success,
             coord_x=coord_x,
             coord_y=coord_y,
