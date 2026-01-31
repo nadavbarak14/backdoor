@@ -139,7 +139,8 @@ class PlayerDeduplicator:
         # Step 1: Check by external_id for this source
         existing = self.get_by_external_id(source, external_id)
         if existing:
-            return existing
+            # Fill in missing data from player_data
+            return self._update_missing_data(existing, player_data)
 
         player_name = f"{player_data.first_name} {player_data.last_name}"
 
@@ -441,6 +442,40 @@ class PlayerDeduplicator:
 
         self.db.commit()
         self.db.refresh(player)
+        return player
+
+    def _update_missing_data(
+        self, player: Player, player_data: RawPlayerInfo
+    ) -> Player:
+        """
+        Update player with missing data from new source.
+
+        Only fills in fields that are currently empty/null.
+        Commits changes if any updates were made.
+
+        Args:
+            player: The Player entity to update.
+            player_data: Raw player info with potential new data.
+
+        Returns:
+            The updated Player entity.
+        """
+        updated = False
+
+        if not player.positions and player_data.positions:
+            player.positions = player_data.positions
+            updated = True
+        if not player.height_cm and player_data.height_cm:
+            player.height_cm = player_data.height_cm
+            updated = True
+        if not player.birth_date and player_data.birth_date:
+            player.birth_date = player_data.birth_date
+            updated = True
+
+        if updated:
+            self.db.commit()
+            self.db.refresh(player)
+
         return player
 
     def _find_name_match(
