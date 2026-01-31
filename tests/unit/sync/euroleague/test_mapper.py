@@ -372,7 +372,7 @@ class TestMapPbpEvent:
             "PLAYTYPE": "2FGM",
             "PERIOD": 1,
             "MARKERTIME": "09:45",
-            "TEAM": "BER",
+            "CODETEAM": "BER",
             "PLAYERNAME": "MATTISSECK, JONAS",
         }
         event = mapper.map_pbp_event(data, 1)
@@ -391,7 +391,7 @@ class TestMapPbpEvent:
             "PLAYTYPE": "3FGA",
             "PERIOD": 2,
             "MARKERTIME": "05:30",
-            "TEAM": "PAN",
+            "CODETEAM": "PAN",
         }
         event = mapper.map_pbp_event(data, 2)
 

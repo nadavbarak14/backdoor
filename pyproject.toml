@@ -121,6 +121,7 @@ markers = [
     "integration: marks tests as integration tests",
     "ai_test: marks tests that require LLM inference (run with --run-ai)",
     "skip_ci: marks tests that should not run in CI",
+    "real_db: marks tests that use the real database (run with '-m real_db')",
 ]
 
 [tool.coverage.run]

@@ -517,7 +517,7 @@ class TestNoDuplicatePlayers:
             id=uuid4(),
             first_name="John",
             last_name="Smith",
-            position="F",  # Different from roster data (enum value for Forward)
+            positions=[Position.FORWARD],  # Different from roster data
             height_cm=200,  # Different from roster data
             birth_date=date(1990, 1, 1),  # Different from roster data
             external_ids={},
@@ -548,6 +548,6 @@ class TestNoDuplicatePlayers:
 
         test_db.refresh(player)
         # Original values should be preserved
-        assert player.position == "F"
+        assert player.positions == [Position.FORWARD]
         assert player.height_cm == 200
         assert player.birth_date == date(1990, 1, 1)
