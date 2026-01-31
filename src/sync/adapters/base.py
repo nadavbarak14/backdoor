@@ -323,7 +323,9 @@ class BasePlayerInfoAdapter(ABC):
         ...
 
     async def get_team_roster(
-        self, team_external_id: str  # noqa: ARG002
+        self,
+        team_external_id: str,  # noqa: ARG002
+        fetch_profiles: bool = True,  # noqa: ARG002
     ) -> list[tuple[str, str, RawPlayerInfo | None]]:
         """
         Fetch team roster with player IDs and optionally bio data.
@@ -335,12 +337,15 @@ class BasePlayerInfoAdapter(ABC):
 
         Args:
             team_external_id: External team identifier.
+            fetch_profiles: If True, fetch individual player profiles for full
+                bio data. If False, use roster data only (faster but may have
+                less complete information). Default True.
 
         Returns:
             List of (player_id, player_name, player_info) tuples.
 
         Example:
-            >>> roster = await adapter.get_team_roster("100")
+            >>> roster = await adapter.get_team_roster("100", fetch_profiles=False)
             >>> for player_id, name, info in roster:
             ...     print(f"{name}: {info.positions if info else 'N/A'}")
         """

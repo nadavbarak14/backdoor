@@ -467,7 +467,7 @@ class EuroleagueAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         return results
 
     async def get_team_roster(
-        self, team_external_id: str
+        self, team_external_id: str, fetch_profiles: bool = False  # noqa: ARG002
     ) -> list[tuple[str, str, RawPlayerInfo | None]]:
         """
         Fetch team roster with player IDs, names, and jersey numbers.
@@ -477,6 +477,8 @@ class EuroleagueAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
 
         Args:
             team_external_id: External team identifier (team code like "IST").
+            fetch_profiles: Ignored. Euroleague roster data already includes
+                all needed info. Kept for compatibility with WinnerAdapter.
 
         Returns:
             List of (player_id, player_name, player_info) tuples.
