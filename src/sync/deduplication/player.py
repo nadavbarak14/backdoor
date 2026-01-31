@@ -149,13 +149,13 @@ class PlayerDeduplicator:
                 team_id, season_id, jersey_number, source
             )
             if matched:
-                return self.merge_external_id(matched, source, external_id)
+                return self.merge_external_id(matched, source, external_id, player_data)
 
         # Step 3: Try to match by name on the same team (if team provided)
         if team_id:
             matched = self.match_player_on_team(team_id, player_name, source)
             if matched:
-                return self.merge_external_id(matched, source, external_id)
+                return self.merge_external_id(matched, source, external_id, player_data)
 
         # Step 4: Try global match using bio data
         matched = self.match_player_globally(
@@ -165,7 +165,7 @@ class PlayerDeduplicator:
             height_cm=player_data.height_cm,
         )
         if matched:
-            return self.merge_external_id(matched, source, external_id)
+            return self.merge_external_id(matched, source, external_id, player_data)
 
         # Step 5: Create new player
         return self._create_player(source, external_id, player_data)
@@ -396,7 +396,11 @@ class PlayerDeduplicator:
         return None
 
     def merge_external_id(
-        self, player: Player, source: str, external_id: str
+        self,
+        player: Player,
+        source: str,
+        external_id: str,
+        player_data: RawPlayerInfo | None = None,
     ) -> Player:
         """
         Add an external ID from a source to an existing player.
@@ -404,10 +408,14 @@ class PlayerDeduplicator:
         Creates a new dict to ensure SQLAlchemy detects the change.
         If the source already has an external_id, it will be overwritten.
 
+        Also fills in missing player data (positions, height, birth_date)
+        from the new source if provided.
+
         Args:
             player: The Player entity to update.
             source: The data source name (e.g., "winner", "euroleague").
             external_id: The external ID to add.
+            player_data: Optional player info to fill in missing fields.
 
         Returns:
             The updated Player entity.
@@ -421,6 +429,15 @@ class PlayerDeduplicator:
         new_external_ids = dict(player.external_ids)
         new_external_ids[source] = external_id
         player.external_ids = new_external_ids
+
+        # Fill in missing data from new source
+        if player_data:
+            if not player.positions and player_data.positions:
+                player.positions = player_data.positions
+            if not player.height_cm and player_data.height_cm:
+                player.height_cm = player_data.height_cm
+            if not player.birth_date and player_data.birth_date:
+                player.birth_date = player_data.birth_date
 
         self.db.commit()
         self.db.refresh(player)
