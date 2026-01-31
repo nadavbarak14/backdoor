@@ -18,8 +18,8 @@ from src.schemas import (
     SeasonCreate,
     TeamCreate,
 )
-from src.services import LeagueService, PlayerService, SeasonService, TeamService
 from src.schemas.enums import Position
+from src.services import LeagueService, PlayerService, SeasonService, TeamService
 
 
 def create_test_setup(test_db: Session) -> dict:

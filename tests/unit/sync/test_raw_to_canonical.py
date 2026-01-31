@@ -7,8 +7,6 @@ during the migration away from Raw types.
 
 from datetime import datetime
 
-import pytest
-
 from src.schemas.enums import EventType, GameStatus
 from src.sync.raw_to_canonical import (
     _parse_clock_to_seconds,

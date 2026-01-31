@@ -11,8 +11,8 @@ Player names come from:
 
 from pathlib import Path
 
-from src.sync.winner.scraper import WinnerScraper
 from src.schemas.enums import Position
+from src.sync.winner.scraper import WinnerScraper
 
 FIXTURES_DIR = Path(__file__).parent.parent.parent / "fixtures" / "winner"
 

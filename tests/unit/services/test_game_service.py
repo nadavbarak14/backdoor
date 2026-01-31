@@ -15,6 +15,7 @@ from src.models.game import PlayerGameStats, TeamGameStats
 from src.models.league import League, Season
 from src.models.player import Player
 from src.models.team import Team
+from src.schemas.enums import GameStatus, Position
 from src.schemas.game import GameCreate, GameFilter, GameStatus, GameUpdate
 from src.schemas.league import LeagueCreate, SeasonCreate
 from src.schemas.player import PlayerCreate
@@ -23,7 +24,6 @@ from src.services.game import GameService
 from src.services.league import LeagueService, SeasonService
 from src.services.player import PlayerService
 from src.services.team import TeamService
-from src.schemas.enums import GameStatus, Position
 
 
 class TestGameService:

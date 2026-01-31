@@ -11,9 +11,9 @@ import pytest
 from src.models.league import League, Season
 from src.models.player import Player, PlayerTeamHistory
 from src.models.team import Team
+from src.schemas.enums import Position
 from src.sync.deduplication.player import PlayerDeduplicator
 from src.sync.types import RawPlayerInfo
-from src.schemas.enums import Position
 
 
 @pytest.fixture

@@ -10,8 +10,6 @@ Tests the new canonical sync pattern:
 """
 
 from datetime import date, datetime
-from unittest.mock import MagicMock, patch
-from uuid import uuid4
 
 import pytest
 from sqlalchemy import create_engine, event

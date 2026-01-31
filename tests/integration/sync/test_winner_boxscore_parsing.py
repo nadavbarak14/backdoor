@@ -22,8 +22,8 @@ from pathlib import Path
 
 import pytest
 
-from src.sync.winner.mapper import WinnerMapper
 from src.schemas.enums import GameStatus
+from src.sync.winner.mapper import WinnerMapper
 
 FIXTURES_DIR = Path(__file__).parent.parent.parent / "fixtures" / "winner"
 

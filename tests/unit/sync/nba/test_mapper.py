@@ -6,8 +6,8 @@ Tests the NBAMapper class which transforms NBA API V3 data to Raw types.
 
 from datetime import date, datetime
 
-from src.sync.nba.mapper import NBAMapper
 from src.schemas.enums import EventType, GameStatus
+from src.sync.nba.mapper import NBAMapper
 
 
 class TestNBAMapperMinutesParser:

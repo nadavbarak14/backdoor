@@ -8,7 +8,7 @@ Tests the adapter methods and SyncManager methods for:
 """
 
 from datetime import date, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy import create_engine, event

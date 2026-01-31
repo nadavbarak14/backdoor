@@ -15,9 +15,9 @@ from datetime import datetime
 
 import pytest
 
+from src.schemas.enums import GameStatus
 from src.sync.types import RawGame
 from src.sync.winner.mapper import WinnerMapper
-from src.schemas.enums import GameStatus
 
 
 @pytest.fixture

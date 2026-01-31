@@ -20,7 +20,6 @@ import pytest
 from src.models.sync_cache import SyncCache
 from src.sync.winner.config import WinnerConfig
 from src.sync.winner.exceptions import WinnerAPIError, WinnerParseError
-from src.schemas.enums import Position
 from src.sync.winner.scraper import (
     HistoricalResults,
     PlayerProfile,

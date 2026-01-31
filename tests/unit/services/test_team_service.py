@@ -13,11 +13,11 @@ from sqlalchemy.orm import Session
 
 from src.models.league import League, Season
 from src.models.player import Player, PlayerTeamHistory
+from src.schemas.enums import Position
 from src.schemas.league import LeagueCreate, SeasonCreate
 from src.schemas.team import TeamCreate, TeamFilter, TeamUpdate
 from src.services.league import LeagueService, SeasonService
 from src.services.team import TeamService
-from src.schemas.enums import Position
 
 
 class TestTeamService:

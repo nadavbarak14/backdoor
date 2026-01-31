@@ -26,7 +26,6 @@ from src.models import Base, Game, League, Player, PlayerGameStats, Season, Team
 from src.models.play_by_play import PlayByPlayEvent
 from src.models.player import PlayerTeamHistory
 from src.models.team import TeamSeason
-from src.sync.canonical import CanonicalPlayerStats, CanonicalPBPEvent
 from src.sync.deduplication import PlayerDeduplicator, TeamMatcher
 from src.sync.entities.game import GameSyncer
 from src.sync.entities.player import PlayerSyncer

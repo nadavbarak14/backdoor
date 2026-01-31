@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from src.models import Base
-from src.models.game import Game, PlayerGameStats, TeamGameStats
+from src.models.game import PlayerGameStats
 from src.models.league import League, Season
 from src.models.play_by_play import PlayByPlayEvent
 from src.models.player import Player
@@ -164,8 +164,8 @@ class TestTeamSync:
         """Teams have proper names."""
         teams = test_db.query(Team).all()
         for team in teams:
-            assert team.name, f"Team missing name"
-            assert team.short_name, f"Team missing short_name"
+            assert team.name, "Team missing name"
+            assert team.short_name, "Team missing short_name"
 
 
 class TestGameSync:

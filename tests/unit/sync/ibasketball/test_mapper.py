@@ -8,9 +8,9 @@ from datetime import date, datetime
 
 import pytest
 
+from src.schemas.enums import EventType, GameStatus, Position
 from src.sync.ibasketball.mapper import IBasketballMapper
 from src.sync.types import RawPBPEvent
-from src.schemas.enums import EventType, GameStatus, Position
 
 
 class TestIBasketballMapper:

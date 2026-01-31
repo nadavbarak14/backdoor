@@ -11,9 +11,9 @@ Addresses Issue #128: Sync game boxscores with player stats.
 
 import pytest
 
+from src.schemas.enums import GameStatus
 from src.sync.types import RawBoxScore, RawGame, RawPlayerStats
 from src.sync.winner.mapper import PlayerRoster, WinnerMapper
-from src.schemas.enums import GameStatus
 
 
 @pytest.fixture

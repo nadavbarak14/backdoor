@@ -10,10 +10,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.schemas.enums import Position
 from src.sync.winner.config import WinnerConfig
 from src.sync.winner.mapper import WinnerMapper
 from src.sync.winner.scraper import WinnerScraper
-from src.schemas.enums import Position
 
 FIXTURES_DIR = Path(__file__).parent.parent.parent.parent / "fixtures" / "winner"
 

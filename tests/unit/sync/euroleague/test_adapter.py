@@ -10,12 +10,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.schemas.enums import GameStatus
 from src.schemas.game import EventType
 from src.sync.euroleague.adapter import EuroleagueAdapter
 from src.sync.euroleague.direct_client import CacheResult
 from src.sync.euroleague.mapper import EuroleagueMapper
 from src.sync.types import RawBoxScore, RawGame
-from src.schemas.enums import GameStatus
 
 
 @pytest.fixture

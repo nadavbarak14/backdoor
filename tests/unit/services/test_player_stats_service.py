@@ -14,8 +14,8 @@ from src.models.league import League, Season
 from src.models.player import Player
 from src.models.stats import PlayerSeasonStats
 from src.models.team import Team
-from src.services.player_stats import PlayerSeasonStatsService
 from src.schemas.enums import Position
+from src.services.player_stats import PlayerSeasonStatsService
 
 
 @pytest.fixture

@@ -14,7 +14,6 @@ from src.sync.ibasketball.exceptions import (
     IBasketballAPIError,
     IBasketballTimeoutError,
 )
-from src.schemas.enums import Position
 from src.sync.ibasketball.scraper import (
     IBasketballScraper,
     PBPEvent,

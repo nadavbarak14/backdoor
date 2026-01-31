@@ -17,7 +17,6 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from src.models import Base, Team
-from src.schemas.enums import Position
 from src.schemas.team import (
     TeamCreate,
     TeamFilter,

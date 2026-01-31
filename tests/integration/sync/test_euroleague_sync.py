@@ -8,16 +8,16 @@ Tests that verify:
 4. External IDs are properly merged
 """
 
-import pytest
 from datetime import date
 
+import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.models.game import Game
 from src.models.league import League, Season
-from src.models.player import Player, PlayerTeamHistory
 from src.models.play_by_play import PlayByPlayEvent
+from src.models.player import Player, PlayerTeamHistory
 from src.models.team import Team
 from src.schemas.enums import Position
 from src.sync.deduplication import PlayerDeduplicator, TeamMatcher

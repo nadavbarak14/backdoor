@@ -9,6 +9,7 @@ from datetime import date, datetime
 
 import pytest
 
+from src.schemas.enums import GameStatus, Position
 from src.schemas.game import EventType
 from src.sync.types import (
     RawBoxScore,
@@ -21,7 +22,6 @@ from src.sync.types import (
 )
 from src.sync.winner.mapper import WinnerMapper
 from src.sync.winner.scraper import PlayerProfile
-from src.schemas.enums import GameStatus, Position
 
 
 @pytest.fixture

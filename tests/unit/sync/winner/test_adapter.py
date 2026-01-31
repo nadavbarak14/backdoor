@@ -10,13 +10,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.schemas.enums import GameStatus
 from src.schemas.game import EventType
 from src.sync.types import RawBoxScore, RawGame, RawSeason
 from src.sync.winner.adapter import WinnerAdapter
 from src.sync.winner.client import CacheResult
 from src.sync.winner.mapper import WinnerMapper
 from src.sync.winner.scraper import PlayerProfile, RosterPlayer, TeamRoster
-from src.schemas.enums import GameStatus
 
 
 @pytest.fixture

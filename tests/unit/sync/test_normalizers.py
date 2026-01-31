@@ -14,7 +14,6 @@ import pytest
 
 from src.schemas.enums import EventType, GameStatus, Position
 from src.sync.normalizers import NormalizationError, Normalizers
-from src.schemas.enums import GameStatus
 
 
 class TestNormalizePosition:

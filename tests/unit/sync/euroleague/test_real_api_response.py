@@ -16,8 +16,8 @@ from pathlib import Path
 
 import pytest
 
-from src.sync.euroleague.mapper import EuroleagueMapper
 from src.schemas.enums import GameStatus
+from src.sync.euroleague.mapper import EuroleagueMapper
 
 FIXTURES_DIR = Path(__file__).parent.parent.parent.parent / "fixtures" / "euroleague"
 

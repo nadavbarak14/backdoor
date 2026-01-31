@@ -29,12 +29,12 @@ from src.schemas.analytics import (
     TimeFilter,
 )
 from src.schemas.base import OrmBase, PaginatedResponse
-from src.schemas.enums import EventType, GameStatus, Position
 from src.schemas.chat import (
     ChatChunk,
     ChatMessage,
     ChatRequest,
 )
+from src.schemas.enums import EventType, GameStatus, Position
 from src.schemas.game import (
     EventType,
     GameCreate,

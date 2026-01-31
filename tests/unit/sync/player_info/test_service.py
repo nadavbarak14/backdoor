@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from src.schemas.enums import Position
 from src.sync.player_info.service import PlayerInfoService
 from src.sync.types import RawPlayerInfo
-from src.schemas.enums import Position
 
 
 @pytest.fixture

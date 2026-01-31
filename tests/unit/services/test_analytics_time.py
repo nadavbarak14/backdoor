@@ -10,6 +10,7 @@ from src.models.league import League, Season
 from src.models.player import Player
 from src.models.team import Team
 from src.schemas.analytics import TimeFilter
+from src.schemas.enums import GameStatus
 from src.schemas.game import EventType, GameCreate, GameStatus
 from src.schemas.league import LeagueCreate, SeasonCreate
 from src.schemas.player import PlayerCreate
@@ -20,7 +21,6 @@ from src.services.league import LeagueService, SeasonService
 from src.services.play_by_play import PlayByPlayService
 from src.services.player import PlayerService
 from src.services.team import TeamService
-from src.schemas.enums import GameStatus, Position
 
 
 class TestTimeFilter:

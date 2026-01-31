@@ -17,7 +17,7 @@ Usage:
 
 from datetime import date, datetime
 
-from src.schemas.enums import EventType, GameStatus
+from src.schemas.enums import EventType
 from src.sync.normalizers import Normalizers
 from src.sync.season import normalize_season_name
 from src.sync.types import (

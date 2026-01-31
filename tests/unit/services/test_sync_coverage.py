@@ -20,8 +20,8 @@ from src.models.league import League, Season
 from src.models.play_by_play import PlayByPlayEvent
 from src.models.player import Player, PlayerTeamHistory
 from src.models.team import Team
-from src.services.sync_coverage import SyncCoverageService
 from src.schemas.enums import Position
+from src.services.sync_coverage import SyncCoverageService
 
 
 @pytest.fixture

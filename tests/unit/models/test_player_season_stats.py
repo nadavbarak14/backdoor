@@ -17,7 +17,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from src.schemas.enums import Position
 from src.models import (
     Base,
     League,
@@ -26,6 +25,7 @@ from src.models import (
     Season,
     Team,
 )
+from src.schemas.enums import Position
 
 
 @pytest.fixture(scope="function")
