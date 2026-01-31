@@ -17,7 +17,8 @@ Usage:
 
 from datetime import date, datetime
 
-from src.schemas.game import EventType
+from src.schemas.enums import EventType
+from src.sync.normalizers import Normalizers
 from src.sync.season import normalize_season_name
 from src.sync.types import (
     RawBoxScore,
@@ -214,14 +215,14 @@ class EuroleagueMapper:
             >>> s.source_id
             'E2024'
         """
-        # Normalize to standard YYYY-YY format
+        # Normalize to standard YYYY-YY format for display name
         normalized_name = normalize_season_name(season)
-        # Store source-specific ID (e.g., "E2024") for external reference
+        # Source-specific ID (e.g., "E2024") is used for API calls
         source_id = f"{competition}{season}"
 
         return RawSeason(
-            external_id=normalized_name,
-            name=normalized_name,
+            external_id=source_id,  # Use source ID for API calls
+            name=normalized_name,   # Normalized for display/storage
             source_id=source_id,
             start_date=date(season, 10, 1),  # Season typically starts in October
             end_date=date(season + 1, 5, 31),  # Season ends in May
@@ -307,11 +308,9 @@ class EuroleagueMapper:
         home_score = data.get("homescore") or data.get("homescorets")
         away_score = data.get("awayscore") or data.get("awayscorets")
 
-        # Determine status
-        if home_score is not None and away_score is not None:
-            status = "final"
-        else:
-            status = "scheduled"
+        # Determine status - normalize to GameStatus enum
+        raw_status = "final" if home_score is not None and away_score is not None else "scheduled"
+        status = Normalizers.normalize_game_status(raw_status, "euroleague")
 
         return RawGame(
             external_id=external_id,
@@ -496,13 +495,17 @@ class EuroleagueMapper:
                 away_totals.get(f"Quarter{i}", 0) or 0 for i in range(1, 5)
             )
 
-        # Create game
+        # Create game - normalize status to GameStatus enum
+        is_live = live_data.get("Live", True)
+        raw_status = "live" if is_live else "final"
+        status = Normalizers.normalize_game_status(raw_status, "euroleague")
+
         game = RawGame(
             external_id=f"{competition}{season}_{gamecode}",
             home_team_external_id=home_team_code,
             away_team_external_id=away_team_code,
             game_date=datetime.now(),  # Live data doesn't include date
-            status="final" if not live_data.get("Live", True) else "live",
+            status=status,
             home_score=home_score,
             away_score=away_score,
         )
@@ -602,7 +605,7 @@ class EuroleagueMapper:
             event_subtype=event_subtype,
             player_external_id=player_external_id,
             player_name=player_name,
-            team_external_id=str(data.get("TEAM", data.get("team", ""))) or None,
+            team_external_id=str(data.get("CODETEAM", data.get("codeteam", ""))).strip() or None,
             success=success,
             coord_x=coord_x,
             coord_y=coord_y,
@@ -654,11 +657,12 @@ class EuroleagueMapper:
         event_num = 1
 
         # Quarter keys in order
+        # Note: Euroleague API has a typo - "ForthQuarter" instead of "FourthQuarter"
         quarter_keys = [
             "FirstQuarter",
             "SecondQuarter",
             "ThirdQuarter",
-            "FourthQuarter",
+            "ForthQuarter",  # API typo - not "FourthQuarter"
             "ExtraTime",  # Overtime
         ]
 
@@ -720,8 +724,9 @@ class EuroleagueMapper:
         # Parse birthdate
         birth_date = self.parse_birthdate(data.get("birthdate"))
 
-        # Map position
-        position = data.get("position")
+        # Map position - normalize to list of Position enums
+        raw_position = data.get("position")
+        positions = Normalizers.try_normalize_positions(raw_position, "euroleague") or []
 
         # Map nationality (country field from API)
         nationality = data.get("country")
@@ -732,7 +737,7 @@ class EuroleagueMapper:
             last_name=last_name,
             birth_date=birth_date,
             height_cm=height_cm,
-            position=position,
+            positions=positions,
             nationality=nationality,
         )
 
@@ -777,12 +782,16 @@ class EuroleagueMapper:
         code = data.get("code", "")
         external_id = f"P{code}" if code and not code.startswith("P") else code
 
+        # Normalize position to list of Position enums
+        raw_position = data.get("position")
+        positions = Normalizers.try_normalize_positions(raw_position, "euroleague") or []
+
         return RawPlayerInfo(
             external_id=external_id,
             first_name=first_name,
             last_name=last_name,
             birth_date=None,
             height_cm=None,
-            position=data.get("position"),
+            positions=positions,
             jersey_number=data.get("dorsal"),
         )

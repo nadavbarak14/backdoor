@@ -153,7 +153,7 @@ def search_players(
             {
                 "id": str(player.id),
                 "name": f"{player.first_name} {player.last_name}",
-                "position": player.position or None,
+                "positions": [p.value for p in player.positions],
                 "team": current_team,
             }
         )

@@ -11,6 +11,7 @@ Player names come from:
 
 from pathlib import Path
 
+from src.schemas.enums import Position
 from src.sync.winner.scraper import WinnerScraper
 
 FIXTURES_DIR = Path(__file__).parent.parent.parent / "fixtures" / "winner"
@@ -147,11 +148,11 @@ class TestRosterNameExtraction:
 
         # John Smith is Guard
         john = next(p for p in roster.players if p.player_id == "1001")
-        assert john.position == "G"
+        assert john.position == "G"  # Normalized abbreviation
 
         # Michael Brown is Center
         michael = next(p for p in roster.players if p.player_id == "1003")
-        assert michael.position == "C"
+        assert michael.position == "C"  # Normalized abbreviation
 
 
 class TestPlayerNameMapping:
@@ -189,4 +190,4 @@ class TestPlayerNameMapping:
 
         assert info.external_id == "1001"
         assert info.height_cm == 195
-        assert info.position == "Guard"
+        assert info.positions == [Position.GUARD]

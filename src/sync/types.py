@@ -1,5 +1,20 @@
 """
-Raw Data Types Module
+Raw Data Types Module (DEPRECATED)
+
+.. deprecated::
+    These Raw types are being phased out in favor of Canonical types.
+    Use types from src.sync.canonical instead:
+    - RawSeason -> CanonicalSeason
+    - RawTeam -> CanonicalTeam
+    - RawGame -> CanonicalGame
+    - RawPlayerStats -> CanonicalPlayerStats
+    - RawPBPEvent -> CanonicalPBPEvent
+    - RawPlayerInfo -> CanonicalPlayer
+
+    For migration, use the conversion utilities in src.sync.raw_to_canonical:
+    - raw_game_to_canonical()
+    - raw_boxscore_to_canonical_stats()
+    - raw_pbp_list_to_canonical()
 
 Defines dataclasses for raw data from external sync sources before transformation
 into database models. These types represent the intermediate format between
@@ -24,7 +39,7 @@ Usage:
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
-from src.schemas.game import EventType
+from src.schemas.enums import EventType, GameStatus, Position
 from src.sync.season import SeasonFormatError, validate_season_format
 
 
@@ -106,7 +121,7 @@ class RawGame:
         home_team_external_id: External ID of the home team
         away_team_external_id: External ID of the away team
         game_date: Date and time of the game
-        status: Game status (scheduled, live, final)
+        status: Game status as GameStatus enum (SCHEDULED, LIVE, FINAL, etc.)
         home_score: Home team score (None if not started)
         away_score: Away team score (None if not started)
 
@@ -116,7 +131,7 @@ class RawGame:
         ...     home_team_external_id="team-123",
         ...     away_team_external_id="team-789",
         ...     game_date=datetime(2024, 1, 15, 19, 30),
-        ...     status="final",
+        ...     status=GameStatus.FINAL,
         ...     home_score=112,
         ...     away_score=108
         ... )
@@ -126,9 +141,10 @@ class RawGame:
     home_team_external_id: str
     away_team_external_id: str
     game_date: datetime
-    status: str  # scheduled, live, final
+    status: GameStatus  # Must be GameStatus enum
     home_score: int | None = None
     away_score: int | None = None
+    source_game_id: str | None = None  # basket.co.il internal ID for game-zone.asp
 
 
 @dataclass
@@ -287,7 +303,9 @@ class RawPlayerInfo:
         last_name: Player's last name
         birth_date: Player's date of birth, if available
         height_cm: Player's height in centimeters, if available
-        position: Player's position (PG, SG, SF, PF, C)
+        positions: Player's positions as list of Position enums
+        jersey_number: Player's jersey number
+        nationality: Player's nationality
 
     Example:
         >>> player = RawPlayerInfo(
@@ -296,7 +314,7 @@ class RawPlayerInfo:
         ...     last_name="James",
         ...     birth_date=date(1984, 12, 30),
         ...     height_cm=206,
-        ...     position="SF"
+        ...     positions=[Position.SMALL_FORWARD, Position.POWER_FORWARD]
         ... )
     """
 
@@ -305,6 +323,6 @@ class RawPlayerInfo:
     last_name: str
     birth_date: date | None = None
     height_cm: int | None = None
-    position: str | None = None
+    positions: list[Position] = field(default_factory=list)
     jersey_number: str | None = None
     nationality: str | None = None

@@ -18,6 +18,7 @@ from src.schemas import (
     SeasonCreate,
     TeamCreate,
 )
+from src.schemas.enums import Position
 from src.services import (
     GameService,
     LeagueService,
@@ -74,7 +75,7 @@ def _create_player_with_games(test_db: Session) -> tuple:
         PlayerCreate(
             first_name="LeBron",
             last_name="James",
-            position="SF",
+            positions=[Position.SMALL_FORWARD],
         )
     )
 

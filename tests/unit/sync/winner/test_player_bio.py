@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.schemas.enums import Position
 from src.sync.winner.config import WinnerConfig
 from src.sync.winner.mapper import WinnerMapper
 from src.sync.winner.scraper import WinnerScraper
@@ -419,7 +420,7 @@ class TestMapperPlayerInfo:
         info = winner_mapper.map_player_info(profile)
 
         assert info.height_cm == 195
-        assert info.position == "Guard"
+        assert info.positions == [Position.GUARD]
         assert info.birth_date is not None
         assert info.birth_date.year == 1995
 
@@ -434,7 +435,7 @@ class TestMapRosterPlayerInfo:
         roster_player = RosterPlayer(
             player_id="1001",
             name="John Smith",
-            position="G",
+            position="Guard",
         )
 
         info = winner_mapper.map_roster_player_info(roster_player)
@@ -442,7 +443,7 @@ class TestMapRosterPlayerInfo:
         assert info.external_id == "1001"
         assert info.first_name == "John"
         assert info.last_name == "Smith"
-        assert info.position == "G"
+        assert info.positions == [Position.GUARD]
         assert info.height_cm is None
         assert info.birth_date is None
 
@@ -455,7 +456,7 @@ class TestMapRosterPlayerInfo:
         roster_player = RosterPlayer(
             player_id="1002",
             name="Juan Carlos Rodriguez",
-            position="C",
+            position="Center",
         )
 
         info = winner_mapper.map_roster_player_info(roster_player)
@@ -472,7 +473,7 @@ class TestMapRosterPlayerInfo:
         roster_player = RosterPlayer(
             player_id="1003",
             name="Madonna",
-            position="F",
+            position="Forward",
         )
 
         info = winner_mapper.map_roster_player_info(roster_player)

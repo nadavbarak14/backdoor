@@ -26,6 +26,7 @@ Usage:
 from dataclasses import dataclass, field
 from datetime import date
 
+from src.schemas.enums import Position
 from src.sync.types import RawPlayerInfo
 
 
@@ -42,14 +43,16 @@ class MergedPlayerInfo:
         last_name: Player's last name
         birth_date: Player's date of birth, if available
         height_cm: Player's height in centimeters, if available
-        position: Player's position (PG, SG, SF, PF, C)
+        positions: Player's positions as list of Position enums
         sources: Mapping of field name to source that provided the value
 
     Example:
+        >>> from src.schemas.enums import Position
         >>> merged = MergedPlayerInfo(
         ...     first_name="LeBron",
         ...     last_name="James",
         ...     height_cm=206,
+        ...     positions=[Position.SMALL_FORWARD],
         ...     sources={"first_name": "winner", "height_cm": "euroleague"}
         ... )
         >>> print(merged.sources["height_cm"])
@@ -60,7 +63,7 @@ class MergedPlayerInfo:
     last_name: str
     birth_date: date | None = None
     height_cm: int | None = None
-    position: str | None = None
+    positions: list[Position] = field(default_factory=list)
     sources: dict[str, str] = field(default_factory=dict)
 
 
@@ -99,21 +102,22 @@ def merge_player_info(
         ...     last_name="James",
         ...     height_cm=206,
         ... )
+        >>> from src.schemas.enums import Position
         >>> euro_info = RawPlayerInfo(
         ...     external_id="e456",
         ...     first_name="Lebron",
         ...     last_name="James",
         ...     height_cm=205,
-        ...     position="SF",
+        ...     positions=[Position.SMALL_FORWARD],
         ... )
         >>> merged = merge_player_info([("winner", winner_info), ("euroleague", euro_info)])
         >>> merged.height_cm
         206
         >>> merged.sources["height_cm"]
         'winner'
-        >>> merged.position
-        'SF'
-        >>> merged.sources["position"]
+        >>> merged.positions
+        [<Position.SMALL_FORWARD: 'SF'>]
+        >>> merged.sources["positions"]
         'euroleague'
     """
     if not sources:
@@ -128,7 +132,7 @@ def merge_player_info(
     last_name = first_info.last_name
     birth_date: date | None = None
     height_cm: int | None = None
-    position: str | None = None
+    positions: list[Position] = []
 
     # Track sources for required fields
     if first_name:
@@ -158,16 +162,16 @@ def merge_player_info(
             birth_date = info.birth_date
             merged_sources["birth_date"] = source_name
 
-        # Position: first non-null value wins
-        if position is None and info.position is not None:
-            position = info.position
-            merged_sources["position"] = source_name
+        # Positions: first non-empty list wins
+        if not positions and info.positions:
+            positions = info.positions
+            merged_sources["positions"] = source_name
 
     return MergedPlayerInfo(
         first_name=first_name,
         last_name=last_name,
         birth_date=birth_date,
         height_cm=height_cm,
-        position=position,
+        positions=positions,
         sources=merged_sources,
     )

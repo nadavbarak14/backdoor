@@ -51,7 +51,7 @@ export interface TeamRosterPlayer {
   last_name: string;
   full_name: string;
   jersey_number: string | null;
-  position: string | null;
+  positions: string[];
 }
 
 export interface TeamRoster {
@@ -86,7 +86,7 @@ export interface Player {
   birth_date: string | null;
   nationality: string | null;
   height_cm: number | null;
-  position: string | null;
+  positions: string[];
   external_ids: Record<string, string>;
   created_at: string;
   updated_at: string;
@@ -98,7 +98,7 @@ export interface PlayerTeamHistory {
   season_id: string;
   season_name: string;
   jersey_number: string | null;
-  position: string | null;
+  positions: string[];
 }
 
 export interface PlayerWithHistory extends Player {
@@ -150,6 +150,7 @@ export interface PlayerSeasonStats {
   team_name: string;
   season_id: string;
   season_name: string;
+  league_code: string | null;
   games_played: number;
   games_started: number;
   total_minutes: number;

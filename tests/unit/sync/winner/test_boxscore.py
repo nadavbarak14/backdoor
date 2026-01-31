@@ -11,6 +11,7 @@ Addresses Issue #128: Sync game boxscores with player stats.
 
 import pytest
 
+from src.schemas.enums import GameStatus
 from src.sync.types import RawBoxScore, RawGame, RawPlayerStats
 from src.sync.winner.mapper import PlayerRoster, WinnerMapper
 
@@ -175,7 +176,7 @@ class TestEnrichBoxscoreWithNames:
                 home_team_external_id="2",
                 away_team_external_id="4",
                 game_date=mapper.parse_datetime("2025-09-21"),
-                status="final",
+                status=GameStatus.FINAL,
                 home_score=79,
                 away_score=84,
             ),
@@ -267,7 +268,7 @@ class TestEnrichBoxscoreWithNames:
                 home_team_external_id="2",
                 away_team_external_id="4",
                 game_date=mapper.parse_datetime("2025-09-21"),
-                status="final",
+                status=GameStatus.FINAL,
                 home_score=79,
                 away_score=84,
             ),
@@ -299,7 +300,7 @@ class TestEnrichBoxscoreWithNames:
         assert enriched.game.external_id == "24"
         assert enriched.game.home_score == 79
         assert enriched.game.away_score == 84
-        assert enriched.game.status == "final"
+        assert enriched.game.status == GameStatus.FINAL
 
 
 class TestExtractPlayerRoster:

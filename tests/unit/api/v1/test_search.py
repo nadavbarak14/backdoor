@@ -10,6 +10,7 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from src.models import League, Player, Season, Team
+from src.schemas.enums import Position
 
 
 class TestAutocomplete:
@@ -28,7 +29,7 @@ class TestAutocomplete:
         player = Player(
             first_name="Stephen",
             last_name="Curry",
-            position="PG",
+            positions=[Position.POINT_GUARD],
         )
         test_db.add(player)
         test_db.commit()
@@ -46,7 +47,7 @@ class TestAutocomplete:
         player = Player(
             first_name="Stephen",
             last_name="Curry",
-            position="PG",
+            positions=[Position.POINT_GUARD],
         )
         test_db.add(player)
         test_db.commit()
@@ -222,7 +223,7 @@ class TestAutocomplete:
         test_db.add(team)
         test_db.flush()
 
-        player = Player(first_name="Stephen", last_name="Curry", position="PG")
+        player = Player(first_name="Stephen", last_name="Curry", positions=[Position.POINT_GUARD])
         test_db.add(player)
         test_db.flush()
 

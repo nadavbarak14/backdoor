@@ -26,6 +26,7 @@ Usage:
     seasons = await adapter.get_seasons()
 """
 
+from src.schemas.enums import GameStatus
 from src.sync.adapters.base import BaseLeagueAdapter, BasePlayerInfoAdapter
 from src.sync.euroleague.client import EuroleagueClient
 from src.sync.euroleague.direct_client import EuroleagueDirectClient
@@ -120,18 +121,35 @@ class EuroleagueAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         """
         Parse season ID to extract competition and year.
 
+        Accepts both normalized format (2024-25) and source format (E2024).
+
         Args:
-            season_id: Season ID like "E2024" or "U2024".
+            season_id: Season ID like "E2024", "U2024", or "2024-25".
 
         Returns:
             Tuple of (competition, year).
 
         Raises:
             ValueError: If season_id format is invalid.
+
+        Example:
+            >>> adapter._parse_season_id("E2024")
+            ('E', 2024)
+            >>> adapter._parse_season_id("2024-25")
+            ('E', 2024)
         """
         if len(season_id) < 2:
             raise ValueError(f"Invalid season_id format: {season_id}")
 
+        # Handle normalized format "2024-25" or "2024-2025"
+        if "-" in season_id:
+            try:
+                year = int(season_id.split("-")[0])
+                return self.competition, year
+            except ValueError as e:
+                raise ValueError(f"Invalid season_id format: {season_id}") from e
+
+        # Handle source format "E2024" or "U2024"
         competition = season_id[0]
         try:
             year = int(season_id[1:])
@@ -289,7 +307,9 @@ class EuroleagueAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
 
         return boxscore
 
-    async def get_game_pbp(self, game_id: str) -> list[RawPBPEvent]:
+    async def get_game_pbp(
+        self, game_id: str
+    ) -> tuple[list[RawPBPEvent], dict[str, int]]:
         """
         Fetch play-by-play events for a game.
 
@@ -297,13 +317,14 @@ class EuroleagueAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
             game_id: External game identifier (e.g., "E2024_1").
 
         Returns:
-            List of RawPBPEvent objects.
+            Tuple of (events, player_id_to_jersey). Jersey mapping is empty
+            for Euroleague since external IDs match database.
 
         Raises:
             EuroleagueAPIError: If the game doesn't exist or request fails.
 
         Example:
-            >>> events = await adapter.get_game_pbp("E2024_1")
+            >>> events, _ = await adapter.get_game_pbp("E2024_1")
             >>> for event in events[:5]:
             ...     print(f"{event.clock} - {event.event_type}")
         """
@@ -312,7 +333,7 @@ class EuroleagueAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         # Use live PBP API
         result = self.direct_client.fetch_live_pbp(season, gamecode)
 
-        return self.mapper.map_pbp_from_live(result.data)
+        return self.mapper.map_pbp_from_live(result.data), {}
 
     def is_game_final(self, game: RawGame) -> bool:
         """
@@ -330,7 +351,7 @@ class EuroleagueAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
             ...     boxscore = await adapter.get_game_boxscore(game.external_id)
         """
         return (
-            game.status == "final"
+            game.status == GameStatus.FINAL
             and game.home_score is not None
             and game.away_score is not None
         )
@@ -446,7 +467,7 @@ class EuroleagueAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         return results
 
     async def get_team_roster(
-        self, team_external_id: str
+        self, team_external_id: str, fetch_profiles: bool = False  # noqa: ARG002
     ) -> list[tuple[str, str, RawPlayerInfo | None]]:
         """
         Fetch team roster with player IDs, names, and jersey numbers.
@@ -456,6 +477,8 @@ class EuroleagueAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
 
         Args:
             team_external_id: External team identifier (team code like "IST").
+            fetch_profiles: Ignored. Euroleague roster data already includes
+                all needed info. Kept for compatibility with WinnerAdapter.
 
         Returns:
             List of (player_id, player_name, player_info) tuples.

@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from src.models.league import League, Season
 from src.models.player import Player, PlayerTeamHistory
 from src.models.team import Team, TeamSeason
+from src.schemas.enums import Position
 from src.sync.config import SyncConfig, SyncSourceConfig
 from src.sync.manager import SyncManager
 from src.sync.types import RawPlayerInfo
@@ -128,7 +129,7 @@ def mock_adapter() -> MagicMock:
                 external_id="1001",
                 first_name="John",
                 last_name="Smith",
-                position="Guard",
+                positions=[Position.GUARD],
                 height_cm=195,
                 birth_date=date(1995, 5, 15),
             ),
@@ -140,7 +141,7 @@ def mock_adapter() -> MagicMock:
                 external_id="1002",
                 first_name="David",
                 last_name="Cohen",
-                position="Point Guard",
+                positions=[Position.POINT_GUARD],
                 height_cm=185,
                 birth_date=date(1998, 3, 20),
             ),
@@ -152,7 +153,7 @@ def mock_adapter() -> MagicMock:
                 external_id="1003",
                 first_name="Michael",
                 last_name="Brown",
-                position="Center",
+                positions=[Position.CENTER],
                 height_cm=210,
                 birth_date=date(1992, 11, 8),
             ),
@@ -208,7 +209,9 @@ class TestSyncPlayersHaveBioData:
 
         # Verify
         test_db.refresh(players_without_bio[0])
-        assert players_without_bio[0].position == "Guard"
+        # Position property returns the enum value (e.g., "G" for Guard)
+        assert players_without_bio[0].positions == [Position.GUARD]
+        assert players_without_bio[0].positions == [Position.GUARD]
 
     @pytest.mark.asyncio
     async def test_sync_updates_player_height(
@@ -371,7 +374,9 @@ class TestPlayerNameMatchingWorks:
 
         test_db.refresh(player)
         # Should match despite case difference
-        assert player.position == "Guard"
+        # Position property returns enum value (e.g., "G" for Guard)
+        assert player.positions == [Position.GUARD]
+        assert player.positions == [Position.GUARD]
 
     @pytest.mark.asyncio
     async def test_unmatched_players_not_updated(
@@ -417,7 +422,7 @@ class TestPlayerNameMatchingWorks:
 
         test_db.refresh(player)
         # Should not have bio data
-        assert player.position is None
+        assert player.positions == []
         assert player.height_cm is None
 
 
@@ -512,7 +517,7 @@ class TestNoDuplicatePlayers:
             id=uuid4(),
             first_name="John",
             last_name="Smith",
-            position="Forward",  # Different from roster data
+            positions=[Position.FORWARD],  # Different from roster data
             height_cm=200,  # Different from roster data
             birth_date=date(1990, 1, 1),  # Different from roster data
             external_ids={},
@@ -543,6 +548,6 @@ class TestNoDuplicatePlayers:
 
         test_db.refresh(player)
         # Original values should be preserved
-        assert player.position == "Forward"
+        assert player.positions == [Position.FORWARD]
         assert player.height_cm == 200
         assert player.birth_date == date(1990, 1, 1)

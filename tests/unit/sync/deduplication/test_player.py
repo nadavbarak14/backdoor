@@ -11,6 +11,7 @@ import pytest
 from src.models.league import League, Season
 from src.models.player import Player, PlayerTeamHistory
 from src.models.team import Team
+from src.schemas.enums import Position
 from src.sync.deduplication.player import PlayerDeduplicator
 from src.sync.types import RawPlayerInfo
 
@@ -66,7 +67,7 @@ def player_on_team(test_db, sample_team, sample_season):
         last_name="Wilbekin",
         birth_date=date(1993, 7, 19),
         height_cm=185,
-        position="PG",
+        positions=[Position.POINT_GUARD],
         external_ids={"winner": "player-123"},
     )
     test_db.add(player)
@@ -77,7 +78,7 @@ def player_on_team(test_db, sample_team, sample_season):
         team_id=sample_team.id,
         season_id=sample_season.id,
         jersey_number=1,
-        position="PG",
+        positions=[Position.POINT_GUARD],
     )
     test_db.add(history)
     test_db.commit()
@@ -145,7 +146,7 @@ class TestPlayerDeduplicatorFindOrCreate:
                 external_id="player-999",
                 first_name="New",
                 last_name="Player",
-                position="SG",
+                positions=[Position.SHOOTING_GUARD],
             ),
             team_id=sample_team.id,
         )

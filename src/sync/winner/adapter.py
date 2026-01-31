@@ -24,6 +24,7 @@ Usage:
     teams = await adapter.get_teams(seasons[0].external_id)
 """
 
+from src.schemas.enums import GameStatus
 from src.sync.adapters.base import BaseLeagueAdapter, BasePlayerInfoAdapter
 from src.sync.types import (
     RawBoxScore,
@@ -93,6 +94,8 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         self._historical_schedule_cache: dict[str, list[RawGame]] = {}
         # Cache for historical team info (keyed by segevstats team_id)
         self._historical_teams_cache: dict[str, RawTeam] = {}
+        # Cache mapping segevstats external_id -> basket.co.il source_game_id
+        self._game_id_mapping: dict[str, str] = {}
 
     def _get_current_season_id(self) -> str:
         """
@@ -285,7 +288,11 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
             games_data = self._get_games_data()
             games = []
             for game_data in games_data.get("games", []):
-                games.append(self.mapper.map_game(game_data))
+                raw_game = self.mapper.map_game(game_data)
+                games.append(raw_game)
+                # Cache mapping from segevstats ID to basket.co.il ID
+                if raw_game.source_game_id:
+                    self._game_id_mapping[raw_game.external_id] = raw_game.source_game_id
             return games
         else:
             # Historical season: scrape results page for game IDs
@@ -295,8 +302,8 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         """
         Fetch historical game schedule by scraping results page.
 
-        For each game, fetches the segevstats game ID from the game-zone page
-        and team IDs from the boxscore so that sync can work correctly.
+        For each game, fetches team IDs from the game-zone page directly
+        (no segevstats calls needed).
 
         Results are cached to avoid duplicate fetches when called from
         both get_teams and get_schedule.
@@ -322,56 +329,40 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
                 if not basket_game_id:
                     continue
 
-                # Get the segevstats game ID from game-zone page
-                segevstats_id = self.scraper.fetch_segevstats_game_id(basket_game_id)
-                if not segevstats_id:
-                    # Skip games without segevstats mapping
-                    continue
-
-                # Fetch boxscore to get team IDs and PBP to get team names
+                # Fetch boxscore from game-zone to get team IDs
                 try:
-                    boxscore_result = self.client.fetch_boxscore(segevstats_id)
-                    boxscore = self.mapper.map_boxscore(boxscore_result.data)
-                    home_team_id = boxscore.game.home_team_external_id
-                    away_team_id = boxscore.game.away_team_external_id
+                    boxscore = self.scraper.fetch_game_boxscore(basket_game_id)
+                    home_team_id = boxscore.home_team_id
+                    away_team_id = boxscore.away_team_id
 
-                    # Fetch PBP to get team names
-                    pbp_result = self.client.fetch_pbp(segevstats_id)
-                    pbp_data = pbp_result.data
-                    game_info = pbp_data.get("result", {}).get("gameInfo", {})
-                    home_team_info = game_info.get("homeTeam", {})
-                    away_team_info = game_info.get("awayTeam", {})
+                    if not home_team_id or not away_team_id:
+                        continue
 
                     # Cache team info for later use in get_teams
-                    if (
-                        home_team_id
-                        and home_team_id not in self._historical_teams_cache
-                    ):
+                    if home_team_id not in self._historical_teams_cache:
                         self._historical_teams_cache[home_team_id] = RawTeam(
                             external_id=home_team_id,
-                            name=home_team_info.get("name", f"Team {home_team_id}"),
+                            name=boxscore.home_team_name or f"Team {home_team_id}",
                         )
-                    if (
-                        away_team_id
-                        and away_team_id not in self._historical_teams_cache
-                    ):
+                    if away_team_id not in self._historical_teams_cache:
                         self._historical_teams_cache[away_team_id] = RawTeam(
                             external_id=away_team_id,
-                            name=away_team_info.get("name", f"Team {away_team_id}"),
+                            name=boxscore.away_team_name or f"Team {away_team_id}",
                         )
                 except Exception:
                     # Skip games without valid boxscore
                     continue
 
-                # Create RawGame with all IDs filled
+                # Create RawGame using basket.co.il IDs
                 game = RawGame(
-                    external_id=segevstats_id,
-                    game_date=boxscore.game.game_date,
+                    external_id=basket_game_id,  # Use basket.co.il ID as external_id
+                    game_date=boxscore.game_date,  # Date from game-zone page
                     home_team_external_id=home_team_id,
                     away_team_external_id=away_team_id,
-                    home_score=boxscore.game.home_score,
-                    away_score=boxscore.game.away_score,
-                    status="final" if boxscore.game.home_score else "scheduled",
+                    home_score=boxscore.home_score or game_result.home_score,
+                    away_score=boxscore.away_score or game_result.away_score,
+                    status=GameStatus.FINAL if game_result.home_score else GameStatus.SCHEDULED,
+                    source_game_id=basket_game_id,
                 )
                 games.append(game)
 
@@ -383,8 +374,11 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         """
         Fetch the box score for a completed game.
 
+        Uses basket.co.il game-zone page to get boxscore with correct player IDs.
+        Falls back to segevstats if game-zone scraping fails.
+
         Args:
-            game_id: External game identifier.
+            game_id: External game identifier (segevstats ID).
 
         Returns:
             RawBoxScore containing game info and player stats.
@@ -398,32 +392,97 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
             >>> for player in boxscore.home_players:
             ...     print(f"{player.player_name}: {player.points} pts")
         """
+        # Try to get basket.co.il game ID from memory cache
+        basket_game_id = self._game_id_mapping.get(game_id)
+
+        # If not in memory, try to find it from sync cache
+        if not basket_game_id:
+            basket_game_id = self._lookup_basket_id_from_cache(game_id)
+            if basket_game_id:
+                self._game_id_mapping[game_id] = basket_game_id
+
+        if basket_game_id:
+            try:
+                # Use scraper to get boxscore with correct player IDs
+                gamezone_boxscore = self.scraper.fetch_game_boxscore(basket_game_id)
+                return self.mapper.map_gamezone_boxscore(gamezone_boxscore)
+            except Exception:
+                # Fall back to segevstats if scraping fails
+                pass
+
+        # Fallback: use segevstats (player IDs won't match)
         result = self.client.fetch_boxscore(game_id)
         return self.mapper.map_boxscore(result.data)
 
-    async def get_game_pbp(self, game_id: str) -> list[RawPBPEvent]:
+    def _lookup_basket_id_from_cache(self, segevstats_id: str) -> str | None:
+        """
+        Look up basket.co.il game ID from sync cache.
+
+        Searches cached game-zone pages to find one that contains the
+        given segevstats ID.
+
+        Args:
+            segevstats_id: The segevstats external ID (e.g., "136").
+
+        Returns:
+            The basket.co.il game ID, or None if not found.
+        """
+        import re
+
+        from src.models.sync_cache import SyncCache
+
+        # Query all cached game-zone pages
+        caches = (
+            self.scraper.db.query(SyncCache)
+            .filter(
+                SyncCache.source == "winner",
+                SyncCache.resource_type == "game_zone_page",
+            )
+            .all()
+        )
+
+        for cache in caches:
+            html = cache.raw_data.get("html", "")
+            match = re.search(r"game_id=(\d+)", html)
+            if match and match.group(1) == segevstats_id:
+                return cache.resource_id
+
+        return None
+
+    async def get_game_pbp(
+        self, game_id: str
+    ) -> tuple[list[RawPBPEvent], dict[str, int]]:
         """
         Fetch play-by-play events for a game.
 
         Events are returned with inferred links between related events
         (e.g., assists linked to shots, rebounds linked to misses).
 
+        Also returns a mapping from internal player IDs to jersey numbers
+        for player matching when internal IDs don't match database.
+
         Args:
             game_id: External game identifier.
 
         Returns:
-            List of RawPBPEvent objects with inferred links.
+            Tuple of (events, player_id_to_jersey) where:
+            - events: List of RawPBPEvent objects with inferred links
+            - player_id_to_jersey: Dict mapping internal player ID to jersey number
 
         Raises:
             WinnerAPIError: If the game doesn't exist or request fails.
 
         Example:
-            >>> events = await adapter.get_game_pbp("12345")
+            >>> events, player_jerseys = await adapter.get_game_pbp("12345")
             >>> for event in events[:5]:
             ...     print(f"{event.clock} - {event.event_type}")
+            >>> player_jerseys["1000"]  # Player 1000 wears jersey #1
+            1
         """
         result = self.client.fetch_pbp(game_id)
-        return self.mapper.map_pbp_events(result.data)
+        events = self.mapper.map_pbp_events(result.data)
+        player_id_to_jersey = self.mapper.extract_player_id_to_jersey(result.data)
+        return events, player_id_to_jersey
 
     def is_game_final(self, game: RawGame) -> bool:
         """
@@ -441,7 +500,7 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
             ...     boxscore = await adapter.get_game_boxscore(game.external_id)
         """
         return (
-            game.status == "final"
+            game.status == GameStatus.FINAL
             and game.home_score is not None
             and game.away_score is not None
         )
@@ -524,17 +583,20 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         return results
 
     async def get_team_roster(
-        self, team_external_id: str
+        self, team_external_id: str, fetch_profiles: bool = True
     ) -> list[tuple[str, str, RawPlayerInfo | None]]:
         """
-        Fetch team roster with player IDs and bio data from roster page.
+        Fetch team roster with player IDs and bio data.
 
         Returns list of tuples: (player_id, player_name, RawPlayerInfo or None).
-        Bio data (position) is extracted from the roster page directly for
-        efficiency - no individual player profile fetches are needed.
+
+        When fetch_profiles=True (default), fetches individual player profiles
+        to get full bio data (height, birthdate). This is slower but provides
+        complete player information.
 
         Args:
             team_external_id: External team identifier.
+            fetch_profiles: If True, fetch individual player profiles for bio data.
 
         Returns:
             List of (player_id, player_name, player_info) tuples.
@@ -542,15 +604,27 @@ class WinnerAdapter(BaseLeagueAdapter, BasePlayerInfoAdapter):
         Example:
             >>> roster = await adapter.get_team_roster("100")
             >>> for player_id, name, info in roster:
-            ...     print(f"{name}: {info.position if info else 'N/A'}")
+            ...     print(f"{name}: height={info.height_cm if info else 'N/A'}")
         """
         results: list[tuple[str, str, RawPlayerInfo | None]] = []
 
         try:
             roster = self.scraper.fetch_team_roster(team_external_id)
             for player in roster.players:
-                # Create RawPlayerInfo from roster data (no profile fetch needed)
-                player_info = self.mapper.map_roster_player_info(player)
+                player_info = None
+
+                if fetch_profiles and player.player_id:
+                    # Fetch individual player profile for full bio data
+                    try:
+                        profile = self.scraper.fetch_player(player.player_id)
+                        player_info = self.mapper.map_player_info(profile)
+                    except Exception:
+                        # Fall back to roster data if profile fetch fails
+                        player_info = self.mapper.map_roster_player_info(player)
+                else:
+                    # Just use roster data (position only)
+                    player_info = self.mapper.map_roster_player_info(player)
+
                 results.append((player.player_id, player.name, player_info))
         except Exception:
             # Roster fetch failed

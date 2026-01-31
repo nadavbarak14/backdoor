@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from src.schemas.enums import GameStatus
 from src.sync.winner.mapper import WinnerMapper
 
 FIXTURES_DIR = Path(__file__).parent.parent.parent / "fixtures" / "winner"
@@ -77,7 +78,7 @@ class TestWinnerScheduleParsing:
         for game_data in schedule_fixture:
             game = winner_mapper.map_game(game_data)
 
-            if game.status == "final":
+            if game.status == GameStatus.FINAL:
                 # Completed games should have scores
                 assert game.home_score is not None or game.home_score == 0
                 assert game.away_score is not None or game.away_score == 0

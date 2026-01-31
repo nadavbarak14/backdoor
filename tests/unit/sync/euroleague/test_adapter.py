@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.schemas.enums import GameStatus
 from src.schemas.game import EventType
 from src.sync.euroleague.adapter import EuroleagueAdapter
 from src.sync.euroleague.direct_client import CacheResult
@@ -249,10 +250,10 @@ class TestGetSeasons:
         seasons = await adapter.get_seasons()
 
         assert len(seasons) == 2
-        # external_id is now normalized YYYY-YY format
-        assert seasons[0].external_id == "2024-25"
-        assert seasons[1].external_id == "2023-24"
-        # source_id preserves original Euroleague format
+        # external_id is source-specific for API calls
+        assert seasons[0].external_id == "E2024"
+        assert seasons[1].external_id == "E2023"
+        # source_id also preserves original Euroleague format
         assert seasons[0].source_id == "E2024"
         assert seasons[1].source_id == "E2023"
 
@@ -327,8 +328,8 @@ class TestGetSchedule:
 
         assert len(games) == 2
         assert games[0].external_id == "E2024_1"
-        assert games[0].status == "final"
-        assert games[1].status == "scheduled"
+        assert games[0].status == GameStatus.FINAL
+        assert games[1].status == GameStatus.SCHEDULED
 
 
 class TestGetGameBoxscore:
@@ -385,12 +386,13 @@ class TestGetGamePbp:
             cache_id="test",
         )
 
-        events = await adapter.get_game_pbp("E2024_1")
+        events, player_id_to_jersey = await adapter.get_game_pbp("E2024_1")
 
         assert len(events) == 3
         assert events[0].event_type == EventType.SHOT
         assert events[0].period == 1
         assert events[2].period == 2
+        assert player_id_to_jersey == {}  # Euroleague doesn't need jersey mapping
 
 
 class TestIsGameFinal:
@@ -403,7 +405,7 @@ class TestIsGameFinal:
             home_team_external_id="BER",
             away_team_external_id="PAN",
             game_date=datetime.now(),
-            status="final",
+            status=GameStatus.FINAL,
             home_score=77,
             away_score=87,
         )
@@ -417,7 +419,7 @@ class TestIsGameFinal:
             home_team_external_id="BER",
             away_team_external_id="PAN",
             game_date=datetime.now(),
-            status="scheduled",
+            status=GameStatus.SCHEDULED,
             home_score=None,
             away_score=None,
         )

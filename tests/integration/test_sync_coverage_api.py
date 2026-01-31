@@ -17,6 +17,7 @@ from src.models.league import League, Season
 from src.models.play_by_play import PlayByPlayEvent
 from src.models.player import Player, PlayerTeamHistory
 from src.models.team import Team
+from src.schemas.enums import Position
 
 
 @pytest.fixture
@@ -53,8 +54,8 @@ def sample_data(test_db: Session) -> dict:
 
     # Create players with varying bio completeness
     players = [
-        Player(first_name="Player", last_name="One", position="PG", height_cm=185),
-        Player(first_name="Player", last_name="Two", position="SG", height_cm=None),
+        Player(first_name="Player", last_name="One", positions=[Position.POINT_GUARD], height_cm=185),
+        Player(first_name="Player", last_name="Two", positions=[Position.SHOOTING_GUARD], height_cm=None),
         Player(first_name="Player", last_name="Three", position=None, height_cm=200),
         Player(first_name="Player", last_name="Four", position=None, height_cm=None),
     ]

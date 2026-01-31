@@ -10,6 +10,7 @@ This module exports:
 
 Usage:
     from src.models.play_by_play import PlayByPlayEvent, PlayByPlayEventLink
+    from src.schemas.enums import EventType
 
     # Create a made shot event
     shot = PlayByPlayEvent(
@@ -17,7 +18,7 @@ Usage:
         event_number=1,
         period=1,
         clock="10:30",
-        event_type="SHOT",
+        event_type=EventType.SHOT,
         event_subtype="2PT",
         player_id=player.id,
         team_id=team.id,
@@ -33,7 +34,7 @@ Usage:
         event_number=2,
         period=1,
         clock="10:30",
-        event_type="ASSIST",
+        event_type=EventType.ASSIST,
         player_id=passer.id,
         team_id=team.id,
         description="Wilbekin assist",
@@ -61,6 +62,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, TimestampMixin, UUIDMixin
+from src.models.types import EventTypeType
+from src.schemas.enums import EventType
 
 
 class PlayByPlayEvent(UUIDMixin, TimestampMixin, Base):
@@ -79,8 +82,8 @@ class PlayByPlayEvent(UUIDMixin, TimestampMixin, Base):
         event_number: Sequence number within the game
         period: Period/quarter number (1-4 for regulation, 5+ for OT)
         clock: Game clock time (e.g., "10:30" or seconds remaining)
-        event_type: Type of event (SHOT, REBOUND, ASSIST, TURNOVER, STEAL,
-                    FOUL, BLOCK, SUBSTITUTION, TIMEOUT, etc.)
+        event_type: Type of event as EventType enum (SHOT, REBOUND, ASSIST,
+                    TURNOVER, STEAL, FOUL, BLOCK, SUBSTITUTION, TIMEOUT, etc.)
         event_subtype: Subtype for additional detail (e.g., "3PT", "OFFENSIVE",
                        "PERSONAL", "TECHNICAL")
         player_id: UUID foreign key to the Player (nullable for team events)
@@ -98,12 +101,13 @@ class PlayByPlayEvent(UUIDMixin, TimestampMixin, Base):
         related_events: Events linked via PlayByPlayEventLink
 
     Example:
+        >>> from src.schemas.enums import EventType
         >>> event = PlayByPlayEvent(
         ...     game_id=game.id,
         ...     event_number=42,
         ...     period=2,
         ...     clock="5:30",
-        ...     event_type="SHOT",
+        ...     event_type=EventType.SHOT,
         ...     event_subtype="3PT",
         ...     player_id=curry.id,
         ...     team_id=warriors.id,
@@ -125,7 +129,7 @@ class PlayByPlayEvent(UUIDMixin, TimestampMixin, Base):
     period: Mapped[int] = mapped_column(Integer, nullable=False)
     clock: Mapped[str] = mapped_column(String(20), nullable=False)
 
-    event_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    event_type: Mapped[EventType] = mapped_column(EventTypeType, nullable=False)
     event_subtype: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     player_id: Mapped[uuid.UUID | None] = mapped_column(

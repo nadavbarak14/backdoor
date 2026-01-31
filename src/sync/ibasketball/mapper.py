@@ -17,6 +17,8 @@ Usage:
 
 from datetime import date, datetime
 
+from src.schemas.enums import EventType, GameStatus
+from src.sync.normalizers import Normalizers
 from src.sync.season import normalize_season_name
 from src.sync.types import (
     RawBoxScore,
@@ -76,38 +78,38 @@ class IBasketballMapper:
         "plusminus": "plus_minus",
     }
 
-    # Hebrew PBP event type mapping
-    PBP_EVENT_MAP = {
+    # Hebrew PBP event type mapping to canonical EventType enums
+    PBP_EVENT_MAP: dict[str, EventType] = {
         # Shots
-        "קליעה": "shot",
-        "קליעת שתיים": "shot",
-        "קליעת שלוש": "shot",
-        "החטאה": "shot",
-        "החטאת שתיים": "shot",
-        "החטאת שלוש": "shot",
+        "קליעה": EventType.SHOT,
+        "קליעת שתיים": EventType.SHOT,
+        "קליעת שלוש": EventType.SHOT,
+        "החטאה": EventType.SHOT,
+        "החטאת שתיים": EventType.SHOT,
+        "החטאת שלוש": EventType.SHOT,
         # Free throws
-        "קליעת עונשין": "free_throw",
-        "החטאת עונשין": "free_throw",
+        "קליעת עונשין": EventType.FREE_THROW,
+        "החטאת עונשין": EventType.FREE_THROW,
         # Rebounds
-        "ריבאונד": "rebound",
-        "ריבאונד התקפי": "rebound",
-        "ריבאונד הגנתי": "rebound",
+        "ריבאונד": EventType.REBOUND,
+        "ריבאונד התקפי": EventType.REBOUND,
+        "ריבאונד הגנתי": EventType.REBOUND,
         # Other events
-        "אסיסט": "assist",
-        "חטיפה": "steal",
-        "איבוד": "turnover",
-        "חסימה": "block",
-        "עבירה": "foul",
-        "פאול": "foul",
+        "אסיסט": EventType.ASSIST,
+        "חטיפה": EventType.STEAL,
+        "איבוד": EventType.TURNOVER,
+        "חסימה": EventType.BLOCK,
+        "עבירה": EventType.FOUL,
+        "פאול": EventType.FOUL,
         # English fallbacks
-        "made": "shot",
-        "missed": "shot",
-        "rebound": "rebound",
-        "assist": "assist",
-        "steal": "steal",
-        "turnover": "turnover",
-        "block": "block",
-        "foul": "foul",
+        "made": EventType.SHOT,
+        "missed": EventType.SHOT,
+        "rebound": EventType.REBOUND,
+        "assist": EventType.ASSIST,
+        "steal": EventType.STEAL,
+        "turnover": EventType.TURNOVER,
+        "block": EventType.BLOCK,
+        "foul": EventType.FOUL,
     }
 
     def parse_datetime(self, date_str: str) -> datetime:
@@ -406,22 +408,22 @@ class IBasketballMapper:
         data: dict,
         home_score: int | None,
         away_score: int | None,
-    ) -> str:
-        """Determine game status from event data."""
+    ) -> GameStatus:
+        """Determine game status from event data, returning GameStatus enum."""
         status = data.get("status", "").lower()
 
         if status in ("publish", "final", "finished", "completed"):
-            return "final"
+            return Normalizers.normalize_game_status("final", "ibasketball")
 
         if status in ("future", "scheduled"):
-            return "scheduled"
+            return Normalizers.normalize_game_status("scheduled", "ibasketball")
 
         if status in ("live", "in_progress", "playing"):
-            return "live"
+            return Normalizers.normalize_game_status("live", "ibasketball")
 
         # Infer from scores
         if home_score is not None and away_score is not None:
-            return "final"
+            return Normalizers.normalize_game_status("final", "ibasketball")
 
         # Check if game date is in the future
         date_str = data.get("date") or data.get("date_gmt", "")
@@ -429,11 +431,12 @@ class IBasketballMapper:
             try:
                 game_date = self.parse_datetime(date_str)
                 if game_date > datetime.now():
-                    return "scheduled"
+                    return Normalizers.normalize_game_status("scheduled", "ibasketball")
             except (ValueError, TypeError):
                 pass
 
-        return "final" if home_score is not None else "scheduled"
+        raw_status = "final" if home_score is not None else "scheduled"
+        return Normalizers.normalize_game_status(raw_status, "ibasketball")
 
     def map_player_stats(
         self,
@@ -595,7 +598,7 @@ class IBasketballMapper:
         player_name: str | None,
         team_id: str | None,
         success: bool | None,
-    ) -> RawPBPEvent:
+    ) -> RawPBPEvent | None:
         """
         Map a single play-by-play event to RawPBPEvent.
 
@@ -609,7 +612,7 @@ class IBasketballMapper:
             success: Whether event was successful (for shots).
 
         Returns:
-            RawPBPEvent with mapped data.
+            RawPBPEvent with mapped data, or None if event type cannot be mapped.
 
         Example:
             >>> mapper = IBasketballMapper()
@@ -617,10 +620,12 @@ class IBasketballMapper:
             ...     1, 1, "09:45", "קליעה", "John Smith", "100", True
             ... )
             >>> event.event_type
-            'shot'
+            <EventType.SHOT: 'SHOT'>
         """
-        # Normalize event type
+        # Normalize event type to EventType enum
         normalized_type = self._normalize_pbp_event_type(event_type)
+        if normalized_type is None:
+            return None
 
         return RawPBPEvent(
             event_number=event_num,
@@ -635,10 +640,10 @@ class IBasketballMapper:
             related_event_numbers=None,
         )
 
-    def _normalize_pbp_event_type(self, raw_type: str) -> str:
-        """Normalize PBP event type from Hebrew or English to standard type."""
+    def _normalize_pbp_event_type(self, raw_type: str) -> EventType | None:
+        """Normalize PBP event type from Hebrew or English to EventType enum."""
         if not raw_type:
-            return "unknown"
+            return None
 
         raw_lower = raw_type.lower().strip()
 
@@ -655,7 +660,8 @@ class IBasketballMapper:
             if key in raw_type or key in raw_lower:
                 return value
 
-        return raw_lower
+        # Try normalizer for unknown types
+        return Normalizers.try_normalize_event_type(raw_type, "ibasketball")
 
     def map_pbp_events(self, events_data: list[dict]) -> list[RawPBPEvent]:
         """
@@ -665,7 +671,7 @@ class IBasketballMapper:
             events_data: List of event dictionaries from scraper.
 
         Returns:
-            List of RawPBPEvent objects with inferred links.
+            List of RawPBPEvent objects with inferred links (skipping None-mapped events).
 
         Example:
             >>> mapper = IBasketballMapper()
@@ -692,7 +698,8 @@ class IBasketballMapper:
                 team_id=str(team_id) if team_id else None,
                 success=success,
             )
-            events.append(event)
+            if event is not None:
+                events.append(event)
 
         # Infer links between related events
         return self.infer_pbp_links(events)
@@ -751,8 +758,8 @@ class IBasketballMapper:
 
                 # Rule 1: ASSIST after made SHOT (same team, <2 sec)
                 if (
-                    event.event_type == "assist"
-                    and prev_event.event_type == "shot"
+                    event.event_type == EventType.ASSIST
+                    and prev_event.event_type == EventType.SHOT
                     and prev_event.success is True
                     and event.team_external_id == prev_event.team_external_id
                     and 0 <= time_diff <= 2
@@ -762,8 +769,8 @@ class IBasketballMapper:
 
                 # Rule 2: REBOUND after missed SHOT (<3 sec)
                 if (
-                    event.event_type == "rebound"
-                    and prev_event.event_type == "shot"
+                    event.event_type == EventType.REBOUND
+                    and prev_event.event_type == EventType.SHOT
                     and prev_event.success is False
                     and 0 <= time_diff <= 3
                 ):
@@ -772,8 +779,8 @@ class IBasketballMapper:
 
                 # Rule 3: STEAL after TURNOVER (diff team, <2 sec)
                 if (
-                    event.event_type == "steal"
-                    and prev_event.event_type == "turnover"
+                    event.event_type == EventType.STEAL
+                    and prev_event.event_type == EventType.TURNOVER
                     and event.team_external_id != prev_event.team_external_id
                     and 0 <= time_diff <= 2
                 ):
@@ -782,8 +789,8 @@ class IBasketballMapper:
 
                 # Rule 4: BLOCK with missed SHOT (same time)
                 if (
-                    event.event_type == "block"
-                    and prev_event.event_type == "shot"
+                    event.event_type == EventType.BLOCK
+                    and prev_event.event_type == EventType.SHOT
                     and prev_event.success is False
                     and abs(time_diff) <= 1
                 ):
@@ -792,8 +799,8 @@ class IBasketballMapper:
 
                 # Rule 5: FREE_THROW after FOUL
                 if (
-                    event.event_type == "free_throw"
-                    and prev_event.event_type == "foul"
+                    event.event_type == EventType.FREE_THROW
+                    and prev_event.event_type == EventType.FOUL
                     and 0 <= time_diff <= 5
                 ):
                     event.related_event_numbers = [prev_event.event_number]
@@ -871,10 +878,11 @@ class IBasketballMapper:
             except (ValueError, TypeError):
                 pass
 
-        # Get position
-        position = data.get("position") or data.get("positions")
-        if isinstance(position, list):
-            position = position[0] if position else None
+        # Get position - normalize to list of Position enums
+        raw_position = data.get("position") or data.get("positions")
+        if isinstance(raw_position, list):
+            raw_position = raw_position[0] if raw_position else None
+        positions = Normalizers.try_normalize_positions(raw_position, "ibasketball") or []
 
         return RawPlayerInfo(
             external_id=player_id,
@@ -882,7 +890,7 @@ class IBasketballMapper:
             last_name=last_name,
             birth_date=birth_date,
             height_cm=height_cm,
-            position=position,
+            positions=positions,
         )
 
     def _clean_html_text(self, text: str) -> str:

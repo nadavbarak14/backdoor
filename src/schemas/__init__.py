@@ -34,13 +34,12 @@ from src.schemas.chat import (
     ChatMessage,
     ChatRequest,
 )
+from src.schemas.enums import EventType, GameStatus, Position
 from src.schemas.game import (
-    EventType,
     GameCreate,
     GameFilter,
     GameListResponse,
     GameResponse,
-    GameStatus,
     GameUpdate,
     GameWithBoxScoreResponse,
     PlayerBoxScoreResponse,
@@ -128,6 +127,10 @@ __all__ = [
     # Base utilities
     "OrmBase",
     "PaginatedResponse",
+    # Domain enums
+    "EventType",
+    "GameStatus",
+    "Position",
     # League schemas
     "LeagueCreate",
     "LeagueUpdate",

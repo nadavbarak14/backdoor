@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from src.models.league import League, Season
 from src.models.team import Team
+from src.schemas.enums import Position
 from src.schemas.league import LeagueCreate, SeasonCreate
 from src.schemas.player import PlayerCreate, PlayerFilter, PlayerUpdate
 from src.schemas.team import TeamCreate
@@ -72,7 +73,7 @@ class TestPlayerService:
             birth_date=date(1984, 12, 30),
             nationality="USA",
             height_cm=206,
-            position="SF",
+            positions=["SF"],
             external_ids={"nba": "2544"},
         )
 
@@ -103,14 +104,14 @@ class TestPlayerService:
             PlayerCreate(
                 first_name="LeBron",
                 last_name="James",
-                position="SF",
+                positions=["SF"],
             )
         )
 
-        updated = service.update_player(player.id, PlayerUpdate(position="PF"))
+        updated = service.update_player(player.id, PlayerUpdate(positions=["PF"]))
 
         assert updated is not None
-        assert updated.position == "PF"
+        assert updated.positions == [Position.POWER_FORWARD]
         assert updated.first_name == "LeBron"  # Unchanged
 
     def test_get_by_external_id_found(self, test_db: Session):
@@ -166,14 +167,14 @@ class TestPlayerService:
             PlayerCreate(
                 first_name="LeBron",
                 last_name="James",
-                position="SF",
+                positions=["SF"],
             )
         )
         service.create_player(
             PlayerCreate(
                 first_name="Stephen",
                 last_name="Curry",
-                position="PG",
+                positions=["PG"],
             )
         )
 
@@ -343,7 +344,7 @@ class TestPlayerService:
         assert result.team_id == lakers.id
         assert result.season_id == nba_season.id
         assert result.jersey_number == 23
-        assert result.position == "SF"
+        assert result.positions == [Position.SMALL_FORWARD]
 
     def test_add_to_team_already_exists(
         self, test_db: Session, nba_season: Season, lakers: Team

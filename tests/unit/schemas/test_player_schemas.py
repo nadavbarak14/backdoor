@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from src.models import Base, Player
+from src.schemas.enums import Position
 from src.schemas.player import (
     PlayerCreate,
     PlayerFilter,
@@ -68,7 +69,7 @@ class TestPlayerCreate:
             birth_date=date(1984, 12, 30),
             nationality="United States",
             height_cm=206,
-            position="SF",
+            positions=["SF", "PF"],
             external_ids={"nba": "2544"},
         )
         assert data.first_name == "LeBron"
@@ -76,7 +77,7 @@ class TestPlayerCreate:
         assert data.birth_date == date(1984, 12, 30)
         assert data.nationality == "United States"
         assert data.height_cm == 206
-        assert data.position == "SF"
+        assert data.positions == ["SF", "PF"]
         assert data.external_ids == {"nba": "2544"}
 
     def test_first_name_required(self):
@@ -100,8 +101,35 @@ class TestPlayerCreate:
         assert data.birth_date is None
         assert data.nationality is None
         assert data.height_cm is None
-        assert data.position is None
+        assert data.positions == []  # Default empty list
         assert data.external_ids is None
+
+    def test_positions_multiple(self):
+        """PlayerCreate should accept multiple positions."""
+        data = PlayerCreate(
+            first_name="LeBron",
+            last_name="James",
+            positions=["SF", "PF", "C"],
+        )
+        assert data.positions == ["SF", "PF", "C"]
+
+    def test_positions_single(self):
+        """PlayerCreate should accept single position in list."""
+        data = PlayerCreate(
+            first_name="Stephen",
+            last_name="Curry",
+            positions=["PG"],
+        )
+        assert data.positions == ["PG"]
+
+    def test_positions_empty_list(self):
+        """PlayerCreate should accept empty positions list."""
+        data = PlayerCreate(
+            first_name="Unknown",
+            last_name="Player",
+            positions=[],
+        )
+        assert data.positions == []
 
     def test_height_cm_min_value(self):
         """PlayerCreate should validate height_cm minimum (100)."""
@@ -165,8 +193,8 @@ class TestPlayerUpdate:
 
     def test_partial_update(self):
         """PlayerUpdate should allow partial data."""
-        data = PlayerUpdate(position="PF")
-        assert data.position == "PF"
+        data = PlayerUpdate(positions=["PF", "C"])
+        assert data.positions == ["PF", "C"]
         assert data.first_name is None
         assert data.last_name is None
         assert data.height_cm is None
@@ -179,7 +207,7 @@ class TestPlayerUpdate:
         assert data.birth_date is None
         assert data.nationality is None
         assert data.height_cm is None
-        assert data.position is None
+        assert data.positions is None
         assert data.external_ids is None
 
     def test_height_cm_validation(self):
@@ -187,6 +215,11 @@ class TestPlayerUpdate:
         with pytest.raises(ValidationError) as exc_info:
             PlayerUpdate(height_cm=50)
         assert "height_cm" in str(exc_info.value)
+
+    def test_update_positions(self):
+        """PlayerUpdate should allow updating positions list."""
+        data = PlayerUpdate(positions=["SF", "PF"])
+        assert data.positions == ["SF", "PF"]
 
 
 class TestPlayerResponse:
@@ -200,7 +233,7 @@ class TestPlayerResponse:
             birth_date=date(1984, 12, 30),
             nationality="USA",
             height_cm=206,
-            position="SF",
+            positions=[Position.SMALL_FORWARD],
             external_ids={"nba": "2544"},
         )
         db_session.add(player)
@@ -216,7 +249,7 @@ class TestPlayerResponse:
         assert response.birth_date == date(1984, 12, 30)
         assert response.nationality == "USA"
         assert response.height_cm == 206
-        assert response.position == "SF"
+        assert response.positions == ["SF"]
         assert response.external_ids == {"nba": "2544"}
         assert response.created_at is not None
         assert response.updated_at is not None
@@ -249,6 +282,36 @@ class TestPlayerResponse:
 
         assert response.external_ids == {}
 
+    def test_positions_from_orm(self, db_session: Session):
+        """PlayerResponse should serialize positions from ORM object."""
+        player = Player(
+            first_name="LeBron",
+            last_name="James",
+            positions=[Position.SMALL_FORWARD, Position.POWER_FORWARD],
+        )
+        db_session.add(player)
+        db_session.commit()
+        db_session.refresh(player)
+
+        response = PlayerResponse.model_validate(player)
+
+        assert response.positions == ["SF", "PF"]
+
+    def test_positions_empty_from_orm(self, db_session: Session):
+        """PlayerResponse should handle empty positions from ORM."""
+        player = Player(
+            first_name="Unknown",
+            last_name="Player",
+            positions=[],
+        )
+        db_session.add(player)
+        db_session.commit()
+        db_session.refresh(player)
+
+        response = PlayerResponse.model_validate(player)
+
+        assert response.positions == []
+
 
 class TestPlayerListResponse:
     """Tests for PlayerListResponse schema."""
@@ -266,7 +329,7 @@ class TestPlayerListResponse:
             birth_date=None,
             nationality=None,
             height_cm=None,
-            position=None,
+            positions=[],
             external_ids={},
             created_at=now,
             updated_at=now,
@@ -351,7 +414,7 @@ class TestPlayerTeamHistoryResponse:
             season_id=season_id,
             season_name="2023-24",
             jersey_number=23,
-            position="SF",
+            positions=["SF"],
         )
 
         assert data.team_id == team_id
@@ -359,7 +422,7 @@ class TestPlayerTeamHistoryResponse:
         assert data.season_id == season_id
         assert data.season_name == "2023-24"
         assert data.jersey_number == 23
-        assert data.position == "SF"
+        assert data.positions == ["SF"]
 
     def test_optional_fields(self):
         """PlayerTeamHistoryResponse should allow optional fields."""
@@ -372,11 +435,11 @@ class TestPlayerTeamHistoryResponse:
             season_id=season_id,
             season_name="2023-24",
             jersey_number=None,
-            position=None,
+            positions=[],
         )
 
         assert data.jersey_number is None
-        assert data.position is None
+        assert data.positions == []
 
 
 class TestPlayerWithHistoryResponse:
@@ -395,7 +458,7 @@ class TestPlayerWithHistoryResponse:
             season_id=season_id,
             season_name="2023-24",
             jersey_number=23,
-            position="SF",
+            positions=["SF"],
         )
 
         response = PlayerWithHistoryResponse(
@@ -406,7 +469,7 @@ class TestPlayerWithHistoryResponse:
             birth_date=date(1984, 12, 30),
             nationality="USA",
             height_cm=206,
-            position="SF",
+            positions=["SF"],
             external_ids={"nba": "2544"},
             created_at=now,
             updated_at=now,
@@ -430,7 +493,7 @@ class TestPlayerWithHistoryResponse:
             season_id=uuid.uuid4(),
             season_name="2003-04",
             jersey_number=23,
-            position="SF",
+            positions=["SF"],
         )
 
         history2 = PlayerTeamHistoryResponse(
@@ -439,7 +502,7 @@ class TestPlayerWithHistoryResponse:
             season_id=uuid.uuid4(),
             season_name="2010-11",
             jersey_number=6,
-            position="SF",
+            positions=["SF"],
         )
 
         history3 = PlayerTeamHistoryResponse(
@@ -448,7 +511,7 @@ class TestPlayerWithHistoryResponse:
             season_id=uuid.uuid4(),
             season_name="2018-19",
             jersey_number=23,
-            position="SF",
+            positions=["SF"],
         )
 
         response = PlayerWithHistoryResponse(
@@ -459,7 +522,7 @@ class TestPlayerWithHistoryResponse:
             birth_date=date(1984, 12, 30),
             nationality="USA",
             height_cm=206,
-            position="SF",
+            positions=["SF"],
             external_ids={},
             created_at=now,
             updated_at=now,

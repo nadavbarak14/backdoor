@@ -25,6 +25,7 @@ Usage:
 """
 
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 from src.sync.types import (
     RawBoxScore,
@@ -150,24 +151,31 @@ class BaseLeagueAdapter(ABC):
         ...
 
     @abstractmethod
-    async def get_game_pbp(self, game_id: str) -> list[RawPBPEvent]:
+    async def get_game_pbp(
+        self, game_id: str
+    ) -> tuple[list[RawPBPEvent], dict[str, int]]:
         """
         Fetch play-by-play events for a game.
 
-        Returns all recorded events from the game in chronological order.
+        Returns all recorded events from the game in chronological order,
+        plus a mapping from internal player IDs to jersey numbers for
+        sources where internal IDs don't match database external IDs.
 
         Args:
             game_id: External game identifier
 
         Returns:
-            List of RawPBPEvent objects in chronological order
+            Tuple of (events, player_id_to_jersey) where:
+            - events: List of RawPBPEvent objects in chronological order
+            - player_id_to_jersey: Dict mapping internal player ID to jersey number
+              (empty dict if not needed for this source)
 
         Raises:
             GameNotFoundError: If the game doesn't exist
             AdapterError: If PBP data is unavailable or request fails
 
         Example:
-            >>> events = await adapter.get_game_pbp("game-123")
+            >>> events, player_jerseys = await adapter.get_game_pbp("game-123")
             >>> shots = [e for e in events if e.event_type == "shot"]
         """
         ...
@@ -193,6 +201,58 @@ class BaseLeagueAdapter(ABC):
             ...     boxscore = await adapter.get_game_boxscore(game.external_id)
         """
         ...
+
+    async def get_games_since(
+        self, since: datetime, season_id: str | None = None
+    ) -> list[RawGame]:
+        """
+        Fetch games played since a specific date.
+
+        Used for recent sync operations (e.g., daily sync of last 7 days).
+        Default implementation filters the schedule by date.
+
+        Args:
+            since: Datetime to filter games from (inclusive).
+            season_id: Optional season to filter. If None, uses current season.
+
+        Returns:
+            List of RawGame objects played on or after the specified date.
+
+        Example:
+            >>> from datetime import datetime, timedelta
+            >>> since = datetime.now() - timedelta(days=7)
+            >>> recent_games = await adapter.get_games_since(since)
+        """
+        # Default implementation: get schedule and filter by date
+        # Subclasses can override for more efficient API calls
+        if season_id is None:
+            seasons = await self.get_seasons()
+            if not seasons:
+                return []
+            # Get current season (first one is usually current)
+            season_id = seasons[0].external_id
+
+        games = await self.get_schedule(season_id)
+        return [
+            g for g in games
+            if g.game_date and g.game_date >= since and self.is_game_final(g)
+        ]
+
+    async def get_available_seasons(self) -> list[str]:
+        """
+        Get list of available season identifiers.
+
+        Returns normalized season names that can be used with sync operations.
+
+        Returns:
+            List of season name strings (e.g., ["2024-25", "2023-24", "2022-23"])
+
+        Example:
+            >>> seasons = await adapter.get_available_seasons()
+            >>> print(f"Available: {', '.join(seasons)}")
+        """
+        seasons = await self.get_seasons()
+        return [s.name for s in seasons]
 
 
 class BasePlayerInfoAdapter(ABC):
@@ -263,7 +323,9 @@ class BasePlayerInfoAdapter(ABC):
         ...
 
     async def get_team_roster(
-        self, team_external_id: str  # noqa: ARG002
+        self,
+        team_external_id: str,  # noqa: ARG002
+        fetch_profiles: bool = True,  # noqa: ARG002
     ) -> list[tuple[str, str, RawPlayerInfo | None]]:
         """
         Fetch team roster with player IDs and optionally bio data.
@@ -275,13 +337,16 @@ class BasePlayerInfoAdapter(ABC):
 
         Args:
             team_external_id: External team identifier.
+            fetch_profiles: If True, fetch individual player profiles for full
+                bio data. If False, use roster data only (faster but may have
+                less complete information). Default True.
 
         Returns:
             List of (player_id, player_name, player_info) tuples.
 
         Example:
-            >>> roster = await adapter.get_team_roster("100")
+            >>> roster = await adapter.get_team_roster("100", fetch_profiles=False)
             >>> for player_id, name, info in roster:
-            ...     print(f"{name}: {info.position if info else 'N/A'}")
+            ...     print(f"{name}: {info.positions if info else 'N/A'}")
         """
         return []

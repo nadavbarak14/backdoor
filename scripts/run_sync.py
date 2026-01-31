@@ -15,7 +15,7 @@ import sys
 from datetime import datetime
 
 # Add project root to path
-sys.path.insert(0, "/root/projects/3backdoor")
+sys.path.insert(0, "/root/projects/backdoor")
 
 from src.core.database import SessionLocal
 from src.sync import SyncConfig
@@ -25,6 +25,7 @@ from src.sync.euroleague import (
     EuroleagueDirectClient,
     EuroleagueMapper,
 )
+from src.sync.euroleague.config import EuroleagueConfig
 from src.sync.manager import SyncManager
 from src.sync.winner import WinnerClient, WinnerScraper
 from src.sync.winner.adapter import WinnerAdapter
@@ -42,7 +43,7 @@ def get_sync_manager(db, sources: list[str] | None = None):
     adapters = {}
 
     if sources is None:
-        sources = ["winner", "euroleague"]
+        sources = ["winner", "euroleague", "eurocup"]
 
     if "winner" in sources:
         log("Initializing Winner adapter...")
@@ -59,6 +60,17 @@ def get_sync_manager(db, sources: list[str] | None = None):
         euro_mapper = EuroleagueMapper()
         euro_adapter = EuroleagueAdapter(euro_client, euro_direct_client, euro_mapper)
         adapters["euroleague"] = euro_adapter
+
+    if "eurocup" in sources:
+        log("Initializing Eurocup adapter...")
+        eurocup_config = EuroleagueConfig(competition="U")
+        eurocup_client = EuroleagueClient(db, config=eurocup_config)
+        eurocup_direct_client = EuroleagueDirectClient(db, config=eurocup_config)
+        eurocup_mapper = EuroleagueMapper()
+        eurocup_adapter = EuroleagueAdapter(
+            eurocup_client, eurocup_direct_client, eurocup_mapper, competition="U"
+        )
+        adapters["eurocup"] = eurocup_adapter
 
     config = SyncConfig.from_settings()
 
@@ -108,7 +120,7 @@ async def run_sync(source: str, season_id: str, include_pbp: bool):
 
 def main():
     parser = argparse.ArgumentParser(description="Run data sync")
-    parser.add_argument("source", choices=["winner", "euroleague"], help="Data source")
+    parser.add_argument("source", choices=["winner", "euroleague", "eurocup"], help="Data source")
     parser.add_argument("season", help="Season ID (e.g., 2025-26)")
     parser.add_argument(
         "--include-pbp", action="store_true", help="Include play-by-play"

@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from src.models.league import League, Season
 from src.models.player import Player, PlayerTeamHistory
+from src.schemas.enums import Position
 from src.schemas.league import LeagueCreate, SeasonCreate
 from src.schemas.team import TeamCreate, TeamFilter, TeamUpdate
 from src.services.league import LeagueService, SeasonService
@@ -355,13 +356,13 @@ class TestTeamService:
         player1 = Player(
             first_name="LeBron",
             last_name="James",
-            position="SF",
+            positions=[Position.SMALL_FORWARD],
             external_ids={},
         )
         player2 = Player(
             first_name="Anthony",
             last_name="Davis",
-            position="PF",
+            positions=[Position.POWER_FORWARD],
             external_ids={},
         )
         test_db.add_all([player1, player2])
@@ -372,14 +373,14 @@ class TestTeamService:
             team_id=team.id,
             season_id=nba_season.id,
             jersey_number=23,
-            position="SF",
+            positions=[Position.SMALL_FORWARD],
         )
         history2 = PlayerTeamHistory(
             player_id=player2.id,
             team_id=team.id,
             season_id=nba_season.id,
             jersey_number=3,
-            position="PF",
+            positions=[Position.POWER_FORWARD],
         )
         test_db.add_all([history1, history2])
         test_db.commit()

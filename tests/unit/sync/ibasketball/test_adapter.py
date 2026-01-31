@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.schemas.enums import EventType, GameStatus
 from src.sync.ibasketball.adapter import IBasketballAdapter
 from src.sync.ibasketball.api_client import CacheResult
 from src.sync.ibasketball.config import IBasketballConfig
@@ -204,9 +205,10 @@ class TestIBasketballAdapter:
             """Test getting PBP without scraper returns empty."""
             adapter.scraper = None
 
-            events = await adapter.get_game_pbp("123")
+            events, player_id_to_jersey = await adapter.get_game_pbp("123")
 
             assert events == []
+            assert player_id_to_jersey == {}
 
         @pytest.mark.asyncio
         async def test_get_game_pbp_with_scraper(
@@ -234,10 +236,11 @@ class TestIBasketballAdapter:
             ]
             mock_scraper.fetch_game_pbp.return_value = mock_pbp
 
-            events = await adapter.get_game_pbp("123")
+            events, player_id_to_jersey = await adapter.get_game_pbp("123")
 
             assert len(events) == 1
-            assert events[0].event_type == "shot"
+            assert events[0].event_type == EventType.SHOT
+            assert player_id_to_jersey == {}  # iBasketball doesn't need jersey mapping
             mock_scraper.fetch_game_pbp.assert_called_once_with("team-a-vs-team-b")
 
     class TestIsGameFinal:
@@ -250,7 +253,7 @@ class TestIBasketballAdapter:
                 home_team_external_id="100",
                 away_team_external_id="101",
                 game_date=MagicMock(),
-                status="final",
+                status=GameStatus.FINAL,
                 home_score=85,
                 away_score=78,
             )
@@ -264,7 +267,7 @@ class TestIBasketballAdapter:
                 home_team_external_id="100",
                 away_team_external_id="101",
                 game_date=MagicMock(),
-                status="final",
+                status=GameStatus.FINAL,
                 home_score=None,
                 away_score=None,
             )
@@ -278,7 +281,7 @@ class TestIBasketballAdapter:
                 home_team_external_id="100",
                 away_team_external_id="101",
                 game_date=MagicMock(),
-                status="scheduled",
+                status=GameStatus.SCHEDULED,
                 home_score=None,
                 away_score=None,
             )

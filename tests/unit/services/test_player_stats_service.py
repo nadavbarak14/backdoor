@@ -14,6 +14,7 @@ from src.models.league import League, Season
 from src.models.player import Player
 from src.models.stats import PlayerSeasonStats
 from src.models.team import Team
+from src.schemas.enums import Position
 from src.services.player_stats import PlayerSeasonStatsService
 
 
@@ -90,7 +91,7 @@ def player1(test_db: Session) -> Player:
     player = Player(
         first_name="Test",
         last_name="Player",
-        position="PG",
+        positions=[Position.POINT_GUARD],
     )
     test_db.add(player)
     test_db.commit()
@@ -103,7 +104,7 @@ def player2(test_db: Session) -> Player:
     player = Player(
         first_name="Another",
         last_name="Player",
-        position="SG",
+        positions=[Position.SHOOTING_GUARD],
     )
     test_db.add(player)
     test_db.commit()
@@ -116,7 +117,7 @@ def player3(test_db: Session) -> Player:
     player = Player(
         first_name="Third",
         last_name="Player",
-        position="SF",
+        positions=[Position.SMALL_FORWARD],
     )
     test_db.add(player)
     test_db.commit()

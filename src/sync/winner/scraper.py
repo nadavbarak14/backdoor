@@ -89,6 +89,8 @@ class RosterPlayer:
         name: Player name.
         jersey_number: Jersey number.
         position: Playing position.
+        height_cm: Height in centimeters.
+        birth_date: Date of birth.
 
     Example:
         >>> for player in roster.players:
@@ -99,6 +101,8 @@ class RosterPlayer:
     name: str
     jersey_number: str | None = None
     position: str | None = None
+    height_cm: int | None = None
+    birth_date: datetime | None = None
 
 
 @dataclass
@@ -168,6 +172,103 @@ class HistoricalResults:
 
     year: int
     games: list[GameResult] = field(default_factory=list)
+    raw_html: str | None = field(default=None, repr=False)
+
+
+@dataclass
+class BoxscorePlayerStats:
+    """
+    Player stats from basket.co.il game-zone boxscore.
+
+    Contains player stats with the correct basket.co.il player ID.
+
+    Attributes:
+        player_id: basket.co.il player ID (e.g., "21828").
+        player_name: Player name.
+        jersey_number: Jersey number.
+        team_id: Team ID (home or away from game).
+        is_home: True if player is on home team.
+        minutes: Minutes played string (e.g., "20:30").
+        points: Points scored.
+        two_pt_made: Two-pointers made.
+        two_pt_attempted: Two-pointers attempted.
+        three_pt_made: Three-pointers made.
+        three_pt_attempted: Three-pointers attempted.
+        ft_made: Free throws made.
+        ft_attempted: Free throws attempted.
+        offensive_rebounds: Offensive rebounds.
+        defensive_rebounds: Defensive rebounds.
+        total_rebounds: Total rebounds.
+        assists: Assists.
+        steals: Steals.
+        blocks: Blocks.
+        turnovers: Turnovers.
+        fouls: Personal fouls.
+        plus_minus: Plus/minus (if available).
+
+    Example:
+        >>> for player in boxscore.home_players:
+        ...     print(f"#{player.jersey_number} {player.player_name}: {player.points} pts")
+    """
+
+    player_id: str
+    player_name: str
+    jersey_number: int | None = None
+    team_id: str | None = None
+    is_home: bool = True
+    minutes: str | None = None
+    points: int = 0
+    two_pt_made: int = 0
+    two_pt_attempted: int = 0
+    three_pt_made: int = 0
+    three_pt_attempted: int = 0
+    ft_made: int = 0
+    ft_attempted: int = 0
+    offensive_rebounds: int = 0
+    defensive_rebounds: int = 0
+    total_rebounds: int = 0
+    assists: int = 0
+    steals: int = 0
+    blocks: int = 0
+    turnovers: int = 0
+    fouls: int = 0
+    plus_minus: int | None = None
+
+
+@dataclass
+class GameZoneBoxscore:
+    """
+    Boxscore data scraped from basket.co.il game-zone.asp.
+
+    Contains player stats with correct basket.co.il player IDs.
+
+    Attributes:
+        game_id: basket.co.il game ID.
+        home_team_id: Home team ID.
+        away_team_id: Away team ID.
+        home_team_name: Home team name.
+        away_team_name: Away team name.
+        home_score: Home team final score.
+        away_score: Away team final score.
+        home_players: List of home team player stats.
+        away_players: List of away team player stats.
+        raw_html: Original HTML for debugging.
+
+    Example:
+        >>> boxscore = scraper.fetch_game_boxscore("26493")
+        >>> print(f"{boxscore.home_team_name} {boxscore.home_score} - {boxscore.away_score} {boxscore.away_team_name}")
+    """
+
+    game_id: str
+    game_date: datetime | None = None
+    home_team_id: str | None = None
+    away_team_id: str | None = None
+    home_team_name: str | None = None
+    away_team_name: str | None = None
+    home_score: int | None = None
+    away_score: int | None = None
+    home_players: list[BoxscorePlayerStats] = field(default_factory=list)
+    away_players: list[BoxscorePlayerStats] = field(default_factory=list)
     raw_html: str | None = field(default=None, repr=False)
 
 
@@ -437,14 +538,19 @@ class WinnerScraper:
         try:
             soup = BeautifulSoup(html, "html.parser")
 
-            # Extract player name - typically in a heading or title
+            # Extract player name - from title (last pipe-separated part)
+            # Title format: "LEAGUE | ... | Team Name | Player Name"
             name = ""
-            name_element = soup.find("h1") or soup.find("title")
-            if name_element:
-                name = name_element.get_text(strip=True)
-                # Clean up title if it contains site name
-                if " - " in name:
-                    name = name.split(" - ")[0].strip()
+            title_element = soup.find("title")
+            if title_element:
+                title = title_element.get_text(strip=True)
+                if "|" in title:
+                    # Player name is the last part
+                    name = title.split("|")[-1].strip()
+                elif " - " in title:
+                    name = title.split(" - ")[0].strip()
+                else:
+                    name = title
 
             # Try to find player info table/div
             profile = PlayerProfile(
@@ -453,28 +559,42 @@ class WinnerScraper:
                 raw_html=html,
             )
 
-            # Look for info table with player details
-            info_tables = soup.find_all("table")
-            for table in info_tables:
-                rows = table.find_all("tr")
-                for row in rows:
-                    cells = row.find_all(["td", "th"])
-                    if len(cells) >= 2:
-                        label = cells[0].get_text(strip=True).lower()
-                        value = cells[1].get_text(strip=True)
+            # Look for player info in div.p_info structure (current site format)
+            # Format: <span class="p_info_title">Label:</span>Value<br />
+            p_info_div = soup.find("div", class_="p_info")
+            if p_info_div:
+                for span in p_info_div.find_all("span", class_="p_info_title"):
+                    label = span.get_text(strip=True).lower().rstrip(":")
+                    # Value is the next sibling text node
+                    next_sibling = span.next_sibling
+                    if next_sibling:
+                        value = str(next_sibling).strip()
+                        # Clean up &nbsp; and other entities
+                        value = value.replace("\xa0", "").strip()
 
                         if "team" in label or "קבוצה" in label:
-                            profile.team_name = value
+                            # Team might be a link
+                            team_link = span.find_next("a")
+                            if team_link:
+                                profile.team_name = team_link.get_text(strip=True)
+                            else:
+                                profile.team_name = value
                         elif "number" in label or "מספר" in label:
                             profile.jersey_number = value
                         elif "position" in label or "עמדה" in label:
                             profile.position = value
                         elif "height" in label or "גובה" in label:
                             try:
-                                # Extract numeric height
-                                height_str = "".join(c for c in value if c.isdigit())
-                                if height_str:
-                                    profile.height_cm = int(height_str)
+                                # Height can be "1.93" (meters) or "193" (cm)
+                                height_str = value.replace(",", ".")
+                                if "." in height_str:
+                                    # Meters format like "1.93"
+                                    profile.height_cm = int(float(height_str) * 100)
+                                else:
+                                    # Already cm
+                                    height_num = "".join(c for c in value if c.isdigit())
+                                    if height_num:
+                                        profile.height_cm = int(height_num)
                             except ValueError:
                                 pass
                         elif "nationality" in label or "לאום" in label:
@@ -492,6 +612,45 @@ class WinnerScraper:
                                         continue
                             except ValueError:
                                 pass
+
+            # Fallback: Look for info table with player details (legacy format)
+            if not profile.height_cm and not profile.birth_date:
+                info_tables = soup.find_all("table")
+                for table in info_tables:
+                    rows = table.find_all("tr")
+                    for row in rows:
+                        cells = row.find_all(["td", "th"])
+                        if len(cells) >= 2:
+                            label = cells[0].get_text(strip=True).lower()
+                            value = cells[1].get_text(strip=True)
+
+                            if "team" in label or "קבוצה" in label:
+                                profile.team_name = value
+                            elif "number" in label or "מספר" in label:
+                                profile.jersey_number = value
+                            elif "position" in label or "עמדה" in label:
+                                profile.position = value
+                            elif "height" in label or "גובה" in label:
+                                try:
+                                    height_str = "".join(c for c in value if c.isdigit())
+                                    if height_str:
+                                        profile.height_cm = int(height_str)
+                                except ValueError:
+                                    pass
+                            elif "nationality" in label or "לאום" in label:
+                                profile.nationality = value
+                            elif "birth" in label or "תאריך" in label or "dob" in label:
+                                try:
+                                    for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%d.%m.%Y"]:
+                                        try:
+                                            profile.birth_date = datetime.strptime(
+                                                value, fmt
+                                            )
+                                            break
+                                        except ValueError:
+                                            continue
+                                except ValueError:
+                                    pass
 
             return profile
 
@@ -564,15 +723,50 @@ class WinnerScraper:
                 num_div = box.find("div", class_="role_num")
                 jersey_number = num_div.get_text(strip=True) if num_div else None
 
-                # Extract position from role_desc div
+                # Extract position, height, and birthdate from role_desc div
+                # Format: <strong>G | 1.93</strong><br />04/12/1994
                 position = None
+                height_cm = None
+                birth_date = None
                 desc_div = box.find("div", class_="role_desc")
                 if desc_div:
                     strong = desc_div.find("strong")
                     if strong:
                         pos_height = strong.get_text(strip=True)
+                        # Replace &nbsp; with regular space
+                        pos_height = pos_height.replace("\xa0", " ")
                         if "|" in pos_height:
-                            position = pos_height.split("|")[0].strip()
+                            parts = pos_height.split("|")
+                            position = parts[0].strip()
+                            # Height is in meters like "1.93"
+                            if len(parts) > 1:
+                                height_str = parts[1].strip()
+                                try:  # noqa: SIM105
+                                    height_cm = int(float(height_str) * 100)
+                                except ValueError:
+                                    pass
+
+                    # Birthdate is after the <strong> tag
+                    # Get all text in desc_div except the strong tag
+                    desc_text = desc_div.get_text(separator=" ", strip=True)
+                    # Remove the position|height part
+                    if strong:
+                        strong_text = strong.get_text(strip=True)
+                        desc_text = desc_text.replace(strong_text, "").strip()
+                    # Remove captain marker (קפטן = "captain" in Hebrew)
+                    # Format: "קפטן | 20/06/1991" -> "20/06/1991"
+                    if desc_text.startswith("קפטן"):
+                        desc_text = desc_text.replace("קפטן", "").strip()
+                        if desc_text.startswith("|"):
+                            desc_text = desc_text[1:].strip()
+                    # Try to parse date (format: DD/MM/YYYY)
+                    if desc_text:
+                        for fmt in ["%d/%m/%Y", "%Y-%m-%d", "%d.%m.%Y"]:
+                            try:
+                                birth_date = datetime.strptime(desc_text, fmt)
+                                break
+                            except ValueError:
+                                continue
 
                 roster.players.append(
                     RosterPlayer(
@@ -580,6 +774,8 @@ class WinnerScraper:
                         name=player_name,
                         jersey_number=jersey_number,
                         position=position,
+                        height_cm=height_cm,
+                        birth_date=birth_date,
                     )
                 )
 
@@ -902,3 +1098,289 @@ class WinnerScraper:
         if match:
             return match.group(1)
         return None
+
+    def fetch_game_boxscore(
+        self,
+        basket_game_id: str,
+        force: bool = False,
+    ) -> GameZoneBoxscore:
+        """
+        Fetch boxscore from basket.co.il game-zone page.
+
+        Scrapes the boxscore directly from basket.co.il which has the correct
+        player IDs (not segevstats internal IDs). This allows direct player
+        matching without jersey number fallback.
+
+        Args:
+            basket_game_id: The basket.co.il game ID (e.g., "26493").
+            force: If True, bypass cache and fetch from source.
+
+        Returns:
+            GameZoneBoxscore with player stats and correct player IDs.
+
+        Raises:
+            WinnerParseError: If the boxscore cannot be parsed.
+
+        Example:
+            >>> boxscore = scraper.fetch_game_boxscore("26493")
+            >>> for p in boxscore.home_players:
+            ...     print(f"#{p.jersey_number} {p.player_name}: {p.points} pts")
+        """
+        resource_type = "game_zone_page"
+        resource_id = basket_game_id
+
+        # Check cache first
+        html = None
+        if not force:
+            cache = self._get_cache(resource_type, resource_id)
+            if cache:
+                html = cache.raw_data.get("html", "")
+
+        # Fetch if not cached
+        if not html:
+            url = f"https://basket.co.il/game-zone.asp?GameId={basket_game_id}&lang=en"
+            html = self._fetch_html(url, resource_type, resource_id)
+            self._save_cache(resource_type, resource_id, html, http_status=200)
+
+        return self._parse_game_boxscore(html, basket_game_id)
+
+    def _parse_game_boxscore(self, html: str, game_id: str) -> GameZoneBoxscore:
+        """
+        Parse boxscore from game-zone HTML.
+
+        Args:
+            html: HTML content from game-zone.asp.
+            game_id: basket.co.il game ID.
+
+        Returns:
+            GameZoneBoxscore with parsed player stats.
+        """
+        import re
+
+        soup = BeautifulSoup(html, "html.parser")
+
+        boxscore = GameZoneBoxscore(game_id=game_id, raw_html=html)
+
+        # Extract game date from h5 element with class "en"
+        # Format: "Kiryat Ata,&nbsp;&nbsp;Sunday ,&nbsp; 06/10/2024,&nbsp;19:45"
+        h5_elements = soup.find_all("h5", class_="en")
+        for h5 in h5_elements:
+            text = h5.get_text()
+            # Look for date pattern DD/MM/YYYY
+            date_match = re.search(r"(\d{2})/(\d{2})/(\d{4})", text)
+            if date_match:
+                day, month, year = date_match.groups()
+                boxscore.game_date = datetime(int(year), int(month), int(day))
+                break
+
+        # Extract team names from game_zone_team_name divs
+        home_name_div = soup.find("div", class_=lambda x: x and "game_zone_team_name" in x and "home_team" in x)
+        away_name_div = soup.find("div", class_=lambda x: x and "game_zone_team_name" in x and "away_team" in x)
+        if home_name_div:
+            boxscore.home_team_name = home_name_div.get_text(strip=True)
+        if away_name_div:
+            boxscore.away_team_name = away_name_div.get_text(strip=True)
+
+        # Find team IDs from the boxscore tables (they link to team pages)
+        # Look for team links in the boxscore area (within player stat tables)
+        team_links = soup.find_all("a", href=re.compile(r"team\.asp\?TeamId=\d+"))
+        team_ids = []
+        for link in team_links:
+            href = link.get("href", "")
+            match = re.search(r"TeamId=(\d+)", href)
+            if match:
+                team_id = match.group(1)
+                if team_id not in team_ids:
+                    team_ids.append(team_id)
+
+        if len(team_ids) >= 2:
+            boxscore.home_team_id = team_ids[0]
+            boxscore.away_team_id = team_ids[1]
+
+        # Find all boxscore tables (there should be 2: home and away)
+        # Look for tables with player stats - they have player links
+        tables = soup.find_all("table")
+
+        player_tables = []
+        for table in tables:
+            # Check if table contains player links
+            player_links = table.find_all("a", href=re.compile(r"player\.asp\?PlayerId=\d+"))
+            if player_links:
+                player_tables.append(table)
+
+        # Parse each table
+        for idx, table in enumerate(player_tables[:2]):  # Max 2 teams
+            is_home = idx == 0
+            team_id = boxscore.home_team_id if is_home else boxscore.away_team_id
+
+            players = self._parse_boxscore_table(table, team_id, is_home)
+
+            if is_home:
+                boxscore.home_players = players
+            else:
+                boxscore.away_players = players
+
+        # Extract scores from the gz_result div
+        score_pattern = re.compile(r"(\d+)\s*[-:]\s*(\d+)")
+        gz_result = soup.find(id="gz_result")
+        if gz_result:
+            match = score_pattern.search(gz_result.get_text())
+            if match:
+                boxscore.home_score = int(match.group(1))
+                boxscore.away_score = int(match.group(2))
+
+        return boxscore
+
+    def _parse_boxscore_table(
+        self,
+        table,
+        team_id: str | None,
+        is_home: bool,
+    ) -> list[BoxscorePlayerStats]:
+        """
+        Parse a single team's boxscore table.
+
+        Handles the basket.co.il game-zone boxscore table format:
+        - Row 0: Team name
+        - Row 1: Category headers (2PT, 3PT, 1PT, Rebounds, etc.)
+        - Row 2: Column headers (#, Player Name, SF, Min, Pts, M/A, %, etc.)
+        - Row 3: Team totals
+        - Row 4+: Player rows
+
+        Column indices (0-based):
+        0: # (jersey), 1: Player Name, 2: SF (starter flag), 3: Min, 4: Pts,
+        5: 2PT M/A, 6: 2PT %, 7: 3PT M/A, 8: 3PT %, 9: FT M/A, 10: FT %,
+        11: DR, 12: OR, 13: TR, 14: PF, 15: FA, 16: ST, 17: TO, 18: AS,
+        19: BKF, 20: BKA, 21: VAL, 22: +/-
+
+        Args:
+            table: BeautifulSoup table element.
+            team_id: Team ID for all players.
+            is_home: True if home team.
+
+        Returns:
+            List of BoxscorePlayerStats.
+        """
+        import re
+
+        players = []
+        rows = table.find_all("tr")
+
+        # Fixed column indices for basket.co.il game-zone format
+        COL_JERSEY = 0
+        COL_MIN = 3
+        COL_PTS = 4
+        COL_2PT_MA = 5
+        COL_3PT_MA = 7
+        COL_FT_MA = 9
+        COL_DR = 11
+        COL_OR = 12
+        COL_TR = 13
+        COL_PF = 14
+        COL_ST = 16
+        COL_TO = 17
+        COL_AS = 18
+        COL_BKF = 19
+        COL_PLUSMINUS = 22
+
+        for row in rows:
+            cells = row.find_all(["th", "td"])
+            if len(cells) < 5:
+                continue
+
+            # Look for player link in the NAME column (index 1), not jersey column
+            # The table has player links in both column 0 (jersey) and column 1 (name)
+            name_cell = cells[1] if len(cells) > 1 else None
+            if not name_cell:
+                continue
+
+            player_link = name_cell.find(
+                "a", href=re.compile(r"player\.asp\?PlayerId=\d+")
+            )
+            if not player_link:
+                continue
+
+            href = player_link.get("href", "")
+            match = re.search(r"PlayerId=(\d+)", href)
+            if not match:
+                continue
+
+            player_id = match.group(1)
+            player_name = player_link.get_text(strip=True)
+
+            # Skip the "Team" totals row
+            if player_name.lower() == "team":
+                continue
+            cell_texts = [c.get_text(strip=True) for c in cells]
+
+            stats = BoxscorePlayerStats(
+                player_id=player_id,
+                player_name=player_name,
+                team_id=team_id,
+                is_home=is_home,
+            )
+
+            # Helper to safely get cell value
+            def get_cell(idx: int) -> str:
+                return cell_texts[idx] if idx < len(cell_texts) else ""  # noqa: B023
+
+            def parse_int(idx: int) -> int:
+                """Parse integer from cell, return 0 on failure."""
+                try:
+                    return int(get_cell(idx))
+                except ValueError:
+                    return 0
+
+            def parse_made_attempted(idx: int) -> tuple[int, int]:
+                """Parse M/A format (e.g., '3/5') into (made, attempted)."""
+                text = get_cell(idx)
+                if "/" in text:
+                    parts = text.split("/")
+                    if len(parts) == 2:
+                        try:
+                            return int(parts[0]), int(parts[1])
+                        except ValueError:
+                            pass
+                return 0, 0
+
+            # Parse jersey number
+            jersey_text = get_cell(COL_JERSEY)
+            if jersey_text.isdigit():
+                stats.jersey_number = int(jersey_text)
+
+            # Parse minutes
+            stats.minutes = get_cell(COL_MIN) or None
+
+            # Parse points
+            stats.points = parse_int(COL_PTS)
+
+            # Parse shooting stats (M/A format)
+            stats.two_pt_made, stats.two_pt_attempted = parse_made_attempted(COL_2PT_MA)
+            stats.three_pt_made, stats.three_pt_attempted = parse_made_attempted(
+                COL_3PT_MA
+            )
+            stats.ft_made, stats.ft_attempted = parse_made_attempted(COL_FT_MA)
+
+            # Parse rebounds
+            stats.defensive_rebounds = parse_int(COL_DR)
+            stats.offensive_rebounds = parse_int(COL_OR)
+            stats.total_rebounds = parse_int(COL_TR)
+
+            # Parse other stats
+            stats.fouls = parse_int(COL_PF)
+            stats.steals = parse_int(COL_ST)
+            stats.turnovers = parse_int(COL_TO)
+            stats.assists = parse_int(COL_AS)
+            stats.blocks = parse_int(COL_BKF)
+
+            # Parse plus/minus (may be empty or have a value)
+            pm_text = get_cell(COL_PLUSMINUS)
+            if pm_text:
+                try:  # noqa: SIM105
+                    stats.plus_minus = int(pm_text)
+                except ValueError:
+                    pass
+
+            players.append(stats)
+
+        return players

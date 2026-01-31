@@ -45,7 +45,7 @@ export default function PlayerDetail() {
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">{player.full_name}</h1>
           <div className="flex flex-wrap items-center gap-4 mt-2 text-gray-500">
-            {player.position && <Badge variant="info">{player.position}</Badge>}
+            {player.positions?.length > 0 && <Badge variant="info">{player.positions.join('/')}</Badge>}
             {player.nationality && (
               <span className="flex items-center gap-1">
                 <MapPin className="w-4 h-4" />
@@ -93,6 +93,7 @@ export default function PlayerDetail() {
                   <TableHead>
                     <TableRow hoverable={false}>
                       <TableHeader>Season</TableHeader>
+                      <TableHeader>Competition</TableHeader>
                       <TableHeader>Team</TableHeader>
                       <TableHeader>GP</TableHeader>
                       <TableHeader>PPG</TableHeader>
@@ -107,6 +108,9 @@ export default function PlayerDetail() {
                       <TableRow key={season.id}>
                         <TableCell className="font-medium text-gray-900">
                           {season.season_name}
+                        </TableCell>
+                        <TableCell className="text-gray-500 text-sm">
+                          {season.league_code || '-'}
                         </TableCell>
                         <TableCell>
                           <Link
@@ -161,7 +165,7 @@ export default function PlayerDetail() {
                     <p className="text-sm text-gray-500">
                       {history.season_name}
                       {history.jersey_number && ` • #${history.jersey_number}`}
-                      {history.position && ` • ${history.position}`}
+                      {history.positions?.length > 0 && ` • ${history.positions.join('/')}`}
                     </p>
                   </div>
                   <ChevronRight className="w-5 h-5 text-gray-400" />

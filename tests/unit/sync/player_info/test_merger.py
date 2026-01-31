@@ -8,6 +8,7 @@ from datetime import date
 
 import pytest
 
+from src.schemas.enums import Position
 from src.sync.player_info.merger import MergedPlayerInfo, merge_player_info
 from src.sync.types import RawPlayerInfo
 
@@ -34,7 +35,7 @@ class TestMergedPlayerInfo:
 
         assert merged.birth_date is None
         assert merged.height_cm is None
-        assert merged.position is None
+        assert merged.positions == []
 
     def test_sources_default_to_empty_dict(self):
         """Test that sources defaults to empty dict."""
@@ -52,7 +53,7 @@ class TestMergedPlayerInfo:
             last_name="James",
             birth_date=date(1984, 12, 30),
             height_cm=206,
-            position="SF",
+            positions=[Position.SMALL_FORWARD],
             sources={"height_cm": "winner"},
         )
 
@@ -60,7 +61,7 @@ class TestMergedPlayerInfo:
         assert merged.last_name == "James"
         assert merged.birth_date == date(1984, 12, 30)
         assert merged.height_cm == 206
-        assert merged.position == "SF"
+        assert merged.positions == [Position.SMALL_FORWARD]
         assert merged.sources == {"height_cm": "winner"}
 
 
@@ -88,7 +89,7 @@ class TestMergePlayerInfoSingleSource:
             last_name="Smith",
             birth_date=date(1995, 5, 15),
             height_cm=198,
-            position="PG",
+            positions=[Position.POINT_GUARD],
         )
 
         merged = merge_player_info([("winner", info)])
@@ -97,7 +98,7 @@ class TestMergePlayerInfoSingleSource:
         assert merged.last_name == "Smith"
         assert merged.birth_date == date(1995, 5, 15)
         assert merged.height_cm == 198
-        assert merged.position == "PG"
+        assert merged.positions == [Position.POINT_GUARD]
 
     def test_single_source_tracks_sources(self):
         """Test that sources are tracked for single source."""
@@ -106,7 +107,7 @@ class TestMergePlayerInfoSingleSource:
             first_name="John",
             last_name="Smith",
             height_cm=198,
-            position="PG",
+            positions=[Position.POINT_GUARD],
         )
 
         merged = merge_player_info([("winner", info)])
@@ -114,7 +115,7 @@ class TestMergePlayerInfoSingleSource:
         assert merged.sources["first_name"] == "winner"
         assert merged.sources["last_name"] == "winner"
         assert merged.sources["height_cm"] == "winner"
-        assert merged.sources["position"] == "winner"
+        assert merged.sources["positions"] == "winner"
 
     def test_single_source_null_fields_not_tracked(self):
         """Test that null fields are not tracked in sources."""
@@ -128,7 +129,7 @@ class TestMergePlayerInfoSingleSource:
 
         assert "birth_date" not in merged.sources
         assert "height_cm" not in merged.sources
-        assert "position" not in merged.sources
+        assert "positions" not in merged.sources
 
 
 class TestMergePlayerInfoMultipleSources:
@@ -200,19 +201,19 @@ class TestMergePlayerInfoMultipleSources:
             external_id="w123",
             first_name="LeBron",
             last_name="James",
-            position="SF",
+            positions=[Position.SMALL_FORWARD],
         )
         info2 = RawPlayerInfo(
             external_id="e456",
             first_name="Lebron",
             last_name="James",
-            position="PF",
+            positions=[Position.POWER_FORWARD],
         )
 
         merged = merge_player_info([("winner", info1), ("euroleague", info2)])
 
-        assert merged.position == "SF"
-        assert merged.sources["position"] == "winner"
+        assert merged.positions == [Position.SMALL_FORWARD]
+        assert merged.sources["positions"] == "winner"
 
     def test_fallback_to_second_source_for_missing_fields(self):
         """Test that missing fields are filled from later sources."""
@@ -227,7 +228,7 @@ class TestMergePlayerInfoMultipleSources:
             first_name="Lebron",
             last_name="James",
             birth_date=date(1984, 12, 30),
-            position="SF",
+            positions=[Position.SMALL_FORWARD],
         )
 
         merged = merge_player_info([("winner", info1), ("euroleague", info2)])
@@ -239,9 +240,9 @@ class TestMergePlayerInfoMultipleSources:
 
         # From euroleague (second source, not available in first)
         assert merged.birth_date == date(1984, 12, 30)
-        assert merged.position == "SF"
+        assert merged.positions == [Position.SMALL_FORWARD]
         assert merged.sources["birth_date"] == "euroleague"
-        assert merged.sources["position"] == "euroleague"
+        assert merged.sources["positions"] == "euroleague"
 
     def test_three_sources(self):
         """Test merge with three sources."""
@@ -261,7 +262,7 @@ class TestMergePlayerInfoMultipleSources:
             first_name="John",
             last_name="Smith",
             birth_date=date(1995, 5, 15),
-            position="PG",
+            positions=[Position.POINT_GUARD],
         )
 
         merged = merge_player_info(
@@ -278,8 +279,8 @@ class TestMergePlayerInfoMultipleSources:
         assert merged.sources["height_cm"] == "euroleague"
         assert merged.birth_date == date(1995, 5, 15)
         assert merged.sources["birth_date"] == "nba"
-        assert merged.position == "PG"
-        assert merged.sources["position"] == "nba"
+        assert merged.positions == [Position.POINT_GUARD]
+        assert merged.sources["positions"] == "nba"
 
 
 class TestMergePlayerInfoEdgeCases:
@@ -343,7 +344,7 @@ class TestMergePlayerInfoEdgeCases:
 
         assert merged.birth_date is None
         assert merged.height_cm is None
-        assert merged.position is None
+        assert merged.positions == []
 
     def test_sources_dict_immutability(self):
         """Test that sources dict is independent for each merge."""

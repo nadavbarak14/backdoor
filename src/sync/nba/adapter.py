@@ -22,6 +22,7 @@ Usage:
     seasons = await adapter.get_seasons()
 """
 
+from src.schemas.enums import GameStatus
 from src.sync.adapters.base import BaseLeagueAdapter
 from src.sync.nba.client import NBAClient
 from src.sync.nba.config import NBAConfig
@@ -215,7 +216,7 @@ class NBAAdapter(BaseLeagueAdapter):
                     existing.away_score = partial_game.away_score
 
                 # Update status if we have more info
-                if partial_game.status == "final":
+                if partial_game.status == GameStatus.FINAL:
                     existing.status = "final"
 
         # Cache and return
@@ -244,7 +245,9 @@ class NBAAdapter(BaseLeagueAdapter):
         boxscore_data = self.client.get_boxscore(game_id)
         return self.mapper.map_boxscore(boxscore_data, game_id)
 
-    async def get_game_pbp(self, game_id: str) -> list[RawPBPEvent]:
+    async def get_game_pbp(
+        self, game_id: str
+    ) -> tuple[list[RawPBPEvent], dict[str, int]]:
         """
         Fetch play-by-play events for a game.
 
@@ -252,19 +255,20 @@ class NBAAdapter(BaseLeagueAdapter):
             game_id: External game identifier (e.g., "0022300001").
 
         Returns:
-            List of RawPBPEvent objects.
+            Tuple of (events, player_id_to_jersey). Jersey mapping is empty
+            for NBA since external IDs match database.
 
         Raises:
             NBANotFoundError: If the game doesn't exist.
             NBAAPIError: If PBP data is unavailable or request fails.
 
         Example:
-            >>> events = await adapter.get_game_pbp("0022300001")
+            >>> events, _ = await adapter.get_game_pbp("0022300001")
             >>> for event in events[:5]:
             ...     print(f"{event.clock} - {event.event_type}")
         """
         pbp_data = self.client.get_pbp(game_id)
-        return self.mapper.map_pbp_events(pbp_data)
+        return self.mapper.map_pbp_events(pbp_data), {}
 
     def is_game_final(self, game: RawGame) -> bool:
         """
@@ -282,7 +286,7 @@ class NBAAdapter(BaseLeagueAdapter):
             ...     boxscore = await adapter.get_game_boxscore(game.external_id)
         """
         return (
-            game.status == "final"
+            game.status == GameStatus.FINAL
             and game.home_score is not None
             and game.away_score is not None
         )

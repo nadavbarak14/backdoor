@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from src.schemas.enums import Position
 from src.sync.player_info.service import PlayerInfoService
 from src.sync.types import RawPlayerInfo
 
@@ -112,7 +113,7 @@ class TestGetPlayerInfo:
             external_id="e456",
             first_name="John",
             last_name="Smith",
-            position="PG",
+            positions=[Position.POINT_GUARD],
         )
 
         merged = await service.get_player_info(
@@ -125,9 +126,9 @@ class TestGetPlayerInfo:
         assert merged is not None
         assert merged.first_name == "John"
         assert merged.height_cm == 198  # From winner (first source)
-        assert merged.position == "PG"  # From euroleague (not in winner)
+        assert merged.positions == [Position.POINT_GUARD]  # From euroleague (not in winner)
         assert merged.sources["height_cm"] == "winner"
-        assert merged.sources["position"] == "euroleague"
+        assert merged.sources["positions"] == "euroleague"
 
     @pytest.mark.asyncio
     async def test_respects_adapter_priority(
@@ -374,7 +375,7 @@ class TestUpdatePlayerFromSources:
             first_name="John",
             last_name="Smith",
             birth_date=date(1995, 5, 15),
-            position="PG",
+            positions=[Position.POINT_GUARD],
         )
 
         player = MagicMock()
@@ -386,7 +387,7 @@ class TestUpdatePlayerFromSources:
         assert updates["last_name"] == "Smith"
         assert updates["height_cm"] == 198
         assert updates["birth_date"] == date(1995, 5, 15)
-        assert updates["position"] == "PG"
+        assert updates["positions"] == [Position.POINT_GUARD]
 
     @pytest.mark.asyncio
     async def test_returns_empty_dict_for_no_external_ids(self, service):
@@ -441,7 +442,7 @@ class TestUpdatePlayerFromSources:
         assert "last_name" in updates
         assert "height_cm" not in updates
         assert "birth_date" not in updates
-        assert "position" not in updates
+        assert "positions" not in updates
 
 
 class TestEmptyService:

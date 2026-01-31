@@ -87,7 +87,7 @@ export default function TeamDetail() {
                     onClick={() => window.location.href = `/players/${player.id}`}
                   >
                     <TableCell className="font-medium text-gray-500">
-                      {player.jersey_number || '-'}
+                      {player.jersey_number ?? '-'}
                     </TableCell>
                     <TableCell className="font-medium text-gray-900">
                       <Link
@@ -99,7 +99,7 @@ export default function TeamDetail() {
                       </Link>
                     </TableCell>
                     <TableCell className="text-gray-500">
-                      {player.position || '-'}
+                      {player.positions?.join('/') || '-'}
                     </TableCell>
                     <TableCell>
                       <ChevronRight className="w-4 h-4 text-gray-400" />

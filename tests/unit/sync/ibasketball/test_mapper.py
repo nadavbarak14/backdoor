@@ -8,6 +8,7 @@ from datetime import date, datetime
 
 import pytest
 
+from src.schemas.enums import EventType, GameStatus, Position
 from src.sync.ibasketball.mapper import IBasketballMapper
 from src.sync.types import RawPBPEvent
 
@@ -190,7 +191,7 @@ class TestIBasketballMapper:
             assert game.external_id == "12345"
             assert game.home_team_external_id == "100"
             assert game.away_team_external_id == "101"
-            assert game.status == "final"
+            assert game.status == GameStatus.FINAL
             assert game.home_score == 85
             assert game.away_score == 78
 
@@ -205,7 +206,7 @@ class TestIBasketballMapper:
 
             game = mapper.map_game(data)
 
-            assert game.status == "scheduled"
+            assert game.status == GameStatus.SCHEDULED
             assert game.home_score is None
             assert game.away_score is None
 
@@ -223,7 +224,7 @@ class TestIBasketballMapper:
 
             game = mapper.map_game(data)
 
-            assert game.status == "final"
+            assert game.status == GameStatus.FINAL
 
     class TestMapPlayerStats:
         """Tests for player stats mapping."""
@@ -329,7 +330,7 @@ class TestIBasketballMapper:
             assert event.event_number == 1
             assert event.period == 1
             assert event.clock == "09:45"
-            assert event.event_type == "shot"
+            assert event.event_type == EventType.SHOT
             assert event.player_name == "John Smith"
             assert event.success is True
 
@@ -345,18 +346,18 @@ class TestIBasketballMapper:
                 success=None,
             )
 
-            assert event.event_type == "rebound"
+            assert event.event_type == EventType.REBOUND
 
         def test_normalize_pbp_event_types(self, mapper):
             """Test normalization of various event types."""
-            assert mapper._normalize_pbp_event_type("קליעה") == "shot"
-            assert mapper._normalize_pbp_event_type("החטאה") == "shot"
-            assert mapper._normalize_pbp_event_type("ריבאונד") == "rebound"
-            assert mapper._normalize_pbp_event_type("אסיסט") == "assist"
-            assert mapper._normalize_pbp_event_type("חטיפה") == "steal"
-            assert mapper._normalize_pbp_event_type("איבוד") == "turnover"
-            assert mapper._normalize_pbp_event_type("חסימה") == "block"
-            assert mapper._normalize_pbp_event_type("עבירה") == "foul"
+            assert mapper._normalize_pbp_event_type("קליעה") == EventType.SHOT
+            assert mapper._normalize_pbp_event_type("החטאה") == EventType.SHOT
+            assert mapper._normalize_pbp_event_type("ריבאונד") == EventType.REBOUND
+            assert mapper._normalize_pbp_event_type("אסיסט") == EventType.ASSIST
+            assert mapper._normalize_pbp_event_type("חטיפה") == EventType.STEAL
+            assert mapper._normalize_pbp_event_type("איבוד") == EventType.TURNOVER
+            assert mapper._normalize_pbp_event_type("חסימה") == EventType.BLOCK
+            assert mapper._normalize_pbp_event_type("עבירה") == EventType.FOUL
 
     class TestInferPBPLinks:
         """Tests for PBP link inference."""
@@ -368,7 +369,7 @@ class TestIBasketballMapper:
                     event_number=1,
                     period=1,
                     clock="09:45",
-                    event_type="shot",
+                    event_type=EventType.SHOT,
                     team_external_id="100",
                     success=True,
                 ),
@@ -376,7 +377,7 @@ class TestIBasketballMapper:
                     event_number=2,
                     period=1,
                     clock="09:45",
-                    event_type="assist",
+                    event_type=EventType.ASSIST,
                     team_external_id="100",
                     success=None,
                 ),
@@ -393,7 +394,7 @@ class TestIBasketballMapper:
                     event_number=1,
                     period=1,
                     clock="09:45",
-                    event_type="shot",
+                    event_type=EventType.SHOT,
                     team_external_id="100",
                     success=False,
                 ),
@@ -401,7 +402,7 @@ class TestIBasketballMapper:
                     event_number=2,
                     period=1,
                     clock="09:43",
-                    event_type="rebound",
+                    event_type=EventType.REBOUND,
                     team_external_id="101",
                     success=None,
                 ),
@@ -418,7 +419,7 @@ class TestIBasketballMapper:
                     event_number=1,
                     period=1,
                     clock="09:45",
-                    event_type="turnover",
+                    event_type=EventType.TURNOVER,
                     team_external_id="100",
                     success=None,
                 ),
@@ -426,7 +427,7 @@ class TestIBasketballMapper:
                     event_number=2,
                     period=1,
                     clock="09:44",
-                    event_type="steal",
+                    event_type=EventType.STEAL,
                     team_external_id="101",
                     success=None,
                 ),
@@ -454,7 +455,7 @@ class TestIBasketballMapper:
             assert info.first_name == "John"
             assert info.last_name == "Smith"
             assert info.height_cm == 198
-            assert info.position == "SF"
+            assert info.positions == [Position.SMALL_FORWARD]
             assert info.birth_date == date(1995, 5, 15)
 
         def test_map_player_info_from_title(self, mapper):

@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+from src.schemas.enums import GameStatus
 from src.sync.winner.mapper import WinnerMapper
 
 FIXTURES_DIR = Path(__file__).parent.parent.parent.parent / "fixtures" / "winner"
@@ -130,7 +131,7 @@ class TestMapperParsesRealGames:
 
         # Games with scores should be final
         if game_data["score_team1"] and game_data["score_team2"]:
-            assert raw_game.status == "final"
+            assert raw_game.status == GameStatus.FINAL
 
     def test_map_all_fixture_games(self, mapper, games_all_fixture):
         """All games in fixture can be mapped without errors."""

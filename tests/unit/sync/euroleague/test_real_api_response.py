@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+from src.schemas.enums import GameStatus
 from src.sync.euroleague.mapper import EuroleagueMapper
 
 FIXTURES_DIR = Path(__file__).parent.parent.parent.parent / "fixtures" / "euroleague"
@@ -172,7 +173,7 @@ class TestMapperParsesRealGames:
 
         # Games with scores should be final
         if game_data.get("homescore") and game_data.get("awayscore"):
-            assert raw_game.status == "final"
+            assert raw_game.status == GameStatus.FINAL
 
     def test_map_all_fixture_games(self, mapper, season_games_fixture):
         """All games in fixture can be mapped without errors."""

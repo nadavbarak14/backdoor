@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.schemas.enums import GameStatus
 from src.schemas.game import EventType
 from src.sync.types import RawBoxScore, RawGame, RawSeason
 from src.sync.winner.adapter import WinnerAdapter
@@ -307,8 +308,8 @@ class TestGetSchedule:
 
         games = await adapter.get_schedule("2023-24")
 
-        assert games[0].status == "final"
-        assert games[1].status == "scheduled"
+        assert games[0].status == GameStatus.FINAL
+        assert games[1].status == GameStatus.SCHEDULED
 
 
 class TestGetGameBoxscore:
@@ -368,12 +369,13 @@ class TestGetGamePbp:
             cache_id="test",
         )
 
-        events = await adapter.get_game_pbp("12345")
+        events, player_id_to_jersey = await adapter.get_game_pbp("12345")
 
         assert len(events) == 2
         assert events[0].event_type == EventType.SHOT
         assert events[0].success is True
         assert events[1].event_type == EventType.TURNOVER
+        assert isinstance(player_id_to_jersey, dict)  # Winner returns jersey mapping
 
 
 class TestIsGameFinal:
@@ -386,7 +388,7 @@ class TestIsGameFinal:
             home_team_external_id="100",
             away_team_external_id="101",
             game_date=datetime.now(),
-            status="final",
+            status=GameStatus.FINAL,
             home_score=85,
             away_score=78,
         )
@@ -400,7 +402,7 @@ class TestIsGameFinal:
             home_team_external_id="100",
             away_team_external_id="101",
             game_date=datetime.now(),
-            status="scheduled",
+            status=GameStatus.SCHEDULED,
             home_score=None,
             away_score=None,
         )
@@ -414,7 +416,7 @@ class TestIsGameFinal:
             home_team_external_id="100",
             away_team_external_id="101",
             game_date=datetime.now(),
-            status="final",
+            status=GameStatus.FINAL,
             home_score=None,
             away_score=None,
         )

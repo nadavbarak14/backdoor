@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pytest
 
+from src.schemas.enums import GameStatus
 from src.sync.winner.mapper import WinnerMapper
 
 FIXTURES_DIR = Path(__file__).parent.parent.parent / "fixtures" / "winner"
@@ -226,7 +227,7 @@ class TestGamesAllParsing:
             game = mapper.map_game(game_data)
             if game.home_score is not None and game.away_score is not None:
                 final_games.append(game)
-                assert game.status == "final"
+                assert game.status == GameStatus.FINAL
 
         # Should have some completed games in fixture
         assert len(final_games) > 0
@@ -699,7 +700,7 @@ class TestEdgeCases:
         assert game.home_team_external_id == "1"
         assert game.away_team_external_id == "2"
         # Missing scores should result in scheduled status
-        assert game.status == "scheduled"
+        assert game.status == GameStatus.SCHEDULED
 
     def test_boxscore_with_zero_stats_player(
         self, mapper: WinnerMapper, boxscore_fixture: dict

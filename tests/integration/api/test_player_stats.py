@@ -18,6 +18,7 @@ from src.schemas import (
     SeasonCreate,
     TeamCreate,
 )
+from src.schemas.enums import Position
 from src.services import LeagueService, PlayerService, SeasonService, TeamService
 
 
@@ -75,7 +76,7 @@ def create_test_setup(test_db: Session) -> dict:
             first_name="Scottie",
             last_name="Wilbekin",
             nationality="USA",
-            position="PG",
+            positions=[Position.POINT_GUARD],
         )
     )
 

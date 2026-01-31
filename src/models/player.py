@@ -10,6 +10,7 @@ This module exports:
 
 Usage:
     from src.models.player import Player, PlayerTeamHistory
+    from src.schemas.enums import Position
     from datetime import date
 
     player = Player(
@@ -18,7 +19,7 @@ Usage:
         birth_date=date(1984, 12, 30),
         nationality="USA",
         height_cm=206,
-        position="SF",
+        positions=[Position.SMALL_FORWARD, Position.POWER_FORWARD],
         external_ids={"nba": "2544"}
     )
 
@@ -27,7 +28,7 @@ Usage:
         team_id=team.id,
         season_id=season.id,
         jersey_number=23,
-        position="SF"
+        positions=[Position.SMALL_FORWARD]
     )
 """
 
@@ -39,6 +40,8 @@ from sqlalchemy import JSON, Date, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, TimestampMixin, UUIDMixin
+from src.models.types import PositionListType
+from src.schemas.enums import Position
 
 
 class Player(UUIDMixin, TimestampMixin, Base):
@@ -57,7 +60,7 @@ class Player(UUIDMixin, TimestampMixin, Base):
         birth_date: Player's date of birth
         nationality: Player's nationality (country code or name)
         height_cm: Player's height in centimeters
-        position: Player's primary position (e.g., "PG", "SG", "SF", "PF", "C")
+        positions: List of player's positions as Position enums
         external_ids: JSON object mapping provider names to external IDs
 
     Relationships:
@@ -68,13 +71,14 @@ class Player(UUIDMixin, TimestampMixin, Base):
 
     Example:
         >>> from datetime import date
+        >>> from src.schemas.enums import Position
         >>> player = Player(
         ...     first_name="Stephen",
         ...     last_name="Curry",
         ...     birth_date=date(1988, 3, 14),
         ...     nationality="USA",
         ...     height_cm=188,
-        ...     position="PG",
+        ...     positions=[Position.POINT_GUARD],
         ...     external_ids={"nba": "201939"}
         ... )
         >>> session.add(player)
@@ -90,7 +94,9 @@ class Player(UUIDMixin, TimestampMixin, Base):
     birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     nationality: Mapped[str | None] = mapped_column(String(100), nullable=True)
     height_cm: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    position: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    positions: Mapped[list[Position]] = mapped_column(
+        PositionListType, default=list, nullable=False
+    )
     external_ids: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
 
     # Relationships
@@ -136,7 +142,8 @@ class Player(UUIDMixin, TimestampMixin, Base):
 
     def __repr__(self) -> str:
         """Return string representation of Player."""
-        return f"<Player(name='{self.full_name}', position='{self.position}')>"
+        pos_str = ",".join(p.value for p in self.positions) if self.positions else None
+        return f"<Player(name='{self.full_name}', positions='{pos_str}')>"
 
 
 class PlayerTeamHistory(UUIDMixin, TimestampMixin, Base):
@@ -144,7 +151,7 @@ class PlayerTeamHistory(UUIDMixin, TimestampMixin, Base):
     Player-Team-Season association tracking player affiliations.
 
     Records a player's membership on a team during a specific season,
-    including their jersey number and position for that period.
+    including their jersey number and positions for that period.
 
     Attributes:
         id: UUID primary key (from UUIDMixin)
@@ -154,7 +161,7 @@ class PlayerTeamHistory(UUIDMixin, TimestampMixin, Base):
         team_id: UUID foreign key to Team
         season_id: UUID foreign key to Season
         jersey_number: Player's jersey number for this team/season
-        position: Player's position for this team/season
+        positions: Player's positions for this team/season as list of Position enums
 
     Relationships:
         player: The Player this history record belongs to
@@ -165,12 +172,13 @@ class PlayerTeamHistory(UUIDMixin, TimestampMixin, Base):
         - Unique constraint on (player_id, team_id, season_id)
 
     Example:
+        >>> from src.schemas.enums import Position
         >>> history = PlayerTeamHistory(
         ...     player_id=player.id,
         ...     team_id=team.id,
         ...     season_id=season.id,
         ...     jersey_number=23,
-        ...     position="SF"
+        ...     positions=[Position.SMALL_FORWARD]
         ... )
         >>> session.add(history)
         >>> session.commit()
@@ -191,7 +199,9 @@ class PlayerTeamHistory(UUIDMixin, TimestampMixin, Base):
         nullable=False,
     )
     jersey_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    position: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    positions: Mapped[list[Position]] = mapped_column(
+        PositionListType, default=list, nullable=False
+    )
 
     # Relationships
     player: Mapped["Player"] = relationship("Player", back_populates="team_histories")

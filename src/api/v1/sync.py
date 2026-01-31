@@ -26,9 +26,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.core import get_db
+from src.models.league import Season
 from src.schemas import (
     SeasonSyncCoverage,
     SyncCoverageResponse,
@@ -731,3 +733,568 @@ async def sync_rosters(
         started_at=sync_log.started_at,
         completed_at=sync_log.completed_at,
     )
+
+
+@router.get(
+    "/completeness",
+    summary="Get Sync Completeness Report",
+    description="Get overall sync completeness statistics for all data.",
+)
+def get_sync_completeness(
+    source: str | None = Query(
+        default=None,
+        description="Filter by data source (e.g., 'winner', 'euroleague')",
+    ),
+    db: Session = Depends(get_db),
+) -> dict:
+    """
+    Get overall sync completeness statistics.
+
+    Unlike /coverage which is per-season, this endpoint returns
+    aggregate completeness stats across all data, identifying what
+    needs to be resynced.
+
+    A record is incomplete when:
+    - Player: missing height, birth_date, or has empty positions
+    - Game: missing PlayerGameStats or PlayByPlayEvents
+    - Team: missing name or short_name
+
+    Args:
+        source: Optional filter by data source.
+        db: Database session (injected).
+
+    Returns:
+        Dict with completeness stats per entity type.
+
+    Example:
+        >>> response = client.get("/api/v1/sync/completeness?source=winner")
+        >>> data = response.json()
+        >>> print(f"Players: {data['players']['complete_pct']}% complete")
+    """
+    from src.sync.completeness import get_sync_completeness_report
+
+    return get_sync_completeness_report(db, source)
+
+
+@router.get(
+    "/incomplete/players",
+    summary="List Incomplete Players",
+    description="Get list of players missing bio data.",
+)
+def list_incomplete_players(
+    source: str | None = Query(
+        default=None,
+        description="Filter by data source",
+    ),
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=500,
+        description="Maximum number of players to return",
+    ),
+    db: Session = Depends(get_db),
+) -> dict:
+    """
+    Get players with missing bio data.
+
+    Returns players that are missing height, birth_date, or have
+    empty positions list. These players need to have their bio
+    data fetched from the source.
+
+    Args:
+        source: Optional filter by data source.
+        limit: Maximum number of results.
+        db: Database session (injected).
+
+    Returns:
+        Dict with count and list of incomplete player details.
+
+    Example:
+        >>> response = client.get("/api/v1/sync/incomplete/players?source=euroleague")
+        >>> data = response.json()
+        >>> for player in data["players"]:
+        ...     print(f"{player['name']}: missing {player['missing']}")
+    """
+    from src.sync.completeness import get_incomplete_players
+
+    incomplete = get_incomplete_players(db, source, limit)
+
+    players = []
+    for p in incomplete:
+        missing = []
+        if p.height_cm is None:
+            missing.append("height")
+        if p.birth_date is None:
+            missing.append("birth_date")
+        if not p.positions:
+            missing.append("positions")
+
+        players.append({
+            "id": str(p.id),
+            "name": p.full_name,
+            "external_ids": p.external_ids,
+            "missing": missing,
+        })
+
+    return {
+        "count": len(players),
+        "source": source,
+        "players": players,
+    }
+
+
+@router.get(
+    "/incomplete/games",
+    summary="List Incomplete Games",
+    description="Get list of games missing stats or play-by-play data.",
+)
+def list_incomplete_games(
+    source: str | None = Query(
+        default=None,
+        description="Filter by data source",
+    ),
+    missing: str = Query(
+        default="stats",
+        description="What data is missing: 'stats', 'pbp', or 'both'",
+    ),
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=500,
+        description="Maximum number of games to return",
+    ),
+    db: Session = Depends(get_db),
+) -> dict:
+    """
+    Get FINAL games with missing data.
+
+    Returns games that are marked as FINAL but are missing either
+    boxscore stats, play-by-play events, or both.
+
+    Args:
+        source: Optional filter by data source.
+        missing: What type of data to check for ('stats', 'pbp', 'both').
+        limit: Maximum number of results.
+        db: Database session (injected).
+
+    Returns:
+        Dict with count and list of incomplete game details.
+
+    Example:
+        >>> response = client.get("/api/v1/sync/incomplete/games?missing=both")
+    """
+    from src.sync.completeness import get_games_without_pbp, get_games_without_stats
+
+    games = []
+    game_ids_seen = set()
+
+    if missing in ("stats", "both"):
+        for g in get_games_without_stats(db, source, limit):
+            if g.id not in game_ids_seen:
+                games.append({
+                    "id": str(g.id),
+                    "external_ids": g.external_ids,
+                    "game_date": g.game_date.isoformat() if g.game_date else None,
+                    "missing": ["stats"],
+                })
+                game_ids_seen.add(g.id)
+
+    if missing in ("pbp", "both"):
+        for g in get_games_without_pbp(db, source, limit):
+            if g.id in game_ids_seen:
+                # Already in list, add 'pbp' to missing
+                for game in games:
+                    if game["id"] == str(g.id):
+                        game["missing"].append("pbp")
+                        break
+            else:
+                games.append({
+                    "id": str(g.id),
+                    "external_ids": g.external_ids,
+                    "game_date": g.game_date.isoformat() if g.game_date else None,
+                    "missing": ["pbp"],
+                })
+                game_ids_seen.add(g.id)
+
+    return {
+        "count": len(games),
+        "source": source,
+        "games": games[:limit],
+    }
+
+
+@router.post(
+    "/resync/players",
+    response_model=SyncLogResponse,
+    summary="Resync Incomplete Players",
+    description="Resync players with missing bio data from the source.",
+)
+async def resync_incomplete_players(
+    source: str = Query(
+        ...,
+        description="Data source to resync from (e.g., 'winner', 'euroleague')",
+    ),
+    season_id: str = Query(
+        ...,
+        description="Season identifier for roster lookup (e.g., '2024-25')",
+    ),
+    db: Session = Depends(get_db),
+) -> SyncLogResponse:
+    """
+    Resync players with missing bio data.
+
+    Fetches fresh player data from the source for players missing
+    height, birth_date, or positions. Uses roster data to match
+    players and update their bio information.
+
+    Args:
+        source: Data source name.
+        season_id: Season identifier for roster lookup.
+        db: Database session (injected).
+
+    Returns:
+        SyncLogResponse with resync operation results.
+
+    Raises:
+        HTTPException: If source is not found or season doesn't exist.
+
+    Example:
+        >>> response = client.post(
+        ...     "/api/v1/sync/resync/players",
+        ...     params={"source": "winner", "season_id": "2024-25"}
+        ... )
+    """
+    manager = _get_sync_manager(db)
+
+    # Find internal season by name
+    stmt = select(Season).where(Season.name == season_id)
+    season = db.scalars(stmt).first()
+
+    if not season:
+        raise HTTPException(status_code=404, detail=f"Season {season_id} not found")
+
+    try:
+        sync_log = await manager.sync_all_player_bios(
+            source=source,
+            season_id=season.id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Resync failed: {e}")
+
+    return SyncLogResponse(
+        id=sync_log.id,
+        source=sync_log.source,
+        entity_type=sync_log.entity_type,
+        status=SyncStatus(sync_log.status),
+        season_id=sync_log.season_id,
+        season_name=sync_log.season.name if sync_log.season else None,
+        game_id=sync_log.game_id,
+        records_processed=sync_log.records_processed,
+        records_created=sync_log.records_created,
+        records_updated=sync_log.records_updated,
+        records_skipped=sync_log.records_skipped,
+        error_message=sync_log.error_message,
+        error_details=sync_log.error_details,
+        started_at=sync_log.started_at,
+        completed_at=sync_log.completed_at,
+    )
+
+
+@router.post(
+    "/resync/games",
+    summary="Resync Incomplete Games",
+    description="Resync games with missing stats or play-by-play data.",
+)
+async def resync_incomplete_games(
+    source: str = Query(
+        ...,
+        description="Data source to resync from",
+    ),
+    include_stats: bool = Query(
+        default=True,
+        description="Resync games missing boxscore stats",
+    ),
+    include_pbp: bool = Query(
+        default=True,
+        description="Resync games missing play-by-play data",
+    ),
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=200,
+        description="Maximum number of games to resync",
+    ),
+    db: Session = Depends(get_db),
+) -> dict:
+    """
+    Resync games with missing data.
+
+    Fetches fresh game data from the source for games missing
+    boxscore stats or play-by-play events.
+
+    Args:
+        source: Data source name.
+        include_stats: Whether to resync missing boxscore stats.
+        include_pbp: Whether to resync missing play-by-play.
+        limit: Maximum number of games to resync.
+        db: Database session (injected).
+
+    Returns:
+        Dict with resync operation summary.
+
+    Example:
+        >>> response = client.post(
+        ...     "/api/v1/sync/resync/games",
+        ...     params={"source": "winner", "include_stats": True}
+        ... )
+    """
+    from src.sync.completeness import get_games_without_pbp, get_games_without_stats
+
+    manager = _get_sync_manager(db)
+    results = {
+        "source": source,
+        "games_processed": 0,
+        "games_synced": 0,
+        "games_failed": 0,
+        "errors": [],
+    }
+
+    # Get games that need resyncing
+    games_to_sync = set()
+
+    if include_stats:
+        for game in get_games_without_stats(db, source, limit):
+            games_to_sync.add(game)
+
+    if include_pbp:
+        for game in get_games_without_pbp(db, source, limit):
+            games_to_sync.add(game)
+
+    # Sync each game
+    for game in list(games_to_sync)[:limit]:
+        results["games_processed"] += 1
+        try:
+            # Get external ID for this source
+            external_id = game.external_ids.get(source)
+            if not external_id:
+                results["games_failed"] += 1
+                results["errors"].append(f"Game {game.id}: no {source} external_id")
+                continue
+
+            await manager.sync_game(
+                source=source,
+                game_external_id=external_id,
+                include_pbp=include_pbp,
+            )
+            results["games_synced"] += 1
+        except Exception as e:
+            results["games_failed"] += 1
+            results["errors"].append(f"Game {game.id}: {e!s}")
+
+    return results
+
+
+@router.post(
+    "/historical",
+    response_model=SyncLogResponse,
+    summary="Sync Historical Season",
+    description="Sync all games from a historical season.",
+)
+async def sync_historical_season(
+    source: str = Query(
+        ...,
+        description="Data source (e.g., 'winner', 'euroleague')",
+    ),
+    season: str = Query(
+        ...,
+        description="Season identifier (e.g., '2023-24')",
+    ),
+    include_boxscores: bool = Query(  # noqa: ARG001  # Reserved for future use
+        default=True,
+        description="Whether to sync boxscore data",
+    ),
+    include_pbp: bool = Query(
+        default=True,
+        description="Whether to sync play-by-play data",
+    ),
+    db: Session = Depends(get_db),
+) -> SyncLogResponse:
+    """
+    Sync all games from a historical season.
+
+    This endpoint syncs all final games from a specified season,
+    including boxscore and optionally play-by-play data. Use this
+    for initial setup or backfilling historical data.
+
+    Args:
+        source: Data source name.
+        season: Season identifier.
+        include_boxscores: Whether to sync boxscore data.
+        include_pbp: Whether to sync play-by-play data.
+        db: Database session (injected).
+
+    Returns:
+        SyncLogResponse with sync operation results.
+
+    Example:
+        >>> response = client.post(
+        ...     "/api/v1/sync/historical",
+        ...     params={"source": "euroleague", "season": "2023-24"}
+        ... )
+    """
+    manager = _get_sync_manager(db)
+
+    try:
+        # Use the existing sync_season method
+        sync_log = await manager.sync_season(
+            source=source,
+            season_external_id=season,
+            include_pbp=include_pbp,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Historical sync failed: {e}")
+
+    return SyncLogResponse(
+        id=sync_log.id,
+        source=sync_log.source,
+        entity_type=sync_log.entity_type,
+        status=SyncStatus(sync_log.status),
+        season_id=sync_log.season_id,
+        season_name=sync_log.season.name if sync_log.season else None,
+        game_id=sync_log.game_id,
+        records_processed=sync_log.records_processed,
+        records_created=sync_log.records_created,
+        records_updated=sync_log.records_updated,
+        records_skipped=sync_log.records_skipped,
+        error_message=sync_log.error_message,
+        error_details=sync_log.error_details,
+        started_at=sync_log.started_at,
+        completed_at=sync_log.completed_at,
+    )
+
+
+@router.post(
+    "/recent",
+    response_model=SyncLogResponse,
+    summary="Sync Recent Games",
+    description="Sync games from the last N days.",
+)
+async def sync_recent_games(
+    source: str = Query(
+        ...,
+        description="Data source (e.g., 'winner', 'euroleague')",
+    ),
+    days: int = Query(
+        default=7,
+        ge=1,
+        le=90,
+        description="Number of days to look back",
+    ),
+    include_pbp: bool = Query(
+        default=True,
+        description="Whether to sync play-by-play data",
+    ),
+    db: Session = Depends(get_db),
+) -> SyncLogResponse:
+    """
+    Sync games from the last N days.
+
+    This endpoint syncs recent games that haven't been synced yet.
+    Useful for daily sync jobs to keep data up-to-date.
+
+    Args:
+        source: Data source name.
+        days: Number of days to look back (default 7, max 90).
+        include_pbp: Whether to sync play-by-play data.
+        db: Database session (injected).
+
+    Returns:
+        SyncLogResponse with sync operation results.
+
+    Example:
+        >>> response = client.post(
+        ...     "/api/v1/sync/recent",
+        ...     params={"source": "winner", "days": 7}
+        ... )
+    """
+    manager = _get_sync_manager(db)
+
+    try:
+        sync_log = await manager.sync_recent(
+            source=source,
+            days=days,
+            include_pbp=include_pbp,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Recent sync failed: {e}")
+
+    return SyncLogResponse(
+        id=sync_log.id,
+        source=sync_log.source,
+        entity_type=sync_log.entity_type,
+        status=SyncStatus(sync_log.status),
+        season_id=sync_log.season_id,
+        season_name=sync_log.season.name if sync_log.season else None,
+        game_id=sync_log.game_id,
+        records_processed=sync_log.records_processed,
+        records_created=sync_log.records_created,
+        records_updated=sync_log.records_updated,
+        records_skipped=sync_log.records_skipped,
+        error_message=sync_log.error_message,
+        error_details=sync_log.error_details,
+        started_at=sync_log.started_at,
+        completed_at=sync_log.completed_at,
+    )
+
+
+@router.get(
+    "/available-seasons",
+    summary="Get Available Seasons",
+    description="Get list of available seasons for a data source.",
+)
+async def get_available_seasons(
+    source: str = Query(
+        ...,
+        description="Data source (e.g., 'winner', 'euroleague')",
+    ),
+    db: Session = Depends(get_db),
+) -> dict:
+    """
+    Get list of available seasons for sync.
+
+    Returns the season identifiers that can be used with
+    historical sync operations.
+
+    Args:
+        source: Data source name.
+        db: Database session (injected).
+
+    Returns:
+        Dict with list of available season names.
+
+    Example:
+        >>> response = client.get("/api/v1/sync/available-seasons?source=euroleague")
+        >>> data = response.json()
+        >>> print(data["seasons"])
+        ["2024-25", "2023-24", "2022-23"]
+    """
+    manager = _get_sync_manager(db)
+
+    try:
+        adapter = manager._get_adapter(source)
+        seasons = await adapter.get_available_seasons()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get seasons: {e}")
+
+    return {
+        "source": source,
+        "seasons": seasons,
+    }

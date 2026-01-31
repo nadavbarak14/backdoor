@@ -20,6 +20,7 @@ from src.models.league import League, Season
 from src.models.play_by_play import PlayByPlayEvent
 from src.models.player import Player, PlayerTeamHistory
 from src.models.team import Team
+from src.schemas.enums import Position
 from src.services.sync_coverage import SyncCoverageService
 
 
@@ -64,7 +65,7 @@ def players(test_db: Session) -> list[Player]:
         Player(
             first_name=f"Player{i}",
             last_name=f"Test{i}",
-            position="PG" if i % 2 == 0 else None,
+            positions=[Position.POINT_GUARD] if i % 2 == 0 else None,
             height_cm=180 if i % 3 == 0 else None,
         )
         for i in range(5)

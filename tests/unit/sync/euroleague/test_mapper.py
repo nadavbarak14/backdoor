@@ -9,6 +9,7 @@ from datetime import date
 
 import pytest
 
+from src.schemas.enums import GameStatus, Position
 from src.schemas.game import EventType
 from src.sync.euroleague.mapper import EuroleagueMapper
 from src.sync.types import (
@@ -191,7 +192,7 @@ class TestMapSeason:
 
         assert isinstance(season, RawSeason)
         assert season.name == "2024-25"  # Normalized format
-        assert season.external_id == "2024-25"  # Same as name
+        assert season.external_id == "E2024"  # Source-specific for API calls
         assert season.source_id == "E2024"  # Original Euroleague ID preserved
         assert season.start_date == date(2024, 10, 1)
         assert season.end_date == date(2025, 5, 31)
@@ -201,7 +202,7 @@ class TestMapSeason:
         season = mapper.map_season(2024, "U")
 
         assert season.name == "2024-25"  # Normalized format
-        assert season.external_id == "2024-25"
+        assert season.external_id == "U2024"  # Source-specific for API calls
         assert season.source_id == "U2024"  # Original EuroCup ID preserved
 
     def test_season_source_id_for_external_reference(self, mapper):
@@ -256,7 +257,7 @@ class TestMapGame:
         assert game.away_team_external_id == "PAN"
         assert game.home_score == 77
         assert game.away_score == 87
-        assert game.status == "final"
+        assert game.status == GameStatus.FINAL
 
     def test_scheduled_game(self, mapper):
         """Test mapping a scheduled game."""
@@ -270,7 +271,7 @@ class TestMapGame:
         }
         game = mapper.map_game(data, 2024, "E")
 
-        assert game.status == "scheduled"
+        assert game.status == GameStatus.SCHEDULED
         assert game.home_score is None
         assert game.away_score is None
 
@@ -371,7 +372,7 @@ class TestMapPbpEvent:
             "PLAYTYPE": "2FGM",
             "PERIOD": 1,
             "MARKERTIME": "09:45",
-            "TEAM": "BER",
+            "CODETEAM": "BER",
             "PLAYERNAME": "MATTISSECK, JONAS",
         }
         event = mapper.map_pbp_event(data, 1)
@@ -390,7 +391,7 @@ class TestMapPbpEvent:
             "PLAYTYPE": "3FGA",
             "PERIOD": 2,
             "MARKERTIME": "05:30",
-            "TEAM": "PAN",
+            "CODETEAM": "PAN",
         }
         event = mapper.map_pbp_event(data, 2)
 
@@ -494,7 +495,7 @@ class TestMapPlayerInfo:
         assert info.last_name == "EDWARDS"
         assert info.height_cm == 180
         assert info.birth_date == date(1998, 3, 12)
-        assert info.position == "Guard"
+        assert info.positions == [Position.GUARD]
 
     def test_multi_part_last_name(self, mapper):
         """Test name with only last name provided."""
@@ -520,4 +521,4 @@ class TestMapPlayerFromRoster:
         assert info.external_id == "P007025"
         assert info.first_name == "JONAS"
         assert info.last_name == "MATTISSECK"
-        assert info.position == "Guard"
+        assert info.positions == [Position.GUARD]

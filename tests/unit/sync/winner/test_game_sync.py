@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from src.models.game import Game
 from src.models.league import League, Season
 from src.models.team import Team
+from src.schemas.enums import GameStatus
 from src.sync.deduplication import PlayerDeduplicator, TeamMatcher
 from src.sync.entities import GameSyncer
 from src.sync.types import RawGame
@@ -113,7 +114,7 @@ def raw_game_from_api() -> RawGame:
         home_team_external_id="1109",
         away_team_external_id="1112",
         game_date=datetime(2025, 9, 21, 21, 5, tzinfo=UTC),
-        status="final",
+        status=GameStatus.FINAL,
         home_score=79,
         away_score=84,
     )
@@ -325,7 +326,7 @@ class TestSyncGameSkipsDuplicate:
             home_team_external_id="1109",
             away_team_external_id="1112",
             game_date=datetime(2025, 9, 21, tzinfo=UTC),
-            status="final",
+            status=GameStatus.FINAL,
             home_score=79,
             away_score=84,
         )
@@ -334,7 +335,7 @@ class TestSyncGameSkipsDuplicate:
             home_team_external_id="1112",
             away_team_external_id="1109",
             game_date=datetime(2025, 10, 12, tzinfo=UTC),
-            status="final",
+            status=GameStatus.FINAL,
             home_score=90,
             away_score=88,
         )
@@ -392,7 +393,7 @@ class TestSyncGameResolvesTeams:
             home_team_external_id="9999",  # Doesn't exist
             away_team_external_id="1112",
             game_date=datetime(2025, 9, 21, tzinfo=UTC),
-            status="final",
+            status=GameStatus.FINAL,
         )
 
         with pytest.raises(ValueError, match="Teams not found"):
@@ -410,7 +411,7 @@ class TestSyncGameResolvesTeams:
             home_team_external_id="1109",
             away_team_external_id="9999",  # Doesn't exist
             game_date=datetime(2025, 9, 21, tzinfo=UTC),
-            status="final",
+            status=GameStatus.FINAL,
         )
 
         with pytest.raises(ValueError, match="Teams not found"):
@@ -428,7 +429,7 @@ class TestSyncGameResolvesTeams:
             home_team_external_id="9998",
             away_team_external_id="9999",
             game_date=datetime(2025, 9, 21, tzinfo=UTC),
-            status="final",
+            status=GameStatus.FINAL,
         )
 
         with pytest.raises(ValueError, match="Teams not found"):
@@ -451,7 +452,7 @@ class TestSyncGameWithScheduledStatus:
             home_team_external_id="1109",
             away_team_external_id="1112",
             game_date=datetime(2026, 3, 15, 20, 0, tzinfo=UTC),
-            status="scheduled",
+            status=GameStatus.SCHEDULED,
             home_score=None,
             away_score=None,
         )

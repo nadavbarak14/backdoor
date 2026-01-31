@@ -16,7 +16,8 @@ from src.models.league import League, Season
 from src.models.player import Player
 from src.models.team import Team
 from src.schemas.analytics import ClutchFilter
-from src.schemas.game import GameCreate, GameStatus
+from src.schemas.enums import GameStatus
+from src.schemas.game import GameCreate
 from src.schemas.league import LeagueCreate, SeasonCreate
 from src.schemas.player import PlayerCreate
 from src.schemas.team import TeamCreate

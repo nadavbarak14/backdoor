@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from src.models.league import League, Season
 from src.models.player import Player, PlayerTeamHistory
 from src.models.team import Team
+from src.schemas.enums import Position
 from src.services.chat_tools import (
     _resolve_team_by_name,
     search_players,
@@ -78,7 +79,7 @@ class TestSearchTools:
                 id=uuid4(),
                 first_name="Stephen",
                 last_name="Curry",
-                position="PG",
+                positions=[Position.POINT_GUARD],
                 nationality="USA",
                 external_ids={},
             ),
@@ -86,7 +87,7 @@ class TestSearchTools:
                 id=uuid4(),
                 first_name="Seth",
                 last_name="Curry",
-                position="SG",
+                positions=[Position.SHOOTING_GUARD],
                 nationality="USA",
                 external_ids={},
             ),
@@ -94,7 +95,7 @@ class TestSearchTools:
                 id=uuid4(),
                 first_name="LeBron",
                 last_name="James",
-                position="SF",
+                positions=[Position.SMALL_FORWARD],
                 nationality="USA",
                 external_ids={},
             ),
@@ -197,7 +198,7 @@ class TestOutputFormatting:
             id=uuid4(),
             first_name="Test",
             last_name="Player",
-            position="PG",
+            positions=[Position.POINT_GUARD],
             external_ids={},
         )
         test_db.add(player)
@@ -212,7 +213,7 @@ class TestOutputFormatting:
         assert isinstance(data["players"], list)
         assert data["players"][0]["name"] == "Test Player"
         assert "id" in data["players"][0]
-        assert "position" in data["players"][0]
+        assert "positions" in data["players"][0]
         assert "team" in data["players"][0]
 
     def test_search_teams_returns_valid_json(self, test_db: Session):
@@ -341,14 +342,14 @@ class TestSearchPlayersWithTeamFilter:
             id=uuid4(),
             first_name="Stephen",
             last_name="Curry",
-            position="PG",
+            positions=[Position.POINT_GUARD],
             external_ids={},
         )
         player2 = Player(
             id=uuid4(),
             first_name="LeBron",
             last_name="James",
-            position="SF",
+            positions=[Position.SMALL_FORWARD],
             external_ids={},
         )
         test_db.add(player1)
@@ -361,14 +362,14 @@ class TestSearchPlayersWithTeamFilter:
             team_id=team1.id,
             season_id=season.id,
             jersey_number=30,
-            position="PG",
+            positions=[Position.POINT_GUARD],
         )
         history2 = PlayerTeamHistory(
             player_id=player2.id,
             team_id=team2.id,
             season_id=season.id,
             jersey_number=23,
-            position="SF",
+            positions=[Position.SMALL_FORWARD],
         )
         test_db.add(history1)
         test_db.add(history2)

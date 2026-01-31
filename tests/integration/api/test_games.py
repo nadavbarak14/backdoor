@@ -20,6 +20,7 @@ from src.schemas import (
     SeasonCreate,
     TeamCreate,
 )
+from src.schemas.enums import Position
 from src.services import (
     GameService,
     LeagueService,
@@ -81,21 +82,21 @@ def _create_test_game_with_stats(
         PlayerCreate(
             first_name="LeBron",
             last_name="James",
-            position="SF",
+            positions=[Position.SMALL_FORWARD],
         )
     )
     player2 = player_service.create_player(
         PlayerCreate(
             first_name="Anthony",
             last_name="Davis",
-            position="PF",
+            positions=[Position.POWER_FORWARD],
         )
     )
     player3 = player_service.create_player(
         PlayerCreate(
             first_name="Jayson",
             last_name="Tatum",
-            position="SF",
+            positions=[Position.SMALL_FORWARD],
         )
     )
 

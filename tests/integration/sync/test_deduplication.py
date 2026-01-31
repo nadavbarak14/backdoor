@@ -19,6 +19,7 @@ from sqlalchemy import func, select
 from src.models.league import League, Season
 from src.models.player import Player, PlayerTeamHistory
 from src.models.team import Team, TeamSeason
+from src.schemas.enums import Position
 from src.sync.deduplication import (
     PlayerDeduplicator,
     TeamMatcher,
@@ -34,7 +35,7 @@ MACCABI_PLAYERS = {
             "last_name": "Wilbekin",
             "birth_date": date(1993, 7, 19),
             "height_cm": 185,
-            "position": "PG",
+            "positions": [Position.POINT_GUARD],
         },
         {
             "external_id": "w-baldwin",
@@ -42,7 +43,7 @@ MACCABI_PLAYERS = {
             "last_name": "Baldwin",
             "birth_date": date(1996, 4, 29),
             "height_cm": 193,
-            "position": "PG",
+            "positions": [Position.POINT_GUARD],
         },
         {
             "external_id": "w-evans",
@@ -50,7 +51,7 @@ MACCABI_PLAYERS = {
             "last_name": "Hoard",  # Changed teams mid-season
             "birth_date": date(1999, 3, 12),
             "height_cm": 206,
-            "position": "PF",
+            "positions": [Position.POWER_FORWARD],
         },
         {
             "external_id": "w-sorkin",
@@ -58,7 +59,7 @@ MACCABI_PLAYERS = {
             "last_name": "Sorkin",
             "birth_date": date(1996, 8, 17),
             "height_cm": 208,
-            "position": "C",
+            "positions": [Position.CENTER],
         },
         {
             "external_id": "w-randolph",
@@ -66,7 +67,7 @@ MACCABI_PLAYERS = {
             "last_name": "Randolph",
             "birth_date": date(1993, 5, 6),
             "height_cm": 196,
-            "position": "SG",
+            "positions": [Position.SHOOTING_GUARD],
         },
     ],
     "euroleague": [
@@ -76,7 +77,7 @@ MACCABI_PLAYERS = {
             "last_name": "Wilbekin",
             "birth_date": date(1993, 7, 19),
             "height_cm": 185,
-            "position": "PG",
+            "positions": [Position.POINT_GUARD],
         },
         {
             "external_id": "EL-WBD",
@@ -84,7 +85,7 @@ MACCABI_PLAYERS = {
             "last_name": "Baldwin IV",  # Euroleague uses full suffix
             "birth_date": date(1996, 4, 29),
             "height_cm": 193,
-            "position": "G",  # Different position notation
+            "positions": [Position.GUARD],  # Different position notation
         },
         {
             "external_id": "EL-RSK",
@@ -92,7 +93,7 @@ MACCABI_PLAYERS = {
             "last_name": "Sorkin",
             "birth_date": date(1996, 8, 17),
             "height_cm": 208,
-            "position": "C",
+            "positions": [Position.CENTER],
         },
         {
             "external_id": "EL-LRD",
@@ -100,7 +101,7 @@ MACCABI_PLAYERS = {
             "last_name": "Randolph",
             "birth_date": date(1993, 5, 6),
             "height_cm": 196,
-            "position": "SG",
+            "positions": [Position.SHOOTING_GUARD],
         },
         {
             "external_id": "EL-NEW",
@@ -108,7 +109,7 @@ MACCABI_PLAYERS = {
             "last_name": "Brown",  # Euroleague-only player
             "birth_date": date(1990, 8, 26),
             "height_cm": 196,
-            "position": "PG",
+            "positions": [Position.POINT_GUARD],
         },
     ],
 }
@@ -419,7 +420,7 @@ class TestPlayerDeduplication:
                 last_name="Wilbekin",
                 birth_date=date(1993, 7, 19),
                 height_cm=185,
-                position="PG",
+                positions=[Position.POINT_GUARD],
             ),
             team_id=maccabi.id,
         )
@@ -430,7 +431,7 @@ class TestPlayerDeduplication:
             team_id=maccabi.id,
             season_id=winner_season.id,
             jersey_number=1,
-            position="PG",
+            positions=[Position.POINT_GUARD],
         )
         test_db.add(history)
         test_db.commit()
@@ -445,7 +446,7 @@ class TestPlayerDeduplication:
                 last_name="Wilbekin",
                 birth_date=date(1993, 7, 19),
                 height_cm=185,
-                position="PG",
+                positions=[Position.POINT_GUARD],
             ),
             team_id=maccabi.id,
         )
@@ -484,7 +485,7 @@ class TestPlayerDeduplication:
                 last_name="Baldwin",
                 birth_date=date(1996, 4, 29),
                 height_cm=193,
-                position="PG",
+                positions=[Position.POINT_GUARD],
             ),
             team_id=maccabi.id,
         )
@@ -507,7 +508,7 @@ class TestPlayerDeduplication:
                 last_name="Baldwin IV",  # Different last name
                 birth_date=date(1996, 4, 29),  # Same birth date
                 height_cm=193,
-                position="G",
+                positions=[Position.GUARD],
             ),
             team_id=maccabi.id,
         )
@@ -646,7 +647,7 @@ class TestPlayerDeduplication:
                 last_name="Transfer",
                 birth_date=date(1995, 3, 15),
                 height_cm=200,
-                position="SF",
+                positions=[Position.SMALL_FORWARD],
             ),
             team_id=hapoel.id,
         )
@@ -670,7 +671,7 @@ class TestPlayerDeduplication:
                 last_name="Transfer",
                 birth_date=date(1995, 3, 15),
                 height_cm=200,
-                position="SF",
+                positions=[Position.SMALL_FORWARD],
             ),
             team_id=maccabi.id,  # Different team!
         )

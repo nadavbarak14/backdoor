@@ -25,6 +25,7 @@ from src.models import (
     Season,
     Team,
 )
+from src.schemas.enums import Position
 
 
 @pytest.fixture(scope="function")
@@ -117,7 +118,7 @@ def sample_player(db_session: Session) -> Player:
         birth_date=date(1984, 12, 30),
         nationality="USA",
         height_cm=206,
-        position="SF",
+        positions=[Position.SMALL_FORWARD],
     )
     db_session.add(player)
     db_session.commit()

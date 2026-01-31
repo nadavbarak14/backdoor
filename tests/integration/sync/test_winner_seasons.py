@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from src.schemas.enums import GameStatus
 from src.sync.winner.mapper import WinnerMapper
 
 FIXTURES_DIR = Path(__file__).parent.parent.parent / "fixtures" / "winner"
@@ -304,7 +305,7 @@ class TestScoreData:
             game = mapper.map_game(game_data)
 
             # Completed games should have scores
-            if game.status == "final":
+            if game.status == GameStatus.FINAL:
                 assert game.home_score is not None
                 assert game.away_score is not None
                 assert game.home_score >= 0
